@@ -44,6 +44,7 @@ export function indexRecordToSummary(
     | 'thinkingLevel'
     | 'knowledgeBaseIds'
     | 'disabledMcpServerIds'
+    | 'systemPromptPresetId'
     | 'storage'
     | 'backend'
   >,
@@ -67,6 +68,9 @@ export function indexRecordToSummary(
   }
   if (record.disabledMcpServerIds && record.disabledMcpServerIds.length > 0) {
     summary.disabledMcpServerIds = record.disabledMcpServerIds;
+  }
+  if (record.systemPromptPresetId) {
+    summary.systemPromptPresetId = record.systemPromptPresetId;
   }
   if (record.lastPreview) summary.lastPreview = record.lastPreview;
   if (record.parentSessionId) summary.parentSessionId = record.parentSessionId;

@@ -98,6 +98,29 @@ const ENGLISH = {
     'draft-durability': 'Drafts durable',
     'relaunch-veto': 'Views allow reload',
   },
+  motionSection: 'Motion & degradation policy',
+  motionLiveLabel: 'Live status animations',
+  motionLiveSummary: (count: number, parked: boolean) =>
+    `${count} active · ${parked ? 'paused (window hidden)' : 'whitelisted'}`,
+  motionPolicyNote:
+    'Core status animations (ui-anim-*) stay whitelisted at moderate and critical pressure and only pause while the window is hidden. WebKit does not report per-element IOSurface bytes.',
+  motionPolicyItems: {
+    coreMotion: {
+      label: 'Core status icon (ui-anim-*)',
+      active: (count: number) => `Whitelisted · active (${count} mounted)`,
+      paused: (count: number) => `Paused · window hidden (${count} mounted)`,
+    },
+    shimmer: {
+      label: 'Status text shimmer (wb-shimmer)',
+      active: 'Active',
+      degraded: 'Paused (main-thread savings)',
+    },
+    glassAndMasks: {
+      label: 'Glass blur & masks',
+      active: 'Full effects',
+      degraded: 'Stripped (IOSurface reclaim)',
+    },
+  },
 };
 
 const CHINESE: typeof ENGLISH = {
@@ -197,6 +220,29 @@ const CHINESE: typeof ENGLISH = {
     'draft-state': '草稿状态可读 · Draft state',
     'draft-durability': '草稿已保存 · Durable',
     'relaunch-veto': '视图允许重载 · No veto',
+  },
+  motionSection: '动效与降级策略 Motion policy',
+  motionLiveLabel: '动态状态图标 Live motion',
+  motionLiveSummary: (count: number, parked: boolean) =>
+    `${count} 项 · ${parked ? '窗口隐藏已暂停' : '白名单保活（高内存不降级）'}`,
+  motionPolicyNote:
+    '核心状态图标（ui-anim-*）在占用偏高（768 MiB）与过高（1536 MiB）下保持白名单保活，仅窗口长期隐藏时暂停；WebKit 不提供按单个 CSS 组件拆分的 IOSurface 字节数。',
+  motionPolicyItems: {
+    coreMotion: {
+      label: '核心状态图标 (ui-anim-*)',
+      active: (count: number) => `白名单保活 · 运行中（${count} 个）`,
+      paused: (count: number) => `已暂停 · 窗口隐藏（${count} 个）`,
+    },
+    shimmer: {
+      label: '文字流光 (wb-shimmer)',
+      active: '运行中',
+      degraded: '已降级（节省主线程重绘）',
+    },
+    glassAndMasks: {
+      label: '毛玻璃与遮罩纹理',
+      active: '完整渲染',
+      degraded: '已剥离（释放 IOSurface 显存）',
+    },
   },
 };
 

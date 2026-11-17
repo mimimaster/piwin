@@ -72,6 +72,7 @@ import {
   normalizeShellConfig,
   normalizeSkillsConfig,
 } from './config-store-tools.js';
+import { normalizeSystemPromptsConfig } from './config-store-system-prompts.js';
 import { normalizeWebConfig } from './config-store-web.js';
 import { asPositiveNumber, asRecord, asStringArray } from './config-store-primitives.js';
 
@@ -242,6 +243,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
     record.prompts,
     defaults.prompts ?? createDefaultPromptsConfig(),
   );
+  const systemPrompts = normalizeSystemPromptsConfig(record.systemPrompts);
+  if (systemPrompts) {
+    normalized.systemPrompts = systemPrompts;
+  }
   normalized.compaction = normalizeCompactionConfig(
     record.compaction,
     defaults.compaction ?? createDefaultCompactionConfig(),

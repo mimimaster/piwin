@@ -11,6 +11,7 @@ import { registerWarmCache } from '../session/session-warm-cache.js';
 import type { ComposerReclaimInput } from '../composer/composer-draft-reclaim.js';
 import { sessionRenderResources } from '../session/session-render-resources.js';
 import { globalMemoryGovernor } from './memory-governor.js';
+import { resetLiveMotionMetrics, trackLiveMotionMount } from '../run-activity/live-motion-metrics.js';
 import { recordReclaimEpisode, resetReclaimLedger } from './reclaim-ledger.js';
 
 declare global {
@@ -59,6 +60,7 @@ afterEach(async () => {
   }
   sessionRenderResources.reset();
   resetReclaimLedger();
+  resetLiveMotionMetrics();
   globalMemoryGovernor.reset();
 });
 
@@ -271,6 +273,43 @@ describe('MemoryDiagnosticsPanel', () => {
       );
     } finally {
       unregister();
+    }
+  });
+
+  it('shows live whitelisted status animation count and degradation policy matrix even at critical pressure', async () => {
+    const releaseMotion = trackLiveMotionMount('radial-bellow');
+    try {
+      globalMemoryGovernor.setLevel('critical');
+      const container = await renderPanel({
+        locale: 'zh-CN',
+        refreshMs: 0,
+        getNativeSnapshot: () => Promise.resolve(NATIVE),
+      });
+
+      expect(text(container.querySelector('[data-testid="memory-diag-live-motion"]'))).toContain(
+        '1 项 · 白名单保活',
+      );
+
+      const toggle = container.querySelector<HTMLButtonElement>(
+        '[data-testid="memory-diag-technical-detail-toggle"]',
+      );
+      await act(async () => {
+        toggle?.click();
+      });
+
+      const policySection = container.querySelector('[data-testid="memory-diag-motion-policy"]');
+      expect(policySection).not.toBeNull();
+      expect(text(container.querySelector('[data-testid="memory-diag-policy-core-motion"]'))).toContain(
+        '白名单保活 · 运行中（1 个）',
+      );
+      expect(text(container.querySelector('[data-testid="memory-diag-policy-text-shimmer"]'))).toContain(
+        '已降级',
+      );
+      expect(text(container.querySelector('[data-testid="memory-diag-policy-glass-and-masks"]'))).toContain(
+        '已剥离',
+      );
+    } finally {
+      releaseMotion();
     }
   });
 });

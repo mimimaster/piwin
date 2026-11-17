@@ -6,14 +6,16 @@ import {
   mergeAgentModeIntoPrompt,
   mergeOrchestrationSchemeIntoPrompt,
   orchestrationSchemeInjectionKey,
+  readBuiltinSystemPromptValue,
+  resolveActiveSystemPromptSelection,
   resolveOrchestrationScheme,
   resolvePermissionPreset,
   resolvePromptPermissionMode,
 } from '@piwin/contracts';
-import { PlanMutationError, loadSessionPlan, updateSessionPlan } from '@piwin/session';
+import { getSessionRecord, PlanMutationError, loadSessionPlan, updateSessionPlan } from '@piwin/session';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import type { ModelPromptAssembly } from '../model-context-assembly.js';
-import { getPiwinRoot, getPiwinSessionPlanPath } from '../paths.js';
+import { getPiwinRoot, getPiwinSessionIndexPath, getPiwinSessionPlanPath } from '../paths.js';
 import { listKnownChatModelKeys } from '../provider-helpers.js';
 import { resolveExplicitPlanExecutionMode } from './plan-execution-intent.js';
 import { throwIfPromptPreparationAborted } from './prompt-preparation-abort.js';
@@ -126,15 +128,47 @@ export async function applyAgentPromptContext(
   // Agent mode operating contract: model-facing only. Transcript already
   // recorded the original command.input (user text only) so naming stays clean.
   if (command.input.agentMode) {
-    const before = promptInput.text;
-    promptInput.text = mergeAgentModeIntoPrompt(command.input.agentMode, promptInput.text);
-    if (promptInput.text !== before) {
-      assembly.add({
-        kind: 'agent-mode',
-        label: `Agent mode ${command.input.agentMode}`,
-        trustOrigin: 'piwin',
-        text: promptInput.text.slice(0, Math.max(0, promptInput.text.length - before.length)),
+    let skipAgentTurnPreamble = false;
+    let overrides: { agent?: string; goal?: string } | undefined;
+    try {
+      const config = await context.loadConfig();
+      const sessionRecord = await getSessionRecord(
+        getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
+        command.sessionId,
+      ).catch(() => null);
+      const activeSelection = resolveActiveSystemPromptSelection({
+        config,
+        projectPath: sessionRecord?.projectPath,
+        sessionPresetId: sessionRecord?.systemPromptPresetId,
       });
+      skipAgentTurnPreamble =
+        command.input.agentMode === 'agent' && activeSelection.preset?.mode === 'replace';
+      const agentDefault = readBuiltinSystemPromptValue(config, 'agent.default');
+      const agentGoal = readBuiltinSystemPromptValue(config, 'agent.goal');
+      if (agentDefault.isOverridden || agentGoal.isOverridden) {
+        overrides = {
+          ...(agentDefault.isOverridden ? { agent: agentDefault.effectiveContent } : {}),
+          ...(agentGoal.isOverridden ? { goal: agentGoal.effectiveContent } : {}),
+        };
+      }
+    } catch {
+      // Fall back to default built-in preambles if config cannot be loaded.
+    }
+    if (!skipAgentTurnPreamble) {
+      const before = promptInput.text;
+      promptInput.text = mergeAgentModeIntoPrompt(
+        command.input.agentMode,
+        promptInput.text,
+        overrides,
+      );
+      if (promptInput.text !== before) {
+        assembly.add({
+          kind: 'agent-mode',
+          label: `Agent mode ${command.input.agentMode}`,
+          trustOrigin: 'piwin',
+          text: promptInput.text.slice(0, Math.max(0, promptInput.text.length - before.length)),
+        });
+      }
     }
   }
 

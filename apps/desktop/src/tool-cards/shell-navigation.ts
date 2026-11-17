@@ -22,6 +22,7 @@ export type ShellSettingsSection =
   | 'code-search'
   | 'models'
   | 'oauth'
+  | 'system-prompts'
   | 'hooks'
   | 'vision'
   | 'pets'

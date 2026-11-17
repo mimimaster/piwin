@@ -448,6 +448,14 @@ export type SessionLiveContext = {
     disabledServerIds: readonly string[] | undefined,
   ) => boolean;
   /**
+   * True when the active generation froze a different session system-prompt
+   * preset id than the session record now holds (`session/set-composer-profile`).
+   */
+  sessionSystemPromptChanged?: (
+    sessionId: string,
+    systemPromptPresetId: string | undefined,
+  ) => boolean;
+  /**
    * True when a paired device has offered a device tool (Apple Health) since
    * the active generation froze its tool surface without it.
    */

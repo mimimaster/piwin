@@ -50,6 +50,8 @@ export type SessionIndexRecord = {
    * freehand (`off`); the Host never stores `off` itself.
    */
   orchestrationSchemeId?: string;
+  /** Session-level custom system prompt preset id (`__builtin__` opts out of defaults). */
+  systemPromptPresetId?: string;
   /** Composer "Delegation disabled" toggle. Absent means delegation is available. */
   delegationDisabled?: boolean;
   /** Knowledge bases mounted on this session. Projected to `SessionSummary.knowledgeBaseIds`. */

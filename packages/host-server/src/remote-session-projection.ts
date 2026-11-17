@@ -173,6 +173,7 @@ export function projectSessionResume(
   }
   // Without these a remote shell paints its own draft scheme over the conversation's.
   copyBoundedString(record ?? {}, 'orchestrationSchemeId', resume, 'orchestrationSchemeId', 256);
+  copyBoundedString(record ?? {}, 'systemPromptPresetId', resume, 'systemPromptPresetId', 128);
   if (record?.delegationDisabled === true) {
     resume.delegationDisabled = true;
   }

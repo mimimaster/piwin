@@ -234,10 +234,30 @@ describe('Desktop renderer resource boundaries', () => {
       expect(ruleDeclarations(degradation, `${prefix} .action-marquee-text`)).toContain(
         'animation: none !important',
       );
-      expect(ruleDeclarations(degradation, `${prefix} [class*='ui-anim-']`)).toContain(
-        'animation: none !important',
+      expect(ruleDeclarations(degradation, `${prefix} .turn-model-icon`)).toContain(
+        'filter: none !important',
+      );
+      expect(ruleDeclarations(degradation, `${prefix} .lamp::after`)).toContain(
+        'display: none !important',
+      );
+      expect(ruleDeclarations(degradation, `${prefix} .sidebar`)).toContain(
+        'backface-visibility: visible !important',
       );
     }
+
+    // Core status indicators (`ui-anim-*`, e.g. AgentLocator / RadialBellow)
+    // are whitelisted under moderate & critical pressure so live run feedback
+    // never drops out while visible; they pause only when hidden (parked).
+    for (const pressurePrefix of [
+      "html[data-memory-pressure='moderate']",
+      "html[data-memory-pressure='critical']",
+    ]) {
+      expect(degradation).not.toContain(`${pressurePrefix} [class*='ui-anim-']`);
+      expect(degradation).not.toContain(`${pressurePrefix} .ui-anim-radial-bellow__vane`);
+    }
+    expect(ruleDeclarations(degradation, "html[data-memory-parked] [class*='ui-anim-']")).toContain(
+      'animation: none !important',
+    );
   });
 
   it('keeps settings CSS and feature modules out of the cold main entries', () => {

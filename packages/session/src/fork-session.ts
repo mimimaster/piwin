@@ -220,6 +220,9 @@ export async function forkProductSession(
   if (sourceRecord.orchestrationSchemeId) {
     record.orchestrationSchemeId = sourceRecord.orchestrationSchemeId;
   }
+  if (sourceRecord.systemPromptPresetId) {
+    record.systemPromptPresetId = sourceRecord.systemPromptPresetId;
+  }
   if (sourceRecord.delegationDisabled === true) {
     record.delegationDisabled = true;
   }

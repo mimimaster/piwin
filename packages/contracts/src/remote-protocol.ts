@@ -521,6 +521,7 @@ export type RemoteSessionResumeData = {
   thinkingLevel?: string;
   /** Mirrors `SessionResumeData`: the conversation's own scheme; absent means freehand. */
   orchestrationSchemeId?: string;
+  systemPromptPresetId?: string;
   delegationDisabled?: boolean;
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
   contextSnapshot: import('./context-telemetry.js').SessionContextSnapshot;

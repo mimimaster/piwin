@@ -14,7 +14,12 @@ import type {
   PromptInput,
   VisionDelegationConfig,
 } from '@piwin/contracts';
-import { formatTextModelImageInjection, isSubscriptionOauthProviderId, isSubscriptionProvider } from '@piwin/contracts';
+import {
+  DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
+  formatTextModelImageInjection,
+  isSubscriptionOauthProviderId,
+  isSubscriptionProvider,
+} from '@piwin/contracts';
 import { completeModelVision } from '@piwin/agent-host';
 import { getPiwinPiAgentDir, getPiwinRoot } from './paths.js';
 import { subscriptionExtraHeaders } from './subscription-media-request.js';
@@ -23,8 +28,7 @@ import { findEnabledProvider, resolveDefaultModelRef } from './provider-helpers.
 import { buildProviderRequestHeaders } from './provider-model-discovery.js';
 import { resolveProviderChatEndpoint } from './provider-endpoint.js';
 
-export const DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT =
-  'Describe this image factually for a coding agent. Transcribe visible text, code, logs, and error messages verbatim, and summarize key UI layout or diagram relationships.';
+export { DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT };
 
 export const DEFAULT_VISION_DELEGATION_TIMEOUT_MS = 30_000;
 

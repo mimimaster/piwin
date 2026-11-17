@@ -2,7 +2,12 @@ import type { ReactElement } from 'react';
 import type { DesktopLocale } from '../i18n/desktop-locale.js';
 import type { RendererRecoveryCheck } from '../platform/renderer-recovery.js';
 import { MemoryDiagNote, MemoryDiagRow } from './memory-diagnostics-parts.js';
-import { describeEpisodeOutcome, formatBytes, type MemoryDiagnosticsPanelData } from './memory-diagnostics-format.js';
+import {
+  describeEpisodeOutcome,
+  describeVisualDegradationPolicy,
+  formatBytes,
+  type MemoryDiagnosticsPanelData,
+} from './memory-diagnostics-format.js';
 import { memoryDiagnosticsCopy } from './memory-diagnostics-copy.js';
 
 export function MemoryDiagnosticsDetails(props: {
@@ -15,6 +20,7 @@ export function MemoryDiagnosticsDetails(props: {
   const sample = data?.native?.samples.at(-1);
   const episode = data?.episode;
   const time = sample?.timestampMs === undefined ? undefined : new Date(sample.timestampMs);
+  const motionPolicy = describeVisualDegradationPolicy(data, locale);
   return (
     <div className="memory-diag-technical">
       <section>
@@ -43,6 +49,19 @@ export function MemoryDiagnosticsDetails(props: {
           <MemoryDiagNote>{copy.estimateHint}</MemoryDiagNote>
         </section>
       )}
+      <section data-testid="memory-diag-motion-policy">
+        <h3>{copy.motionSection}</h3>
+        {motionPolicy.map((entry) => (
+          <MemoryDiagRow
+            key={entry.id}
+            label={entry.label}
+            testId={`memory-diag-policy-${entry.id}`}
+          >
+            {entry.status}
+          </MemoryDiagRow>
+        ))}
+        <MemoryDiagNote>{copy.motionPolicyNote}</MemoryDiagNote>
+      </section>
       <section data-testid="memory-diag-recovery-detail">
         <h3>{copy.checks}</h3>
         {props.checks.map((check) => (

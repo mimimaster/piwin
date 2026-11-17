@@ -171,6 +171,10 @@ export async function composeSessionHostToolsForSession(
     `${sessionId}\u0000${runtimeGenerationId}`,
     sessionMcpOverrideKey(sessionDisabledMcpServerIds),
   );
+  deps.generationSessionSystemPromptPresetIds.set(
+    `${sessionId}\u0000${runtimeGenerationId}`,
+    sessionRecord?.systemPromptPresetId ?? '',
+  );
   // Remembered so the next turn can tell that a device has since offered
   // Apple Health and this generation's frozen tool surface predates it.
   if (deps.options.clientToolExecution !== undefined && !childContext) {
@@ -474,6 +478,11 @@ export function clearGenerationToolSurfaces(deps: HostRuntimeKernel, sessionId: 
       deps.generationSessionMcpOverrideKeys.delete(key);
     }
   }
+  for (const key of deps.generationSessionSystemPromptPresetIds.keys()) {
+    if (key.startsWith(prefix)) {
+      deps.generationSessionSystemPromptPresetIds.delete(key);
+    }
+  }
   for (const key of deps.generationDeviceHealthOffered.keys()) {
     if (key.startsWith(prefix)) {
       deps.generationDeviceHealthOffered.delete(key);
@@ -496,6 +505,7 @@ export function clearGenerationToolSurface(
   deps.generationMcpConfigs.delete(key);
   deps.generationMcpSnapshots.delete(key);
   deps.generationSessionMcpOverrideKeys.delete(key);
+  deps.generationSessionSystemPromptPresetIds.delete(key);
   deps.generationDeviceHealthOffered.delete(key);
   deps.generationPermissionRuleRevisions.delete(key);
 }

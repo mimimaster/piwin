@@ -7,9 +7,16 @@ import type { ReactElement, ReactNode } from 'react';
 import { Button, Collapse } from '@piwin/ui-kit';
 
 /** Label/value row used by every section. */
-export function MemoryDiagRow(props: { label: string; children: ReactNode }): ReactElement {
+export function MemoryDiagRow(props: {
+  label: string;
+  testId?: string;
+  children: ReactNode;
+}): ReactElement {
   return (
-    <div className="memory-diag-row">
+    <div
+      className="memory-diag-row"
+      {...(props.testId !== undefined ? { 'data-testid': props.testId } : {})}
+    >
       <span className="muted">{props.label}</span>
       <span className="memory-diag-value">{props.children}</span>
     </div>

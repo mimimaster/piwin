@@ -10,8 +10,13 @@ import { createInterface } from 'node:readline';
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 const mode = process.env.PLUGIN_FIXTURE_MODE ?? 'normal';
 const log = process.env.PLUGIN_FIXTURE_LOG;
+const spawnLog = process.env.PLUGIN_FIXTURE_SPAWN_LOG;
+const pidFile = process.env.PLUGIN_FIXTURE_PID_FILE;
 const marker = process.env.PLUGIN_FIXTURE_CRASH_MARKER;
+if (pidFile) writeFileSync(pidFile, String(process.pid));
+if (spawnLog) appendFileSync(spawnLog, 'spawn\\n');
 const lines = createInterface({ input: process.stdin });
+lines.on('close', () => process.exit(0));
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\\n');
 let checks = 0;
 const ready = () => ({ agentId: 'grok', state: 'ready', binaryPath: '/fake/grok', version: '1.0.44', supportStatus: 'verified', checkedAt: new Date(checks * 1000).toISOString() });
@@ -63,10 +68,12 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-async function harness(mode = 'normal') {
+async function harness(mode = 'normal', overrides: Partial<Parameters<typeof AgentPluginControlClient.create>[0]> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'piwin-plugin-control-'));
   const entrypoint = join(root, 'agent.mjs');
   const log = join(root, 'checks.log');
+  const spawnLog = join(root, 'spawns.log');
+  const pidFile = join(root, 'pid');
   const marker = join(root, 'crashed.marker');
   await writeFile(entrypoint, FIXTURE);
   const onStatusChanged = vi.fn();
@@ -80,21 +87,26 @@ async function harness(mode = 'normal') {
       ...process.env,
       PLUGIN_FIXTURE_MODE: mode,
       PLUGIN_FIXTURE_LOG: log,
+      PLUGIN_FIXTURE_SPAWN_LOG: spawnLog,
+      PLUGIN_FIXTURE_PID_FILE: pidFile,
       PLUGIN_FIXTURE_CRASH_MARKER: marker,
     },
+    ...overrides,
   });
-  const checks = async (): Promise<number> => {
+  const countLines = async (path: string, expected: string): Promise<number> => {
     try {
-      return (await readFile(log, 'utf8')).split('\n').filter((line) => line === 'check').length;
+      return (await readFile(path, 'utf8')).split('\n').filter((line) => line === expected).length;
     } catch {
       return 0;
     }
   };
+  const checks = () => countLines(log, 'check');
+  const spawns = () => countLines(spawnLog, 'spawn');
   cleanups.push(async () => {
     await client.dispose().catch(() => undefined);
     await rm(root, { recursive: true, force: true });
   });
-  return { client, checks, onStatusChanged, entrypoint };
+  return { client, checks, spawns, pidFile, onStatusChanged, entrypoint };
 }
 
 describe('Agent plugin control plane', () => {
@@ -194,5 +206,23 @@ describe('Agent plugin control plane', () => {
     await client.getStatus();
     await client.dispose();
     await expect(client.listCatalog()).rejects.toMatchObject({ code: 'plugin-closed' });
+  });
+
+  it('reaps idle control bridges automatically while keeping cached status intact', async () => {
+    const { client, checks, spawns, pidFile } = await harness('normal', { idleBridgeTimeoutMs: 60 });
+    await client.getStatus();
+    expect(await spawns()).toBe(1);
+    const firstPid = Number(await readFile(pidFile, 'utf8'));
+    expect(() => process.kill(firstPid, 0)).not.toThrow();
+
+    await vi.waitFor(() => expect(() => process.kill(firstPid, 0)).toThrow(), { timeout: 5000 });
+    // Cached readiness still answers without respawning the adapter.
+    await expect(client.getStatus()).resolves.toMatchObject({ state: 'ready' });
+    expect(await checks()).toBe(1);
+    expect(await spawns()).toBe(1);
+
+    // Next active bridge RPC transparently spawns a fresh control adapter.
+    await expect(client.listCatalog()).resolves.toEqual([{ backendSessionId: 'b1', title: 'One' }]);
+    expect(await spawns()).toBe(2);
   });
 });

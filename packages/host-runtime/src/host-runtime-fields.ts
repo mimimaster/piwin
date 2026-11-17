@@ -341,6 +341,8 @@ export class HostRuntimeFields {
   generationMcpSnapshots = new Map<string, McpGenerationSnapshot>();
   /** Session MCP opt-out set folded into each generation's snapshot. */
   generationSessionMcpOverrideKeys = new Map<string, string>();
+  /** Session system-prompt preset id folded into each generation's blueprint. */
+  generationSessionSystemPromptPresetIds = new Map<string, string>();
   /**
    * Whether a paired device offered Apple Health when each root generation
    * froze its tool surface. Absent for generations that never get device tools.

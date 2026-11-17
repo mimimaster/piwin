@@ -55,6 +55,7 @@ export type DesktopTranslator = {
       notifications: string;
       models: string;
       oauth: string;
+      systemPrompts: string;
       hooks: string;
       extensions: string;
       agent: string;

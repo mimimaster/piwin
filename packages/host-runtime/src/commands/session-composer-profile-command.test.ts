@@ -262,7 +262,7 @@ describe('handleSessionComposerProfileCommand', () => {
 
     expect(response?.success).toBe(false);
     expect(response?.success === false ? response.error : '').toBe(
-      'model, thinkingLevel, orchestrationSchemeId, or delegationDisabled is required',
+      'model, thinkingLevel, orchestrationSchemeId, delegationDisabled, or systemPromptPresetId is required',
     );
     expect(pushes).toHaveLength(0);
     expect(

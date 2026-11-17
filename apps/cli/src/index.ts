@@ -65,6 +65,9 @@ Usage:
   piwin market installed [--session <id>] [--project <path>]
   piwin market uninstall-extension <extension-id> | remove-mcp <server-id>
   piwin prompt list [--project <path>]
+  piwin system-prompts list [--project <path>]
+  piwin system-prompts show <preset-id|slot-id>
+  piwin system-prompts use <preset-id|default|inherit> [--project <path>]
   piwin mcp list
   piwin mcp validate [path]
   piwin mcp add <id> --command <cmd> [--args a,b] [--env KEY=VAL]
@@ -201,6 +204,11 @@ async function main(argv: string[]): Promise<void> {
   if (command === 'prompt') {
     const { commandPrompt } = await import('./prompt-command.js');
     await commandPrompt(argv);
+    return;
+  }
+  if (command === 'system-prompts') {
+    const { commandSystemPrompts } = await import('./system-prompts-command.js');
+    await commandSystemPrompts(argv);
     return;
   }
   if (command === 'mcp') {

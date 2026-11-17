@@ -295,6 +295,9 @@ export async function handleSessionLiveCommand(
           ...(requestedDisabledMcpServerIds.length > 0
             ? { disabledMcpServerIds: requestedDisabledMcpServerIds }
             : {}),
+          ...(command.input.systemPromptPresetId?.trim()
+            ? { systemPromptPresetId: command.input.systemPromptPresetId.trim() }
+            : {}),
         });
       } catch (error) {
         return fail(requestId, 'session/create', formatError(error));
@@ -496,6 +499,9 @@ export async function handleSessionLiveCommand(
       }
       if (existing.delegationDisabled === true) {
         data.delegationDisabled = true;
+      }
+      if (existing.systemPromptPresetId) {
+        data.systemPromptPresetId = existing.systemPromptPresetId;
       }
       // A Host-controlled turn keeps its own projection; replay would race it.
       if (activeRun === undefined && context.externalHistoryUnsynced?.(existing) === true) {

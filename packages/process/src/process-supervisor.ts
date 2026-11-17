@@ -5,9 +5,19 @@
  *   then forceful (SIGKILL) termination.
  * JC-09: argv-only spawn; shell command strings are forbidden.
  */
-import { spawn, execFile, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolveTrustedCwd } from './cwd-policy.js';
+import {
+  cleanupProcessGroupGuardian,
+  isChildProcessAlive,
+  killWindowsProcessTree,
+  signalUnixProcessGroup,
+  spawnProcessGroupGuardian,
+  waitForChildProcessExit,
+  waitForUnixProcessGroupExit,
+  type ProcessGroupGuardianHandle,
+} from './process-group-guardian.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -49,231 +59,17 @@ export type ProcessSupervisor = {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_KILL_GRACE_MS = 3_000;
-const PROCESS_GROUP_POLL_MS = 25;
-
-/**
- * This process is deliberately outside the supervised process group. Its
- * only parent-owned input is fd 3; when Host dies, the pipe reaches EOF and
- * the guardian terminates the exact group it was given.
- */
-const PROCESS_GUARDIAN_SOURCE = String.raw`
-const fs = require('node:fs');
-const groupId = Number(process.argv[1]);
-const graceMs = Math.max(Number(process.argv[2]) || 3000, 100);
-let stopping = false;
-
-function signalGroup(signal) {
-  try {
-    process.kill(-groupId, signal);
-  } catch (error) {
-    if (error && error.code !== 'ESRCH') {
-      // The group may already have exited. There is no safe recovery action
-      // for a different signal error in this crash-only helper.
-    }
-  }
-}
-
-function groupIsAlive() {
-  try {
-    process.kill(-groupId, 0);
-    return true;
-  } catch (error) {
-    return error && error.code !== 'ESRCH';
-  }
-}
-
-function finish() {
-  if (stopping) return;
-  stopping = true;
-  clearInterval(poll);
-  process.exit(0);
-}
-
-function reapAfterControlClose() {
-  if (stopping) return;
-  stopping = true;
-  clearInterval(poll);
-  signalGroup('SIGTERM');
-  const escalation = setTimeout(() => {
-    signalGroup('SIGKILL');
-    const exitTimer = setTimeout(() => process.exit(0), 100);
-    exitTimer.unref();
-  }, graceMs);
-  escalation.unref();
-}
-
-const poll = setInterval(() => {
-  if (!groupIsAlive()) finish();
-}, 100);
-poll.unref();
-
-const control = fs.createReadStream(null, { fd: 3, autoClose: true });
-control.on('data', () => {});
-control.once('end', reapAfterControlClose);
-control.once('error', reapAfterControlClose);
-`;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function isWindows(): boolean {
   return process.platform === 'win32';
 }
 
-/**
- * Returns `true` when the child process is still running (no exit yet).
- */
-function isAlive(child: ChildProcess): boolean {
-  // ChildProcess.killed only means that Node sent a signal. It does not mean
-  // that the operating system has reaped the child yet.
-  return child.exitCode === null && child.signalCode === null;
-}
-
-/**
- * Send a signal to an entire process group on Unix.
- * Returns `true` if the signal was delivered (or no target exists),
- * `false` if the group could not be signalled.
- */
-function signalProcessGroup(processGroupId: number, signal: NodeJS.Signals): boolean {
-  try {
-    process.kill(-processGroupId, signal);
-    return true;
-  } catch (error: unknown) {
-    // ESRCH = no such process — already dead, which is fine.
-    if (error instanceof Error && 'code' in error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'ESRCH') {
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-/** Returns whether any process still belongs to the owned Unix process group. */
-function isProcessGroupAlive(processGroupId: number): boolean {
-  try {
-    process.kill(-processGroupId, 0);
-    return true;
-  } catch (error: unknown) {
-    if (error instanceof Error && 'code' in error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === 'ESRCH') return false;
-      if (code === 'EPERM') return true;
-    }
-    return false;
-  }
-}
-
-/**
- * Kill a process tree on Windows using `taskkill /T /F`.
- * `/T` terminates the entire subtree; `/F` forces termination.
- */
-function killTreeWindows(pid: number, forceful: boolean): Promise<void> {
-  const args = forceful
-    ? ['/PID', String(pid), '/T', '/F']
-    : ['/PID', String(pid), '/T'];
-  return new Promise((resolveKill) => {
-    execFile('taskkill', args, { windowsHide: true }, () => {
-      // Best-effort — resolve regardless of error.
-      resolveKill();
-    });
-  });
-}
-
-function waitForExit(
-  child: ChildProcess,
-  timeoutMs: number,
-  signal?: AbortSignal,
-): Promise<boolean> {
-  if (!isAlive(child)) {
-    return Promise.resolve(true);
-  }
-
-  return new Promise((resolveExit) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      settle(!isAlive(child));
-    }, timeoutMs);
-    if (typeof timer.unref === 'function') {
-      timer.unref();
-    }
-
-    const onExit = (): void => {
-      settle(true);
-    };
-    const onAbort = (): void => {
-      settle(false);
-    };
-
-    function settle(exited: boolean): void {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.off('exit', onExit);
-      child.off('close', onExit);
-      signal?.removeEventListener('abort', onAbort);
-      resolveExit(exited || !isAlive(child));
-    }
-
-    child.once('exit', onExit);
-    child.once('close', onExit);
-    if (signal) {
-      if (signal.aborted) {
-        settle(false);
-      } else {
-        signal.addEventListener('abort', onAbort, { once: true });
-      }
-    }
-  });
-}
-
-function waitForProcessGroupExit(
-  processGroupId: number,
-  timeoutMs: number,
-): Promise<boolean> {
-  if (!isProcessGroupAlive(processGroupId)) {
-    return Promise.resolve(true);
-  }
-
-  return new Promise((resolveExit) => {
-    const deadline = Date.now() + timeoutMs;
-
-    const poll = (): void => {
-      if (!isProcessGroupAlive(processGroupId)) {
-        resolveExit(true);
-        return;
-      }
-      if (Date.now() >= deadline) {
-        resolveExit(false);
-        return;
-      }
-      setTimeout(poll, PROCESS_GROUP_POLL_MS);
-    };
-
-    poll();
-  });
-}
-
-type GuardianHandle = {
-  child: ChildProcess;
-  control: NodeJS.WritableStream | null;
-};
-
 type ProcessTracking = {
-  guardian: GuardianHandle | null;
+  guardian: ProcessGroupGuardianHandle | null;
   cleanupPromise: Promise<void> | null;
   resolveCleanup: () => void;
   rejectCleanup: (error: unknown) => void;
 };
-
-function closeGuardianControl(guardian: GuardianHandle | null): void {
-  if (!guardian?.control) return;
-  const control = guardian.control as NodeJS.WritableStream & { end?: () => void };
-  control.end?.();
-  guardian.control = null;
-}
 
 // ---------------------------------------------------------------------------
 // Implementation
@@ -291,36 +87,6 @@ export function createProcessSupervisor(
   const processTracking = new Map<SupervisedProcess, ProcessTracking>();
   let disposed = false;
 
-  function spawnGuardian(processGroupId: number): GuardianHandle | null {
-    if (isWindows()) return null;
-
-    const guardian = spawn(
-      process.execPath,
-      [
-        '-e',
-        PROCESS_GUARDIAN_SOURCE,
-        String(processGroupId),
-        String(killGraceMs),
-      ],
-      {
-        detached: true,
-        stdio: ['ignore', 'ignore', 'ignore', 'pipe'],
-        windowsHide: true,
-      },
-    );
-    const control = guardian.stdio[3] as NodeJS.WritableStream | null;
-    return { child: guardian, control };
-  }
-
-  async function cleanupGuardian(guardian: GuardianHandle | null): Promise<void> {
-    if (!guardian) return;
-    closeGuardianControl(guardian);
-    const exited = await waitForExit(guardian.child, finalWaitMs);
-    if (exited || !isAlive(guardian.child)) return;
-    guardian.child.kill('SIGKILL');
-    await waitForExit(guardian.child, finalWaitMs);
-  }
-
   async function cleanupProcessGroup(target: SupervisedProcess): Promise<void> {
     const tracking = processTracking.get(target);
     if (!tracking) return;
@@ -332,20 +98,20 @@ export function createProcessSupervisor(
     tracking.cleanupPromise = (async () => {
       try {
         if (isWindows()) {
-          await killTreeWindows(target.processId, false);
-          const exited = await waitForExit(target.child, killGraceMs);
-          if (!exited && isAlive(target.child)) {
-            await killTreeWindows(target.processId, true);
+          await killWindowsProcessTree(target.processId, false);
+          const exited = await waitForChildProcessExit(target.child, killGraceMs);
+          if (!exited && isChildProcessAlive(target.child)) {
+            await killWindowsProcessTree(target.processId, true);
           }
         } else {
-          signalProcessGroup(target.processGroupId, 'SIGTERM');
-          const exited = await waitForProcessGroupExit(
+          signalUnixProcessGroup(target.processGroupId, 'SIGTERM');
+          const exited = await waitForUnixProcessGroupExit(
             target.processGroupId,
             killGraceMs,
           );
           if (!exited) {
-            signalProcessGroup(target.processGroupId, 'SIGKILL');
-            const forceExited = await waitForProcessGroupExit(
+            signalUnixProcessGroup(target.processGroupId, 'SIGKILL');
+            const forceExited = await waitForUnixProcessGroupExit(
               target.processGroupId,
               finalWaitMs,
             );
@@ -357,7 +123,7 @@ export function createProcessSupervisor(
           }
         }
 
-        await cleanupGuardian(tracking.guardian);
+        await cleanupProcessGroupGuardian(tracking.guardian, finalWaitMs);
         tracked.delete(target);
         processTracking.delete(target);
         tracking.resolveCleanup();
@@ -466,7 +232,7 @@ export function createProcessSupervisor(
       throw new Error('process tracking initialization failed');
     }
     try {
-      tracking.guardian = spawnGuardian(processGroupId);
+      tracking.guardian = spawnProcessGroupGuardian(processGroupId, { killGraceMs });
     } catch (error: unknown) {
       await cleanupProcessGroup(supervised).catch(() => undefined);
       throw error;

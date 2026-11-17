@@ -16,6 +16,11 @@ export type BackendSessionBlueprint = {
    */
   compactionDelegation?: CompactionDelegationTarget;
   /**
+   * Optional override for Pi's base system prompt (used when an active
+   * system-prompt preset runs in `replace` mode).
+   */
+  systemPromptOverride?: string;
+  /**
    * Additional system prompt appended after all other system prompts.
    * Used for product-level contracts (artifact decision + runtime, ADR 0029).
    */

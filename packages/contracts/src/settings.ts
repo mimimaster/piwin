@@ -9,6 +9,7 @@ import type { ModelProviderConfig } from './config.js';
 import type { NotesConfig } from './notes.js';
 import type { PermissionConfig } from './permission.js';
 import type { PromptsConfig } from './prompts.js';
+import type { SystemPromptsConfig } from './system-prompts.js';
 import type { KnowledgeConfig } from './knowledge.js';
 import type { RemoteConfig } from './remote.js';
 import type {
@@ -46,6 +47,7 @@ export type SettingsDomain =
   | 'skills'
   | 'extensions'
   | 'prompts'
+  | 'systemPrompts'
   | 'compaction'
   | 'shell'
   | 'process'
@@ -86,6 +88,7 @@ export type SettingsDomainValueMap = {
   skills: SkillsConfig | undefined;
   extensions: ExtensionsConfig | undefined;
   prompts: PromptsConfig | undefined;
+  systemPrompts: SystemPromptsConfig | undefined;
   compaction: CompactionConfig | undefined;
   shell: ShellConfig | undefined;
   process: ProcessConfig | undefined;
@@ -155,6 +158,7 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'skills',
   'extensions',
   'prompts',
+  'systemPrompts',
   'compaction',
   'shell',
   'process',
@@ -305,6 +309,7 @@ export const SETTINGS_DOMAINS = [
   'skills',
   'extensions',
   'prompts',
+  'systemPrompts',
   'compaction',
   'shell',
   'process',
@@ -345,6 +350,7 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   skills: true,
   extensions: true,
   prompts: true,
+  systemPrompts: true,
   compaction: true,
   shell: true,
   process: true,

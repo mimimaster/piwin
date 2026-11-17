@@ -9,6 +9,7 @@ import {
 import type { SkillActivityView } from '../conversation/chat-reducer.js';
 import type { AgentLocatorAnimation } from '../platform/ui-preferences.js';
 import { getBehaviorActivitySpec, resolveRunBehaviorId } from '../run-activity/behavior-activity.js';
+import { useTrackLiveMotion } from '../run-activity/live-motion-metrics.js';
 import { useRunActivityPhrases } from '../run-activity/run-activity-hooks.js';
 import type { RunActivityInput } from '../run-activity/run-activity-types.js';
 
@@ -35,6 +36,7 @@ export function AgentLocatorMark(props: {
   const animation = props.animation ?? 'radial-bellow';
   const size = props.size ?? 'sm';
   const label = props.label ?? (props.locale === 'zh-CN' ? '代理运行中' : 'Agent is working');
+  useTrackLiveMotion(animation);
   switch (animation) {
     case 'asterisk-breath':
       return <AsteriskBreath size={size} label={label} testId="agent-locator-asterisk" />;
@@ -97,6 +99,7 @@ export function AgentLocator(props: AgentLocatorProps): ReactElement {
 export function SkillActivityChip(props: SkillActivityChipProps): ReactElement {
   const locale = props.locale ?? 'zh-CN';
   const loading = props.loading === true;
+  useTrackLiveMotion(loading ? 'breath-matrix' : 'none');
   return (
     <span
       className={`skill-activity-chip${loading ? ' is-loading' : ''}`}

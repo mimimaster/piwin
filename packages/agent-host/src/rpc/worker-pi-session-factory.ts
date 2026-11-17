@@ -160,9 +160,11 @@ export async function createBlueprintResourceLoader(
       content: await readCompiledContextFile(file.absolutePath),
     })),
   );
-  const systemPrompt = blueprint.contextManifest.systemPrompt
-    ? await readCompiledContextFile(blueprint.contextManifest.systemPrompt.absolutePath)
-    : undefined;
+  const systemPrompt =
+    blueprint.systemPromptOverride ??
+    (blueprint.contextManifest.systemPrompt
+      ? await readCompiledContextFile(blueprint.contextManifest.systemPrompt.absolutePath)
+      : undefined);
   const appendSystemPrompts: string[] = [];
   if (blueprint.contextManifest.appendSystemPrompt) {
     appendSystemPrompts.push(

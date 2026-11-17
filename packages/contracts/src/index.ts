@@ -23,6 +23,7 @@ export * from './native-search-adapters.js';
 export * from './model-endpoint.js';
 export * from './model-request-body.js';
 export * from './system-prompt-role.js';
+export * from './system-prompts.js';
 export * from './subscription-chat-surface.js';
 export * from './model-catalog.js';
 export * from './configured-chat-models.js';

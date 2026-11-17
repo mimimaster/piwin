@@ -229,8 +229,9 @@
   box-sizing: border-box;
   /* Height is set inline to virtualItem.size. Clip only works once the slot
      height is locked; without it, absolute siblings share Y and paint on top
-     of each other while measure lags. */
-  overflow: hidden;
+     of each other while measure lags. Using `clip` instead of `hidden` avoids
+     WebKit ClipsCompositingDescendants promotion of entire long turns. */
+  overflow: clip;
   /* Cards paint their edge as an *outside* 1px ring (`--sh1` / `--elev-1`).
      When the inspector squeezes the stage so `--chat-max` is 100%, that ring
      sits flush against this clip and the right hairline antialiases away.

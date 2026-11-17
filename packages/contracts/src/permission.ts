@@ -112,10 +112,12 @@ export function normalizeAgentModeId(modeId: string | undefined | null): AgentMo
 export function mergeAgentModeIntoPrompt(
   modeId: AgentModeId | undefined,
   userFacingText: string,
+  overrides?: { agent?: string; goal?: string },
 ): string {
   const mode = normalizeAgentModeId(modeId);
   const body = userFacingText.trim();
-  const preamble = AGENT_MODE_SYSTEM_PREAMBLES[mode];
+  const custom = mode === 'goal' ? overrides?.goal?.trim() : overrides?.agent?.trim();
+  const preamble = custom && custom.length > 0 ? custom : AGENT_MODE_SYSTEM_PREAMBLES[mode];
   if (!preamble) {
     return body;
   }

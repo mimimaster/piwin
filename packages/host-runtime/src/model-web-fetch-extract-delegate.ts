@@ -8,9 +8,12 @@ import type {
   WebConfig,
   WebFetchExtractDelegate,
 } from '@piwin/contracts';
-import { isModelEnabled, modelSupportsCapability } from '@piwin/contracts';
 import {
-  FETCH_EXTRACT_SYSTEM_PROMPT,
+  isModelEnabled,
+  modelSupportsCapability,
+  readBuiltinSystemPromptValue,
+} from '@piwin/contracts';
+import {
   buildFetchExtractUserPrompt,
   clampFetchExtractOutput,
   sliceFetchExtractInput,
@@ -89,6 +92,7 @@ export function buildWebFetchExtractDelegate(
         },
       }));
 
+  const systemPrompt = readBuiltinSystemPromptValue(config, 'web.fetch-extract').effectiveContent;
   return {
     model: configured.ref,
     async extract(input, options) {
@@ -96,7 +100,7 @@ export function buildWebFetchExtractDelegate(
       const result = await complete({
         provider: configured.provider,
         modelId: configured.model.id,
-        systemPrompt: FETCH_EXTRACT_SYSTEM_PROMPT,
+        systemPrompt,
         userPrompt: buildFetchExtractUserPrompt({
           ...input,
           text: sliceFetchExtractInput(input.text),

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { desktopMetrics } from '../run-activity/diagnostic-metrics.js';
-import type { MemoryDiagnosticsPanelData } from './memory-diagnostics-format.js';
+import {
+  describeVisualDegradationPolicy,
+  type MemoryDiagnosticsPanelData,
+} from './memory-diagnostics-format.js';
 import { createMemoryDiagnosticsReport } from './memory-diagnostics-report.js';
 
 const NOW = 1_700_000_000_000;
@@ -48,5 +51,24 @@ describe('readable memory report', () => {
     const report = createMemoryDiagnosticsReport(input, 'zh-CN', NOW);
     expect(report.explanation).toContain('可以清理闲置资源');
     expect(report.explanation).not.toContain('已没有');
+  });
+
+  it('keeps core status animations whitelisted under moderate and critical pressure and pauses only when parked', () => {
+    const base = data();
+    base.frontend.resourceCounts = { liveStatusAnimations: 1 };
+
+    const criticalPolicy = describeVisualDegradationPolicy({ ...base, level: 'critical', parked: false }, 'en');
+    expect(criticalPolicy.find((row) => row.id === 'core-motion')).toMatchObject({
+      active: true,
+      status: 'Whitelisted · active (1 mounted)',
+    });
+    expect(criticalPolicy.find((row) => row.id === 'text-shimmer')?.active).toBe(false);
+    expect(criticalPolicy.find((row) => row.id === 'glass-and-masks')?.active).toBe(false);
+
+    const parkedPolicy = describeVisualDegradationPolicy({ ...base, level: 'normal', parked: true }, 'zh-CN');
+    expect(parkedPolicy.find((row) => row.id === 'core-motion')).toMatchObject({
+      active: false,
+      status: '已暂停 · 窗口隐藏（1 个）',
+    });
   });
 });

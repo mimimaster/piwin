@@ -31,6 +31,19 @@ export type {
   SupervisedProcess,
 } from './process-supervisor.js';
 
+export {
+  cleanupProcessGroupGuardian,
+  closeProcessGroupGuardian,
+  isChildProcessAlive,
+  isUnixProcessGroupAlive,
+  killWindowsProcessTree,
+  signalUnixProcessGroup,
+  spawnProcessGroupGuardian,
+  waitForChildProcessExit,
+  waitForUnixProcessGroupExit,
+} from './process-group-guardian.js';
+export type { ProcessGroupGuardianHandle } from './process-group-guardian.js';
+
 // Existing exports (cwd policy + redaction remain shared utilities)
 export { canonicalFsPath, isPathInsideRoot, resolveTrustedCwd } from './cwd-policy.js';
 export type { CwdPolicyResult } from './cwd-policy.js';

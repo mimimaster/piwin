@@ -17,6 +17,7 @@ export type SettingsSectionId =
   | 'permissions'
   | 'models'
   | 'oauth'
+  | 'system-prompts'
   | 'hooks'
   | 'subagents'
   | 'agent'
@@ -92,6 +93,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'permissions', group: 'application', labelKey: 'permissions' },
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'oauth', group: 'agent', labelKey: 'oauth' },
+  { id: 'system-prompts', group: 'agent', labelKey: 'systemPrompts' },
   { id: 'hooks', group: 'agent', labelKey: 'hooks' },
   { id: 'subagents', group: 'agent', labelKey: 'subagents' },
   { id: 'agent-backends', group: 'agent', labelKey: 'agentBackends' },

@@ -27,6 +27,10 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
     '模型', '提供商', '视觉', '输出委托', '压缩', '压缩委托', '上下文压缩', '图片生成', '图像生成',
   ],
   oauth: ['oauth', 'login', 'account', 'subscription', '登录', '账户', '订阅'],
+  'system-prompts': [
+    'system prompt', 'system prompts', 'preset', 'persona', 'SYSTEM.md',
+    '系统提示词', '人设', '预设', '内置提示词',
+  ],
   hooks: ['hook', 'hooks', 'event', 'lifecycle', '钩子', '事件', '生命周期'],
   subagents: [
     'subagent', 'subagents', 'orchestration', 'scheme', 'schemes', 'ultra',

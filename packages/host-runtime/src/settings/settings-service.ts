@@ -66,6 +66,7 @@ const RUNTIME_REVISION_DOMAINS = [
   'skills',
   'extensions',
   'prompts',
+  'systemPrompts',
   'compaction',
   'process',
   'session',
@@ -230,6 +231,7 @@ export function createSettingsDomainRevisions(
     'skills',
     'extensions',
     'prompts',
+    'systemPrompts',
     'compaction',
     'shell',
     'process',
@@ -314,6 +316,11 @@ function mergeMissingDomainFields(
   incoming: unknown,
   domain?: SettingsDomain,
 ): unknown {
+  if (domain === 'systemPrompts') {
+    // Full replacement: deleted presets, cleared project bindings, and reset
+    // overrides must never be resurrected from the previous config.
+    return incoming;
+  }
   if (incoming === undefined) {
     return current;
   }
@@ -347,6 +354,12 @@ function mergeMissingDomainFields(
     merged[key] = replacesModelList
       ? value
       : mergeMissingDomainFields(currentRecord[key], value, domain);
+  }
+  if (
+    (domain === 'replyWriter' || domain === 'visionDelegation') &&
+    !('systemPrompt' in incomingRecord)
+  ) {
+    delete merged.systemPrompt;
   }
   return merged;
 }

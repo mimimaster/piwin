@@ -9,7 +9,13 @@ import {
   resolveSegmentLiveActions,
 } from './turn-work-segments.js';
 import { projectTurnWorkDisclosure } from './turn-work-disclosure-model.js';
-import { planTurnWorkSegments } from './turn-work-segment-plan.js';
+import {
+  planTurnWorkSegments,
+  resolveTurnWorkSegmentWindow,
+  TURN_WORK_SEGMENT_CRITICAL_WINDOW,
+  TURN_WORK_SEGMENT_MODERATE_WINDOW,
+  TURN_WORK_SEGMENT_WINDOW,
+} from './turn-work-segment-plan.js';
 
 function tool(id: string, overrides: Partial<ToolCardUi> = {}): ToolCardUi {
   return { toolCallId: id, toolName: 'bash', status: 'done', output: '', ...overrides };
@@ -359,5 +365,38 @@ describe('planTurnWorkSegments', () => {
       openOverrides: { 'seg-n1': true, 'seg-n4': false },
     });
     expect(plan.segments.filter(plan.isOpen).map((segment) => segment.id)).toEqual(['seg-n1']);
+  });
+
+  it('shrinks default segment window and folds settled failed/subagent segments under critical pressure', () => {
+    expect(resolveTurnWorkSegmentWindow('normal')).toBe(TURN_WORK_SEGMENT_WINDOW);
+    expect(resolveTurnWorkSegmentWindow('moderate')).toBe(TURN_WORK_SEGMENT_MODERATE_WINDOW);
+    expect(resolveTurnWorkSegmentWindow('critical')).toBe(TURN_WORK_SEGMENT_CRITICAL_WINDOW);
+
+    const delegation = buildTurnWorkSegments(
+      turnOf([
+        assistant('d', {
+          text: 'Delegate',
+          tools: [tool('s1', { toolName: 'piwin_subagent_run', status: 'done', presentation: { kind: 'subagent', title: 'subagent' } })],
+        }),
+      ]),
+      0,
+      0,
+    )[0];
+    const failed = buildTurnWorkSegments(
+      turnOf([assistant('f', { text: 'Err', tools: [tool('t1', { status: 'error' })] })]),
+      0,
+      0,
+    )[0];
+    const running = buildTurnWorkSegments(
+      turnOf([assistant('r', { text: 'Run', status: 'streaming', tools: [tool('t2', { status: 'running' })] })]),
+      0,
+      0,
+    )[0];
+    if (!delegation || !failed || !running) throw new Error('fixture');
+
+    expect(resolveSegmentDefaultOpen(delegation, { isLast: false, expandAll: false, pressureLevel: 'critical' })).toBe(false);
+    expect(resolveSegmentDefaultOpen(failed, { isLast: false, expandAll: false, pressureLevel: 'critical' })).toBe(false);
+    expect(resolveSegmentDefaultOpen(delegation, { isLast: true, expandAll: false, pressureLevel: 'critical' })).toBe(true);
+    expect(resolveSegmentDefaultOpen(running, { isLast: false, expandAll: false, pressureLevel: 'critical' })).toBe(true);
   });
 });

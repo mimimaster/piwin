@@ -525,6 +525,7 @@ export class ProductAgentHost implements AgentHost {
       const session = createProductSessionHandle(backendHandle, this.options.getCurrentRunId);
       const contextPromptUpdates = buildContextPromptSurfaceUpdates(
         compiled.sessionBlueprint.contextManifest as ContextManifest,
+        compiled.sessionBlueprint.systemPromptSummary,
       );
       return {
         session,

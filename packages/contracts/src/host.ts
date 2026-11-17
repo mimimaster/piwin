@@ -310,6 +310,8 @@ export type CreateSessionInput = {
   knowledgeBaseIds?: string[];
   /** MCP servers switched off for this session before its first prompt. */
   disabledMcpServerIds?: string[];
+  /** Session-level custom system prompt preset id (`__builtin__` opts out of defaults). */
+  systemPromptPresetId?: string;
   /**
    * External agent backend (ADR 0082). Absent or `pi` creates a Pi session.
    * Other ids require the agent to be ready; `model`/`thinkingLevel` are then
@@ -383,6 +385,8 @@ export type SessionSummary = {
   knowledgeBaseIds?: string[];
   /** MCP servers switched off for this session (`session/set-mcp-servers`). Absent = none. */
   disabledMcpServerIds?: string[];
+  /** Session-level custom system prompt preset id (`__builtin__` opts out of defaults). */
+  systemPromptPresetId?: string;
   updatedAt: string;
   messageCount: number;
   /** Short last user/assistant preview for session list UI. */

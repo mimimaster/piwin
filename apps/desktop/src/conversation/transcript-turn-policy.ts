@@ -11,7 +11,7 @@ export const TRANSCRIPT_TURN_GAP_PX = 20;
  */
 export const TRANSCRIPT_TURN_OVERSCAN = 8;
 export const TRANSCRIPT_TURN_MODERATE_OVERSCAN = 4;
-export const TRANSCRIPT_TURN_CRITICAL_OVERSCAN = 2;
+export const TRANSCRIPT_TURN_CRITICAL_OVERSCAN = 1;
 /** Always keep the newest N items/turns mounted so the live call chain never unmounts. */
 export const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
 
@@ -25,6 +25,20 @@ export function resolveTranscriptTurnOverscan(
       return TRANSCRIPT_TURN_MODERATE_OVERSCAN;
     default:
       return TRANSCRIPT_TURN_OVERSCAN;
+  }
+}
+
+export function resolveTranscriptLiveTailPinCount(
+  pressureLevel: MemoryPressureLevel = 'normal',
+  streaming = false,
+): number {
+  switch (pressureLevel) {
+    case 'critical':
+      return streaming ? 1 : 0;
+    case 'moderate':
+      return streaming ? 2 : 1;
+    default:
+      return TRANSCRIPT_LIVE_TAIL_PIN_COUNT;
   }
 }
 

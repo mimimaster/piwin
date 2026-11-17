@@ -55,6 +55,11 @@ export type SerializableBlueprint = {
   thinkingLevel?: string;
   compactionDelegation?: CompactionDelegationTarget;
   /**
+   * Optional override for Pi's base system prompt (used when an active
+   * system-prompt preset runs in `replace` mode).
+   */
+  systemPromptOverride?: string;
+  /**
    * Additional system prompt appended after all other system prompts.
    * Used for product-level contracts (artifact decision + runtime, ADR 0029).
    */
@@ -137,6 +142,7 @@ export function projectBlueprintForWorker(
     model?: { providerId: string; modelId: string };
     thinkingLevel?: string;
     compactionDelegation?: CompactionDelegationTarget;
+    systemPromptOverride?: string;
     appendSystemPrompt?: string;
   },
 ): SerializableBlueprint {
@@ -178,6 +184,9 @@ export function projectBlueprintForWorker(
       model: { ...options.compactionDelegation.model },
     };
   }
+  if (options?.systemPromptOverride) {
+    blueprint.systemPromptOverride = options.systemPromptOverride;
+  }
   if (options?.appendSystemPrompt) {
     blueprint.appendSystemPrompt = options.appendSystemPrompt;
   }
@@ -204,6 +213,9 @@ export function projectBackendBlueprintForWorker(
             model: { ...backendBlueprint.compactionDelegation.model },
           },
         }
+      : {}),
+    ...(backendBlueprint.systemPromptOverride
+      ? { systemPromptOverride: backendBlueprint.systemPromptOverride }
       : {}),
     ...(backendBlueprint.appendSystemPrompt
       ? { appendSystemPrompt: backendBlueprint.appendSystemPrompt }

@@ -7,9 +7,10 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, Select, Switch, Skeleton } from '@piwin/ui-kit';
 import type { ModelRef, PiwinConfig, ReplyWriterConfig, ReplyWriterLanguage } from '@piwin/contracts';
-import { formatError, isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
+import { formatError, isModelEnabled, isProviderEnabled, modelSupportsCapability, readBuiltinSystemPromptValue } from '@piwin/contracts';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { useSettings } from './settings-context';
+import { requestSystemPromptFocus } from './system-prompts/system-prompts-focus';
 import { FieldRow } from './field-row';
 import { PageTitle } from './page-title';
 
@@ -38,7 +39,7 @@ function chatModelOptions(config: PiwinConfig): Array<{
 }
 
 export function ReplyWriterSettings(): ReactElement {
-  const { config, saveConfig, setError, setInfo } = useSettings();
+  const { config, saveConfig, selectSection, setError, setInfo } = useSettings();
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const [saving, setSaving] = useState(false);
@@ -178,6 +179,31 @@ export function ReplyWriterSettings(): ReactElement {
               { value: 'follow-user', label: isChinese ? '跟随提问语言' : 'Follow the user' },
             ]}
           />
+        </FieldRow>
+
+        <FieldRow
+          label={isChinese ? '系统提示词' : 'System prompt'}
+          description={
+            readBuiltinSystemPromptValue(config, 'delegate.reply-writer').isOverridden
+              ? isChinese
+                ? '当前已自定义覆写，可在「系统提示词」页面查看或恢复默认。'
+                : 'Customized override active. Inspect or reset in System Prompts.'
+              : isChinese
+                ? '当前使用内置默认写作契约，可在「系统提示词」页面查看或调整。'
+                : 'Using built-in default contract. Inspect or customize in System Prompts.'
+          }
+        >
+          <Button
+            size="compact"
+            variant="ghost"
+            onClick={() => {
+              requestSystemPromptFocus({ tab: 'builtins', slotId: 'delegate.reply-writer' });
+              selectSection('system-prompts');
+            }}
+            data-testid="reply-writer-open-system-prompt"
+          >
+            {isChinese ? '查看 / 编辑' : 'Inspect / Edit'}
+          </Button>
         </FieldRow>
 
         <div className="settings-section-actions settings-card-footer">

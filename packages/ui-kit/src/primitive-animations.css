@@ -114,6 +114,7 @@
 .ui-anim-organic-blob__shape {
   display: block;
   background-color: var(--text);
+  border-radius: 60% 40% 30% 70% / 50% 60% 40% 50%;
   animation: ui-anim-organic-blob 4.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 
@@ -180,10 +181,22 @@
   position: relative;
 }
 
-.ui-anim-radial-bellow__vane {
+/* Keep radial placement off the animated keyframe so paused/reduced-motion
+   states keep the ring geometry instead of stacking all 8 vanes at center,
+   and so @keyframes stays free of calc(var(--i) * ...) for GPU compositing. */
+.ui-anim-radial-bellow__slot {
   position: absolute;
   top: 50%;
   left: 50%;
+  width: 0;
+  height: 0;
+  transform: rotate(calc(var(--i) * 45deg)) translateX(var(--vane-radius, 20px));
+}
+
+.ui-anim-radial-bellow__vane {
+  position: absolute;
+  top: 0;
+  left: 0;
   background-color: var(--text);
   border-radius: 4px;
   transform-origin: center center;
@@ -192,23 +205,23 @@
   opacity: 0.1;
 }
 
-/* Vane dimensions per size — width/height/margins relative to container */
+/* Vane dimensions per size — width/height/margins relative to slot center */
 .ui-anim--sm .ui-anim-radial-bellow__vane { width: 6px; height: 18px; margin-left: -3px; margin-top: -9px; }
 .ui-anim--md .ui-anim-radial-bellow__vane { width: 8px; height: 24px; margin-left: -4px; margin-top: -12px; }
 .ui-anim--lg .ui-anim-radial-bellow__vane { width: 10px; height: 32px; margin-left: -5px; margin-top: -16px; }
 
 /* Translate distance per size — how far vanes radiate from center */
-.ui-anim--sm.ui-anim-radial-bellow .ui-anim-radial-bellow__vane { --vane-radius: 14px; }
-.ui-anim--md.ui-anim-radial-bellow .ui-anim-radial-bellow__vane { --vane-radius: 20px; }
-.ui-anim--lg.ui-anim-radial-bellow .ui-anim-radial-bellow__vane { --vane-radius: 28px; }
+.ui-anim--sm.ui-anim-radial-bellow { --vane-radius: 14px; }
+.ui-anim--md.ui-anim-radial-bellow { --vane-radius: 20px; }
+.ui-anim--lg.ui-anim-radial-bellow { --vane-radius: 28px; }
 
 @keyframes ui-anim-radial-bellow {
   0%, 100% {
-    transform: rotate(calc(var(--i) * 45deg)) translateX(var(--vane-radius, 20px)) scale(0.4, 0.3);
+    transform: scale(0.4, 0.3);
     opacity: 0.1;
   }
   50% {
-    transform: rotate(calc(var(--i) * 45deg)) translateX(var(--vane-radius, 20px)) scale(1.5, 1.8);
+    transform: scale(1.5, 1.8);
     opacity: 0.95;
   }
 }

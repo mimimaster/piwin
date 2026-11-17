@@ -124,3 +124,17 @@ bounded mechanism tests, not a normal-chat reproduction or a long-run leak proof
 
 Evidence and reproduction sources are stored locally under
 `docs/notes/2026-11-15-piwin-memory-evidence/`.
+
+## Whitelisted live status animations
+
+Core status indicators using `ui-anim-*` (such as `AgentLocatorMark` /
+`RadialBellow` in `RunStatusFooter`) are whitelisted under `moderate` (768 MiB)
+and `critical` (1536 MiB) memory pressure so active-run feedback stays alive
+while the window is visible, pausing only under `data-memory-parked` when the
+window is hidden. `RadialBellow` places its radial vane rotation and offset on
+static `.ui-anim-radial-bellow__slot` wrappers while `@keyframes
+ui-anim-radial-bellow` animates only `scale` and `opacity`, keeping animations
+compositor-friendly and preventing vanes from collapsing at center when paused.
+The Memory panel reports the live mounted count (`liveStatusAnimations` in
+`desktopMetrics.resourceCounts`) alongside the current visual degradation policy
+matrix without fabricating per-element WebKit graphics byte counts.

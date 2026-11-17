@@ -139,6 +139,7 @@ pub fn run() {
             app_update::spawn_update_checks(application.handle().clone());
             screen_capture::shortcut::install(application.handle());
             tray_quota::install(application.handle());
+            memory_pressure::configure_all_webviews_memory_policy(application.handle());
             // The window title is "piwin" so the Dock menu / Window list name it;
             // `hiddenTitle` (macOS) and custom chrome (Windows) keep it off the titlebar.
             if let Some(_main_window) = application.get_webview_window("main") {

@@ -310,14 +310,47 @@ export class ExternalAgentBackend {
     };
   }
 
+  listLoadedAgentIds(): string[] {
+    const ids = new Set<string>(this.controls.keys());
+    for (const handle of this.handles.values()) {
+      ids.add(handle.backendAgentId);
+    }
+    return [...ids];
+  }
+
+  listSessionIdsForAgent(agentId: string): string[] {
+    const sessionIds: string[] = [];
+    for (const [sessionId, handle] of this.handles.entries()) {
+      if (handle.backendAgentId === agentId) sessionIds.push(sessionId);
+    }
+    return sessionIds;
+  }
+
+  async disposeControl(agentId: string): Promise<void> {
+    const control = this.controls.get(agentId);
+    if (control === undefined) return;
+    this.controls.delete(agentId);
+    await control.dispose();
+  }
+
+  async disposeSession(sessionId: string): Promise<void> {
+    const handle = this.handles.get(sessionId);
+    this.forgetSession(sessionId);
+    if (handle !== undefined) await handle.release().catch(() => undefined);
+  }
+
   async dispose(): Promise<void> {
     const controls = [...this.controls.values()];
+    const handles = [...this.handles.values()];
     this.controls.clear();
     this.handles.clear();
     this.sessionOptions.clear();
     this.sessionCapabilities.clear();
     this.mcpStatuses.clear();
-    await Promise.allSettled(controls.map(async (control) => await control.dispose()));
+    await Promise.allSettled([
+      ...controls.map(async (control) => await control.dispose()),
+      ...handles.map(async (handle) => await handle.release()),
+    ]);
   }
 
   private publishSessionOptions(sessionId: string, options: SessionBackendOptions): void {

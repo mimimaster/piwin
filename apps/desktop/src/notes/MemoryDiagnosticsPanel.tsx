@@ -5,7 +5,12 @@ import type { DesktopLocale } from '../i18n/desktop-locale.js';
 import { MemoryDiagnosticsDetails } from './MemoryDiagnosticsDetails.js';
 import { MemoryInspectionControls } from './MemoryInspectionControls.js';
 import { MemoryDiagExpandable, MemoryDiagNote, MemoryDiagRow } from './memory-diagnostics-parts.js';
-import { describeManualReclaimResult, describeRecoveryReason, formatBytes } from './memory-diagnostics-format.js';
+import {
+  describeManualReclaimResult,
+  describeRecoveryReason,
+  formatBytes,
+  getLiveStatusAnimationCount,
+} from './memory-diagnostics-format.js';
 import { memoryDiagnosticsCopy } from './memory-diagnostics-copy.js';
 import { createMemoryDiagnosticsReport } from './memory-diagnostics-report.js';
 import { useMemoryDiagnostics, type MemoryDiagnosticsOptions } from './use-memory-diagnostics.js';
@@ -30,6 +35,8 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
   const caches = Object.entries(data?.frontend.cacheEstimates ?? {}).filter(
     ([, estimate]) => estimate.entries > 0 || estimate.bytes > 0,
   );
+  const liveMotionCount = getLiveStatusAnimationCount(data);
+  const parked = data?.parked === true;
 
   return (
     <div className="memory-diagnostics" data-testid="memory-diagnostics-panel" data-condition={report.condition}>
@@ -86,6 +93,9 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
           <div><dt>{copy.warm}</dt><dd>{data?.warmSnapshots ?? '—'}</dd></div>
         </dl>
         <div className="memory-diag-caches" data-testid="memory-diag-caches">
+          <MemoryDiagRow label={copy.motionLiveLabel} testId="memory-diag-live-motion">
+            {copy.motionLiveSummary(liveMotionCount, parked)}
+          </MemoryDiagRow>
           {caches.length === 0 ? (
             <MemoryDiagNote>{data === null ? copy.explanation.loading : copy.noCachesCompact}</MemoryDiagNote>
           ) : (

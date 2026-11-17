@@ -713,6 +713,14 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
           command.targetExtensionSetRevision.length <= 256) &&
         (command.deploymentId === undefined || command.deploymentId.length <= 256)
       );
+    case 'session/set-composer-profile':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        (command.orchestrationSchemeId === undefined ||
+          command.orchestrationSchemeId.length <= 256) &&
+        (command.systemPromptPresetId === undefined ||
+          command.systemPromptPresetId.length <= 128)
+      );
     case 'session/tool-output':
       return (
         typeof command.sessionId === 'string' &&

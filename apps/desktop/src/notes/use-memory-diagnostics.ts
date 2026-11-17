@@ -10,6 +10,7 @@ import { collectReclaimCandidates } from './reclaim-candidates.js';
 import { listReclaimEpisodes } from './reclaim-ledger.js';
 import { getMemoryObservabilitySnapshot } from './memory-observability.js';
 import { globalMemoryGovernor } from './memory-governor.js';
+import { isMemoryParked } from './memory-parking.js';
 import { globalReclaimCoordinator, isManualReclaimInFlight, requestManualReclaim,
   type ManualReclaimResult } from './reclaim-wiring.js';
 import type { NativeMemoryObservabilitySnapshot } from './memory-sample-contract.js';
@@ -43,6 +44,7 @@ export function useMemoryDiagnostics(options: MemoryDiagnosticsOptions) {
       presentations: sessionRenderResources.count(), visible: sessionRenderResources.visibleCount(),
       restoring: sessionRenderResources.restoringCount(), warmSnapshots: listWarmSnapshots().length,
       eligibleCandidates: collectReclaimCandidates().filter((item) => Number.isFinite(item.protectionScore)).length,
+      parked: isMemoryParked(),
     });
   }, [options.getNativeSnapshot, options.collectFrontend]);
 

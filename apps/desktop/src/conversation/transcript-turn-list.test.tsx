@@ -6,10 +6,12 @@ import { TranscriptScrollProvider } from './transcript-scroll-port';
 import {
   adoptUserScrollBeforeTurnMeasure,
   createTranscriptRangeExtractor,
+  resolveTranscriptLiveTailPinCount,
   resolveTranscriptTurnOverscan,
   shouldAdjustTranscriptScrollOnItemSizeChange,
   shouldIgnoreTailRestick,
   shouldVirtualizeTranscript,
+  TRANSCRIPT_LIVE_TAIL_PIN_COUNT,
   TRANSCRIPT_TURN_CRITICAL_OVERSCAN,
   TRANSCRIPT_TURN_MODERATE_OVERSCAN,
   TRANSCRIPT_TURN_OVERSCAN,
@@ -742,6 +744,20 @@ describe('transcript turn window', () => {
         return end > container.scrollTop && start < container.scrollTop + container.clientHeight;
       });
       expect(hasViewportTurn).toBe(true);
+      expect(container.querySelector('#msg-user-29')).toBeNull();
+
+      await act(async () => {
+        root.render(
+          <TranscriptScrollProvider
+            sessionId="session-pressure-overscan"
+            scrollElementRef={scrollElementRef}
+            isFollowingTail={() => false}
+          >
+            <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} streaming />
+          </TranscriptScrollProvider>,
+        );
+        await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      });
       expect(container.querySelector('#msg-user-29')).not.toBeNull();
     } finally {
       act(() => {
@@ -938,9 +954,16 @@ describe('transcript virtualization policy', () => {
     expect(shouldVirtualizeTranscript(21)).toBe(true);
     expect(shouldVirtualizeTranscript(200)).toBe(true);
     expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(0);
+    expect(TRANSCRIPT_TURN_CRITICAL_OVERSCAN).toBe(1);
     expect(resolveTranscriptTurnOverscan('normal')).toBe(TRANSCRIPT_TURN_OVERSCAN);
     expect(resolveTranscriptTurnOverscan('moderate')).toBe(TRANSCRIPT_TURN_MODERATE_OVERSCAN);
     expect(resolveTranscriptTurnOverscan('critical')).toBe(TRANSCRIPT_TURN_CRITICAL_OVERSCAN);
+    expect(resolveTranscriptLiveTailPinCount('normal', false)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
+    expect(resolveTranscriptLiveTailPinCount('normal', true)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
+    expect(resolveTranscriptLiveTailPinCount('moderate', false)).toBe(1);
+    expect(resolveTranscriptLiveTailPinCount('moderate', true)).toBe(2);
+    expect(resolveTranscriptLiveTailPinCount('critical', false)).toBe(0);
+    expect(resolveTranscriptLiveTailPinCount('critical', true)).toBe(1);
   });
 
   it('range extractor still pins edit + live tail when virtualizer is re-enabled later', () => {

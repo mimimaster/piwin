@@ -14,9 +14,10 @@ import type {
   VisionDelegationConfig,
   VisionDelegateResult,
 } from '@piwin/contracts';
-import { formatError,  isProviderEnabled } from '@piwin/contracts';
+import { formatError, isProviderEnabled, readBuiltinSystemPromptValue } from '@piwin/contracts';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { useSettings } from '../settings/settings-context';
+import { requestSystemPromptFocus } from '../settings/system-prompts/system-prompts-focus';
 import { FieldRow } from '../settings/field-row';
 import { PageTitle } from '../settings/page-title';
 
@@ -49,7 +50,7 @@ const TEST_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 export function VisionDelegationSettings(): ReactElement {
-  const { config, saveConfig, setError, setInfo, request } = useSettings();
+  const { config, saveConfig, selectSection, setError, setInfo, request } = useSettings();
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const [saving, setSaving] = useState(false);
@@ -209,6 +210,31 @@ export function VisionDelegationSettings(): ReactElement {
               ...options.map((option) => ({ value: option.key, label: option.label })),
             ]}
           />
+        </FieldRow>
+
+        <FieldRow
+          label={isChinese ? '系统提示词' : 'System prompt'}
+          description={
+            readBuiltinSystemPromptValue(config, 'delegate.vision').isOverridden
+              ? isChinese
+                ? '当前已自定义覆写，可在「系统提示词」页面查看或恢复默认。'
+                : 'Customized override active. Inspect or reset in System Prompts.'
+              : isChinese
+                ? '当前使用内置默认视觉识别契约，可在「系统提示词」页面查看或调整。'
+                : 'Using built-in default vision prompt. Inspect or customize in System Prompts.'
+          }
+        >
+          <Button
+            size="compact"
+            variant="ghost"
+            onClick={() => {
+              requestSystemPromptFocus({ tab: 'builtins', slotId: 'delegate.vision' });
+              selectSection('system-prompts');
+            }}
+            data-testid="vision-delegation-open-system-prompt"
+          >
+            {isChinese ? '查看 / 编辑' : 'Inspect / Edit'}
+          </Button>
         </FieldRow>
 
         <div className="settings-section-actions settings-card-footer">

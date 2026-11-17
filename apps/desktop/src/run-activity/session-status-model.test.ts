@@ -161,4 +161,62 @@ describe('deriveSessionStatusInsights', () => {
       }),
     ]);
   });
+
+  it('displays active custom preset name and customized built-in prompt indicator', () => {
+    const presetInsights = deriveSessionStatusInsights(
+      {
+        agentId: 'pi',
+        sessionId: 's4',
+        extensionSurface: {
+          sessionId: 's4',
+          statuses: [
+            {
+              key: 'meta:context-prompt',
+              text: JSON.stringify({
+                agents: 1,
+                presetId: 'strict-reviewer',
+                presetName: '严格代码审查',
+                presetMode: 'append',
+              }),
+            },
+          ],
+          widgets: [],
+        },
+      },
+      true,
+    );
+    expect(presetInsights.prompt).toMatchObject({
+      engine: 'preset',
+      tone: 'override',
+      meta: '严格代码审查 · AGENTS ×1',
+      isMonoMeta: false,
+    });
+    expect(presetInsights.hasAutoDockSignal).toBe(true);
+
+    const modDefaultInsights = deriveSessionStatusInsights(
+      {
+        agentId: 'pi',
+        sessionId: 's5',
+        extensionSurface: {
+          sessionId: 's5',
+          statuses: [
+            {
+              key: 'meta:context-prompt',
+              text: JSON.stringify({
+                agents: 0,
+                builtinMod: true,
+              }),
+            },
+          ],
+          widgets: [],
+        },
+      },
+      true,
+    );
+    expect(modDefaultInsights.prompt).toMatchObject({
+      engine: 'default',
+      tone: 'override',
+      meta: '默认（已修改）',
+    });
+  });
 });

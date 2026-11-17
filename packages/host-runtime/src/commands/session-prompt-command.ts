@@ -217,6 +217,10 @@ export async function handleSessionPromptCommand(
               command.sessionId,
               promptRecord?.disabledMcpServerIds,
             ) === true ||
+              context.sessionSystemPromptChanged?.(
+                command.sessionId,
+                promptRecord?.systemPromptPresetId,
+              ) === true ||
               context.sessionDeviceToolsGained?.(command.sessionId) === true)));
       const explicitForeground = command.foreground;
       let reservedAdmission = false;

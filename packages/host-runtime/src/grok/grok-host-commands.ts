@@ -17,6 +17,7 @@ import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { handleExternalWorkflowCommand } from './grok-workflow-commands.js';
+import { reconcileDisabledExternalAgentBackends } from './grok-backend-reconcile.js';
 import {
   listExtensionBackends,
   requireEnabledExtensionBackend,
@@ -52,8 +53,10 @@ export async function handleExternalAgentCommand(
         ? installed.filter((backend) => backend.declaration.id === command.agentId)
         : installed;
       if (command.agentId !== undefined && wanted.length === 0) {
+        await reconcileDisabledExternalAgentBackends(deps, installed);
         return fail(requestId, command.type, `unknown-agent: ${command.agentId}`);
       }
+      await reconcileDisabledExternalAgentBackends(deps, installed);
       if (deps.externalAgents === undefined || wanted.length === 0) {
         return ok(requestId, command.type, { agents: [] });
       }

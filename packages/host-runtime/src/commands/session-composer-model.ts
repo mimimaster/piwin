@@ -1,5 +1,6 @@
 import {
   ORCHESTRATION_SCHEME_OFF_ID,
+  SYSTEM_PROMPT_INHERIT_ID,
   type ModelRef,
   type SessionTranscriptMessage,
   type ThinkingLevel,
@@ -17,6 +18,8 @@ export type SessionComposerProfile = {
   orchestrationSchemeId?: string;
   /** `false` clears the stored flag. */
   delegationDisabled?: boolean;
+  /** Preset id, `__builtin__`, or `inherit`/empty to clear session override. */
+  systemPromptPresetId?: string;
 };
 
 export function isEmptySessionComposerProfile(profile: SessionComposerProfile): boolean {
@@ -24,7 +27,8 @@ export function isEmptySessionComposerProfile(profile: SessionComposerProfile): 
     !profile.model &&
     profile.thinkingLevel === undefined &&
     profile.orchestrationSchemeId === undefined &&
-    profile.delegationDisabled === undefined
+    profile.delegationDisabled === undefined &&
+    profile.systemPromptPresetId === undefined
   );
 }
 
@@ -83,6 +87,18 @@ export async function persistSessionComposerProfile(
   } else if (profile.delegationDisabled === false && record.delegationDisabled !== undefined) {
     delete record.delegationDisabled;
     changed = true;
+  }
+  if (profile.systemPromptPresetId !== undefined) {
+    const presetId = profile.systemPromptPresetId.trim();
+    if (presetId === '' || presetId === SYSTEM_PROMPT_INHERIT_ID) {
+      if (record.systemPromptPresetId !== undefined) {
+        delete record.systemPromptPresetId;
+        changed = true;
+      }
+    } else if (record.systemPromptPresetId !== presetId) {
+      record.systemPromptPresetId = presetId;
+      changed = true;
+    }
   }
   if (!changed) {
     return;

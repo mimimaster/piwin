@@ -191,4 +191,113 @@ describe('Session backend extension lifecycle', () => {
     })).rejects.toThrow(/must contain index\.ts/);
     expect(await createExtensionRevisionStore(rootDir).listRecords()).toEqual([]);
   });
+
+  it('terminates resident control and idle session processes immediately when disabling or uninstalling', async () => {
+    const { createHash } = await import('node:crypto');
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-agent-reconcile-'));
+    const pidLog = join(rootDir, 'pids.log');
+    const adapterSource = `
+import { createInterface } from 'node:readline';
+import { appendFileSync } from 'node:fs';
+appendFileSync(process.env.PIWIN_TEST_PID_LOG, String(process.pid) + '\\n');
+const rl = createInterface({ input: process.stdin });
+rl.on('close', () => process.exit(0));
+rl.on('line', (line) => {
+  if (!line.trim()) return;
+  const f = JSON.parse(line);
+  const ok = (r) => process.stdout.write(JSON.stringify({ protocolVersion: 1, kind: 'response', scope: f.scope, requestId: f.requestId, method: f.method, ok: true, result: r }) + '\\n');
+  if (f.method === 'plugin/initialize') return ok({ agentId: 'pid-probe', protocolVersion: 1 });
+  if (f.method === 'plugin/dispose') return ok(null);
+  if (f.method === 'check') return ok({ agentId: 'pid-probe', state: 'ready', binaryPath: '/fake/cli', version: '1.0.0', supportStatus: 'verified', checkedAt: new Date().toISOString() });
+  if (f.method === 'catalog/list') return ok([]);
+  if (f.method === 'session/new') return ok({ backendSessionId: 'b-1', agentVersion: '1.0.0', capabilities: { agentId: 'pid-probe', operations: {} }, options: { commands: [] }, replayEvents: [] });
+  if (f.method === 'session/prompt') return ok({ status: 'completed', stopReason: 'stop' });
+  return ok({});
+});
+`;
+    const bytes = Buffer.from(adapterSource, 'utf8');
+    const src = join(rootDir, 'src-ext');
+    await mkdir(join(src, 'dist'), { recursive: true });
+    await writeFile(join(src, 'dist', 'agent.mjs'), bytes);
+    await writeFile(join(src, 'package.json'), JSON.stringify({ name: 'pid-probe', version: '1.0.0', private: true }));
+    await writeFile(join(src, 'piwin.json'), JSON.stringify({
+      sessionBackend: {
+        schemaVersion: 1,
+        id: 'pid-probe',
+        name: 'Pid Probe',
+        version: '1.0.0',
+        minHostVersion: '0.0.0',
+        protocol: 'piwin-agent-stdio',
+        protocolVersion: 1,
+        minHostProtocolVersion: 1,
+        platforms: ['darwin', 'win32', 'linux'],
+        verifiedCliVersions: ['1.0.0'],
+        helpUrl: 'https://piwinwin.com',
+        artifact: {
+          format: 'node-esm',
+          entrypoint: 'dist/agent.mjs',
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          byteSize: bytes.byteLength,
+        },
+        compatibleRevisions: [],
+        unversionedBindingCompatible: false,
+        outputDirectories: [],
+      },
+    }));
+    const installed = await installExtension({ piwinRoot: rootDir, source: { kind: 'local', path: src }, name: 'pid-probe' });
+    await createExtensionRevisionStore(rootDir).setEnabled(installed.extensionId, true);
+
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      externalAgents: { env: { ...process.env, PIWIN_TEST_PID_LOG: pidLog } },
+    });
+    const pushes: HostPush[] = [];
+    runtime.attachPushSink({ id: 'pid-probe-test', push: (message) => pushes.push(message) });
+    cleanups.push(async () => {
+      await runtime.dispose();
+      await rm(rootDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+    });
+
+    const { readFile } = await import('node:fs/promises');
+    await runtime.handleCommand({ type: 'agents/status', agentId: 'pid-probe', refresh: true });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { agentId: 'pid-probe', projectPath: '/tmp/agent-project' },
+    });
+    expect(created.success).toBe(true);
+    const sessionId = (data(created) as { sessionId: string }).sessionId;
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'warm session' },
+    });
+    expect(prompted.success).toBe(true);
+    await vi.waitFor(() => {
+      const done = pushes.find(
+        (p) => p.type === 'run/updated' && p.run.sessionId === sessionId && p.run.status === 'completed',
+      );
+      expect(done).toBeDefined();
+    }, { timeout: 10_000 });
+
+    const pids = (await readFile(pidLog, 'utf8')).trim().split('\n').map(Number);
+    expect(pids.length).toBeGreaterThanOrEqual(2);
+    for (const pid of pids) expect(() => process.kill(pid, 0)).not.toThrow();
+
+    await runtime.handleCommand({ type: 'extensions/set_enabled', extensionId: installed.extensionId, enabled: false });
+    await vi.waitFor(() => {
+      for (const pid of pids) expect(() => process.kill(pid, 0)).toThrow();
+    }, { timeout: 5000 });
+
+    // Re-enable, spawn control process again, and verify force uninstall also tears it down.
+    await runtime.handleCommand({ type: 'extensions/set_enabled', extensionId: installed.extensionId, enabled: true });
+    await runtime.handleCommand({ type: 'agents/status', agentId: 'pid-probe', refresh: true });
+    const updatedPids = (await readFile(pidLog, 'utf8')).trim().split('\n').map(Number);
+    const controlPid = updatedPids.at(-1)!;
+    expect(() => process.kill(controlPid, 0)).not.toThrow();
+
+    await runtime.handleCommand({ type: 'extensions/uninstall', extensionId: installed.extensionId, force: true });
+    await vi.waitFor(() => expect(() => process.kill(controlPid, 0)).toThrow(), { timeout: 5000 });
+  });
 });

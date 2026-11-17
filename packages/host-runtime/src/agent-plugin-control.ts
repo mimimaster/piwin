@@ -21,6 +21,7 @@ import {
 import { AgentPluginBridge, AgentPluginBridgeError, normalizeEmission } from './agent-plugin-bridge.js';
 
 const DEFAULT_STATUS_TTL_MS = 60_000;
+const DEFAULT_IDLE_BRIDGE_TIMEOUT_MS = 15_000;
 
 export type AgentPluginControlOptions = {
   /** Absolute path to the installed, digest-verified `agent.mjs`. */
@@ -34,6 +35,7 @@ export type AgentPluginControlOptions = {
   nodePath?: string;
   requestTimeoutMs?: number;
   statusTtlMs?: number;
+  idleBridgeTimeoutMs?: number;
 };
 
 export class AgentPluginControlClient {
@@ -44,6 +46,8 @@ export class AgentPluginControlClient {
   private statusAt = 0;
   private statusEpoch = 0;
   private statusPromise: Promise<ExternalAgentStatus> | undefined;
+  private activeCalls = 0;
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
 
   private constructor(options: AgentPluginControlOptions) {
@@ -107,26 +111,28 @@ export class AgentPluginControlClient {
   }
 
   async observeNativeSession(query: AgentPluginNativeObservationQuery): Promise<AgentPluginNativeObservation | undefined> {
-    if (!(await this.ensureBridge()).supportsNativeObservation) return undefined;
-    const value = await this.call('catalog/native-observe', query);
-    if (typeof value !== 'object' || value === null) throw new AgentPluginBridgeError('backend-error', 'Invalid native observation');
-    const result = value as Record<string, unknown>;
-    if (result.backendSessionId !== query.backendSessionId ||
-        !['unknown', 'idle', 'running', 'waiting'].includes(String(result.activity))) {
-      throw new AgentPluginBridgeError('backend-error', 'Invalid native observation identity or activity');
-    }
-    const replayEvents = Array.isArray(result.replayEvents) ? result.replayEvents.map((emission: unknown) => {
-      const normalized = normalizeEmission(emission);
-      if (normalized?.type !== 'agent') throw new AgentPluginBridgeError('backend-error', 'Invalid native history emission');
-      return normalized;
-    }) : undefined;
-    return {
-      backendSessionId: query.backendSessionId,
-      activity: result.activity as AgentPluginNativeObservation['activity'],
-      ...(typeof result.title === 'string' ? { title: result.title } : {}),
-      ...(typeof result.lastChangeUnixMs === 'number' && Number.isFinite(result.lastChangeUnixMs) ? { lastChangeUnixMs: result.lastChangeUnixMs } : {}),
-      ...(replayEvents !== undefined ? { replayEvents } : {}),
-    };
+    return await this.withBridgeActivity(async (bridge) => {
+      if (!bridge.supportsNativeObservation) return undefined;
+      const value = await this.requestOnBridge(bridge, 'catalog/native-observe', query);
+      if (typeof value !== 'object' || value === null) throw new AgentPluginBridgeError('backend-error', 'Invalid native observation');
+      const result = value as Record<string, unknown>;
+      if (result.backendSessionId !== query.backendSessionId ||
+          !['unknown', 'idle', 'running', 'waiting'].includes(String(result.activity))) {
+        throw new AgentPluginBridgeError('backend-error', 'Invalid native observation identity or activity');
+      }
+      const replayEvents = Array.isArray(result.replayEvents) ? result.replayEvents.map((emission: unknown) => {
+        const normalized = normalizeEmission(emission);
+        if (normalized?.type !== 'agent') throw new AgentPluginBridgeError('backend-error', 'Invalid native history emission');
+        return normalized;
+      }) : undefined;
+      return {
+        backendSessionId: query.backendSessionId,
+        activity: result.activity as AgentPluginNativeObservation['activity'],
+        ...(typeof result.title === 'string' ? { title: result.title } : {}),
+        ...(typeof result.lastChangeUnixMs === 'number' && Number.isFinite(result.lastChangeUnixMs) ? { lastChangeUnixMs: result.lastChangeUnixMs } : {}),
+        ...(replayEvents !== undefined ? { replayEvents } : {}),
+      };
+    });
   }
 
   async renameCatalogSession(backendSessionId: string, title: string): Promise<void> {
@@ -135,16 +141,18 @@ export class AgentPluginControlClient {
 
   /** Optional data-only query; old adapters retain their finalized-turn fallback. */
   async listRequestUsage(query: AgentPluginRequestUsageQuery): Promise<unknown> {
-    // Older frame parsers reject unknown methods before they can return "unsupported".
-    if (!(await this.ensureBridge()).supportsRequestUsage) return [];
-    try {
-      return await this.call('catalog/usage', query);
-    } catch (error) {
-      if (error instanceof AgentPluginBridgeError && (error.code === 'unsupported' || error.code === 'unavailable')) {
-        return [];
+    return await this.withBridgeActivity(async (bridge) => {
+      // Older frame parsers reject unknown methods before they can return "unsupported".
+      if (!bridge.supportsRequestUsage) return [];
+      try {
+        return await this.requestOnBridge(bridge, 'catalog/usage', query);
+      } catch (error) {
+        if (error instanceof AgentPluginBridgeError && (error.code === 'unsupported' || error.code === 'unavailable')) {
+          return [];
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   }
 
   async deleteCatalogSession(backendSessionId: string): Promise<void> {
@@ -154,6 +162,7 @@ export class AgentPluginControlClient {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.clearIdleTimer();
     const bridge = this.bridge;
     this.bridge = undefined;
     this.bridgePromise = undefined;
@@ -184,8 +193,27 @@ export class AgentPluginControlClient {
     method: Method,
     params: unknown,
   ): Promise<unknown> {
+    return await this.withBridgeActivity(async (bridge) => await this.requestOnBridge(bridge, method, params));
+  }
+
+  private async withBridgeActivity<T>(operation: (bridge: AgentPluginBridge) => Promise<T>): Promise<T> {
     if (this.disposed) throw new AgentPluginBridgeError('plugin-closed', 'control client is disposed');
-    const bridge = await this.ensureBridge();
+    this.activeCalls += 1;
+    this.clearIdleTimer();
+    try {
+      const bridge = await this.ensureBridge();
+      return await operation(bridge);
+    } finally {
+      this.activeCalls -= 1;
+      this.scheduleIdleDispose();
+    }
+  }
+
+  private async requestOnBridge<Method extends 'check' | 'catalog/list' | 'catalog/usage' | 'catalog/native-observe' | 'catalog/rename' | 'catalog/delete'>(
+    bridge: AgentPluginBridge,
+    method: Method,
+    params: unknown,
+  ): Promise<unknown> {
     try {
       return await bridge.request(method, params as never, { kind: 'plugin' });
     } catch (error) {
@@ -198,7 +226,30 @@ export class AgentPluginControlClient {
     }
   }
 
+  private clearIdleTimer(): void {
+    if (this.idleTimer !== undefined) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = undefined;
+    }
+  }
+
+  private scheduleIdleDispose(): void {
+    this.clearIdleTimer();
+    if (this.disposed || this.activeCalls > 0 || this.bridge === undefined || this.bridge.closed) return;
+    const timeoutMs = this.options.idleBridgeTimeoutMs ?? DEFAULT_IDLE_BRIDGE_TIMEOUT_MS;
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return;
+    const bridge = this.bridge;
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = undefined;
+      if (this.disposed || this.activeCalls > 0 || this.bridge !== bridge) return;
+      // Keep status cache intact; only reap the resident adapter subprocess when idle.
+      this.dropBridge(bridge);
+    }, timeoutMs);
+    this.idleTimer.unref?.();
+  }
+
   private async ensureBridge(): Promise<AgentPluginBridge> {
+    if (this.disposed) throw new AgentPluginBridgeError('plugin-closed', 'control client is disposed');
     if (this.bridge !== undefined && !this.bridge.closed) return this.bridge;
     if (this.bridgePromise !== undefined) return this.bridgePromise;
     const bridge = AgentPluginBridge.start({
@@ -228,13 +279,19 @@ export class AgentPluginControlClient {
     );
     this.bridgePromise = pending;
     try {
-      return await pending;
+      const initialized = await pending;
+      if (this.disposed) {
+        this.dropBridge(initialized);
+        throw new AgentPluginBridgeError('plugin-closed', 'control client is disposed');
+      }
+      return initialized;
     } finally {
       if (this.bridgePromise === pending) this.bridgePromise = undefined;
     }
   }
 
   private dropBridge(bridge: AgentPluginBridge): void {
+    this.clearIdleTimer();
     if (this.bridge === bridge) this.bridge = undefined;
     if (this.bridgePromise !== undefined) this.bridgePromise = undefined;
     void bridge.dispose().catch(() => undefined);

@@ -10,6 +10,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
+import { spawnProcessGroupGuardian, type ProcessGroupGuardianHandle } from '@piwin/process';
 import {
   AGENT_PLUGIN_PROTOCOL_VERSION,
   AgentPluginProtocolError,
@@ -97,6 +98,7 @@ type PendingRequest = {
 
 export class AgentPluginBridge {
   private readonly child: ChildProcessWithoutNullStreams;
+  private readonly guardian: ProcessGroupGuardianHandle | null;
   private readonly pending = new Map<string, PendingRequest>();
   private readonly options: AgentPluginBridgeOptions;
   private writeChain: Promise<void> = Promise.resolve();
@@ -107,9 +109,14 @@ export class AgentPluginBridge {
   private nativeObservationSupported = false;
   private disposal: Promise<void> | undefined;
 
-  private constructor(options: AgentPluginBridgeOptions, child: ChildProcessWithoutNullStreams) {
+  private constructor(
+    options: AgentPluginBridgeOptions,
+    child: ChildProcessWithoutNullStreams,
+    guardian: ProcessGroupGuardianHandle | null,
+  ) {
     this.options = options;
     this.child = child;
+    this.guardian = guardian;
     const lines = createInterface({ input: child.stdout });
     lines.on('line', (line) => {
       void this.handleLine(line).catch((error: unknown) => {
@@ -123,11 +130,18 @@ export class AgentPluginBridge {
   }
 
   static start(options: AgentPluginBridgeOptions): AgentPluginBridge {
-    const child = spawn(options.nodePath ?? process.execPath, [options.entrypoint], {
+    const nodePath = options.nodePath ?? process.execPath;
+    const child = spawn(nodePath, [options.entrypoint], {
+      detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe'],
       env: options.env ?? process.env,
+      windowsHide: true,
     });
-    return new AgentPluginBridge(options, child);
+    const guardian =
+      process.platform !== 'win32' && typeof child.pid === 'number' && child.pid > 0
+        ? spawnProcessGroupGuardian(child.pid, { killGraceMs: 500, nodePath })
+        : null;
+    return new AgentPluginBridge(options, child, guardian);
   }
 
   get closed(): boolean {
@@ -215,7 +229,7 @@ export class AgentPluginBridge {
     try {
       this.close('plugin-disposed');
     } finally {
-      await disposeAgentPluginProcess(this.child);
+      await disposeAgentPluginProcess(this.child, this.guardian);
     }
   }
 

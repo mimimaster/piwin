@@ -189,6 +189,7 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
             props.workDetailsExpanded === 'always' || props.toolDensity === 'detailed',
           windowSize: segmentState.windowSizeFor(workDisclosureKey),
           openOverrides: segmentState.openOverrides,
+          pressureLevel: segmentState.pressureLevel,
         })
       : null;
   const identityItemIndex = conversationChrome?.identityMessageId

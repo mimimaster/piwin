@@ -183,6 +183,8 @@ export type SessionResumeData = {
   thinkingLevel?: import('./host.js').ThinkingLevel;
   /** Composer orchestration scheme stored on the session; absent means freehand. */
   orchestrationSchemeId?: string;
+  /** Session-level custom system prompt preset id (`__builtin__` opts out of defaults). */
+  systemPromptPresetId?: string;
   /** Present (true) when the session's composer has delegation disabled. */
   delegationDisabled?: boolean;
   /** Last authoritative context usage restored by the Host. */

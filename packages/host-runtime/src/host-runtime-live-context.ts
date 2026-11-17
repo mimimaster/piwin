@@ -354,6 +354,14 @@ export function createSessionLiveContext(deps: HostRuntimeKernel): SessionLiveCo
       const applied = deps.generationSessionMcpOverrideKeys.get(`${sessionId}\u0000${generationId}`);
       return applied !== undefined && applied !== sessionMcpOverrideKey(disabledServerIds);
     },
+    sessionSystemPromptChanged: (sessionId, systemPromptPresetId) => {
+      const generationId = deps.runtimeController.getStatus(sessionId).generationId;
+      if (generationId === undefined) return false;
+      const applied = deps.generationSessionSystemPromptPresetIds.get(
+        `${sessionId}\u0000${generationId}`,
+      );
+      return applied !== undefined && applied !== (systemPromptPresetId ?? '');
+    },
     sessionDeviceToolsGained: (sessionId) => {
       const port = deps.options.clientToolExecution;
       const generationId = deps.runtimeController.getStatus(sessionId).generationId;

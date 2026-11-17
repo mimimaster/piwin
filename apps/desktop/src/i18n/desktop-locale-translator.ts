@@ -65,6 +65,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         notifications: isChinese ? '通知' : 'Notifications',
         models: isChinese ? '模型' : 'Models & Providers',
         oauth: isChinese ? 'OAuth 登录' : 'OAuth Login',
+        systemPrompts: isChinese ? '系统提示词' : 'System Prompts',
         hooks: isChinese ? '事件钩子' : 'Hooks',
         extensions: isChinese ? '技能与扩展' : 'Skills & Extensions',
         agent: isChinese ? '智能体策略' : 'Agent & Workflows',

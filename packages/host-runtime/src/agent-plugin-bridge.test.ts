@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,10 +12,17 @@ import { AgentPluginBridge, AgentPluginBridgeError } from './agent-plugin-bridge
  * nothing from the workspace so it proves the bridge needs no vendor code.
  */
 const FIXTURE = `
+import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { writeFileSync } from 'node:fs';
 const mode = process.env.PLUGIN_FIXTURE_MODE ?? 'normal';
 writeFileSync(process.env.PLUGIN_FIXTURE_PID_FILE, String(process.pid));
+if (mode === 'grandchild-leak' || mode === 'crash-with-grandchild') {
+  const grandchild = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 10000);'], {
+    stdio: 'ignore',
+  });
+  writeFileSync(process.env.PLUGIN_FIXTURE_PID_FILE + '.grandchild', String(grandchild.pid));
+}
 const lines = createInterface({ input: process.stdin });
 if (mode === 'stubborn') { setInterval(() => {}, 10000); process.on('SIGTERM', () => {}); }
 lines.on('close', () => {
@@ -58,7 +67,7 @@ lines.on('line', (line) => {
     return ok(frame, { backendSessionId: 'b1', agentVersion: '1.0.44', capabilities: { kind: 'external-agent' }, options: { models: [], efforts: [], modes: [], commands: [] }, replayEvents: [] });
   }
   if (method === 'session/prompt') {
-    if (mode === 'exit-on-prompt') process.exit(7);
+    if (mode === 'exit-on-prompt' || mode === 'crash-with-grandchild') process.exit(7);
     promptFrame = frame;
     if (mode === 'long-prompt') {
       write({ protocolVersion: 1, kind: 'event', scope: frame.scope, emission: { type: 'agent', event: { kind: 'text', text: 'still working' } } });
@@ -304,4 +313,87 @@ describe('Host-side Agent plugin bridge', () => {
     await observed;
     expect(settled).toHaveBeenCalledTimes(1);
   });
+
+  it('reaps stubborn grandchildren in the adapter process group on dispose', async () => {
+    if (process.platform === 'win32') return;
+    const { bridge, root } = await harness('grandchild-leak');
+    await bridge.initialize();
+    const grandchildPid = Number(await readFile(join(root, 'pid.grandchild'), 'utf8'));
+    expect(() => process.kill(grandchildPid, 0)).not.toThrow();
+    await bridge.dispose();
+    expect(() => process.kill(grandchildPid, 0)).toThrow();
+  }, 10000);
+
+  it('reaps surviving grandchildren when the adapter crashes unexpectedly', async () => {
+    if (process.platform === 'win32') return;
+    const { bridge, root, closed } = await harness('crash-with-grandchild');
+    await bridge.initialize();
+    const grandchildPid = Number(await readFile(join(root, 'pid.grandchild'), 'utf8'));
+    expect(() => process.kill(grandchildPid, 0)).not.toThrow();
+    await expect(bridge.prompt(SCOPE, { input: { text: 'boom' }, runId: 'run-crash' })).rejects.toThrow('plugin-exited');
+    await vi.waitFor(() => expect(closed).toHaveLength(1));
+    await vi.waitFor(() => expect(() => process.kill(grandchildPid, 0)).toThrow(), { timeout: 5000 });
+  }, 10000);
+
+  it('triggers crash-only guardian to reap the adapter process group if parent dies abruptly', async () => {
+    if (process.platform === 'win32') return;
+    const root = await mkdtemp(join(tmpdir(), 'piwin-plugin-guardian-'));
+    cleanups.push(async () => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 25 }));
+    const childEntry = join(root, 'child.mjs');
+    const parentScript = join(root, 'parent.mts');
+    const pidFile = join(root, 'pid');
+    const tsxHook = createRequire(import.meta.url).resolve('tsx');
+    await writeFile(childEntry, FIXTURE);
+    await writeFile(parentScript, `
+import { AgentPluginBridge } from ${JSON.stringify(new URL('./agent-plugin-bridge.ts', import.meta.url).href)};
+const bridge = AgentPluginBridge.start({
+  entrypoint: ${JSON.stringify(childEntry)},
+  agentId: 'grok',
+  pluginRevision: 'rev-1',
+  runtime: {},
+  resolveSessionScope: () => true,
+  onSessionEmission: () => {},
+  callbacks: { requestPermission: async () => ({ cancelled: true }), interventionEvent: async () => ({ accepted: false }) },
+  onClosed: () => {},
+  env: { ...process.env, PLUGIN_FIXTURE_MODE: 'grandchild-leak', PLUGIN_FIXTURE_PID_FILE: ${JSON.stringify(pidFile)} },
+});
+await bridge.initialize();
+process.stdout.write('READY\\n');
+setInterval(() => {}, 10000);
+`);
+    const parent = spawn(process.execPath, ['--import', tsxHook, parentScript], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    cleanups.push(async () => {
+      if (parent.exitCode === null) parent.kill('SIGKILL');
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      let out = '';
+      const timer = setTimeout(() => reject(new Error(`parent did not emit READY; output=${out}`)), 8_000);
+      parent.stdout.setEncoding('utf8');
+      parent.stdout.on('data', (chunk: string) => {
+        out += chunk;
+        if (out.includes('READY')) {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      parent.once('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error(`parent exited early (${code ?? 'null'})`));
+      });
+    });
+
+    const adapterPid = Number(await readFile(pidFile, 'utf8'));
+    const grandchildPid = Number(await readFile(`${pidFile}.grandchild`, 'utf8'));
+    expect(() => process.kill(adapterPid, 0)).not.toThrow();
+    expect(() => process.kill(grandchildPid, 0)).not.toThrow();
+
+    parent.kill('SIGKILL');
+    await vi.waitFor(() => {
+      expect(() => process.kill(adapterPid, 0)).toThrow();
+      expect(() => process.kill(grandchildPid, 0)).toThrow();
+    }, { timeout: 5_000 });
+  }, 15_000);
 });

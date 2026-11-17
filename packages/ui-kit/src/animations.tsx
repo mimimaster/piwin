@@ -188,7 +188,9 @@ export function RadialBellow(props: RadialBellowProps): ReactElement {
       data-testid={props.testId ?? 'radial-bellow'}
     >
       {BELLOW_VANE_STYLES.map((vaneStyle, idx) => (
-        <span key={idx} className="ui-anim-radial-bellow__vane" style={vaneStyle} />
+        <span key={idx} className="ui-anim-radial-bellow__slot" style={vaneStyle}>
+          <span className="ui-anim-radial-bellow__vane" />
+        </span>
       ))}
     </span>
   );

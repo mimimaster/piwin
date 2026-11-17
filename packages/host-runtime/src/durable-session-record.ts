@@ -23,6 +23,7 @@ export type PersistDurableSessionInput = {
   thinkingLevel?: ThinkingLevel;
   knowledgeBaseIds?: string[];
   disabledMcpServerIds?: string[];
+  systemPromptPresetId?: string;
 };
 
 /**
@@ -58,6 +59,9 @@ export async function persistDurableSessionRecord(
     if (input.disabledMcpServerIds && input.disabledMcpServerIds.length > 0) {
       record.disabledMcpServerIds = input.disabledMcpServerIds;
     }
+    if (input.systemPromptPresetId) {
+      record.systemPromptPresetId = input.systemPromptPresetId;
+    }
   });
   if (current) {
     return current;
@@ -90,6 +94,9 @@ export async function persistDurableSessionRecord(
   }
   if (input.disabledMcpServerIds && input.disabledMcpServerIds.length > 0) {
     record.disabledMcpServerIds = input.disabledMcpServerIds;
+  }
+  if (input.systemPromptPresetId) {
+    record.systemPromptPresetId = input.systemPromptPresetId;
   }
   await upsertSessionRecord(input.indexPath, record);
   return record;

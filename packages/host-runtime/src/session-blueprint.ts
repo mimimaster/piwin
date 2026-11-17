@@ -6,6 +6,7 @@ import type {
   SessionCapabilitySnapshot,
   SessionScope,
 } from '@piwin/contracts';
+import type { SystemPromptSurfaceSummary } from './system-prompts-compile.js';
 
 /**
  * Host-owned runtime decision set.
@@ -27,4 +28,5 @@ export type SessionBlueprint = {
   /** Low-frequency target registrations reachable only through piwin_toolbox. */
   hostToolboxTargetNames: readonly string[];
   backendBlueprint: BackendSessionBlueprint;
+  systemPromptSummary?: SystemPromptSurfaceSummary;
 };

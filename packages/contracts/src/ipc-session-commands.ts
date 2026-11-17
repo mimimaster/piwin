@@ -347,6 +347,8 @@ export type SessionHostCommand =
       /** Scheme id, or `off` to return the conversation to freehand. */
       orchestrationSchemeId?: string;
       delegationDisabled?: boolean;
+      /** Preset id, `__builtin__`, or `inherit` (clears session override). */
+      systemPromptPresetId?: string;
     }
   | {
       id?: string;

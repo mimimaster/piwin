@@ -4,6 +4,7 @@
  * block lands in the turn's row list.
  */
 import type { ReactElement } from 'react';
+import type { MemoryPressureLevel } from '../notes/memory-governor.js';
 import type { TurnWorkDisclosureProjection } from './turn-work-disclosure-model.js';
 import {
   buildTurnWorkSegments,
@@ -15,6 +16,21 @@ import type { TranscriptTurn } from '../conversation/transcript-turns.js';
 
 /** Segment headers mounted before "显示更早的 N 段". */
 export const TURN_WORK_SEGMENT_WINDOW = 40;
+export const TURN_WORK_SEGMENT_MODERATE_WINDOW = 16;
+export const TURN_WORK_SEGMENT_CRITICAL_WINDOW = 8;
+
+export function resolveTurnWorkSegmentWindow(
+  pressureLevel: MemoryPressureLevel = 'normal',
+): number {
+  switch (pressureLevel) {
+    case 'critical':
+      return TURN_WORK_SEGMENT_CRITICAL_WINDOW;
+    case 'moderate':
+      return TURN_WORK_SEGMENT_MODERATE_WINDOW;
+    default:
+      return TURN_WORK_SEGMENT_WINDOW;
+  }
+}
 
 export type TurnWorkSegmentSlot = {
   /** Index in the turn's rendered row list reserved for the segment block. */
@@ -45,6 +61,8 @@ export type PlanTurnWorkSegmentsInput = {
   windowSize: number;
   /** Reader overrides by segment id. */
   openOverrides: Readonly<Record<string, boolean>>;
+  /** Active renderer memory pressure level. */
+  pressureLevel?: MemoryPressureLevel;
 };
 
 export function planTurnWorkSegments(input: PlanTurnWorkSegmentsInput): TurnWorkSegmentPlan {
@@ -65,6 +83,7 @@ export function planTurnWorkSegments(input: PlanTurnWorkSegmentsInput): TurnWork
       resolveSegmentDefaultOpen(segment, {
         isLast: segment.ordinal === lastOrdinal,
         expandAll: input.expandAll,
+        ...(input.pressureLevel !== undefined ? { pressureLevel: input.pressureLevel } : {}),
       }),
     slots: new Map(),
   };

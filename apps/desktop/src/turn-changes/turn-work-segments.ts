@@ -8,6 +8,7 @@
  * pick the part worth opening. Only open segments mount their rows.
  */
 import type { ChatMessageUi, ToolCardUi } from '../conversation/chat-ui-types.js';
+import type { MemoryPressureLevel } from '../notes/memory-governor.js';
 import {
   isExploratoryKind,
   resolveToolClusterKind,
@@ -325,9 +326,12 @@ export function indexSegmentsByItem(
  */
 export function resolveSegmentDefaultOpen(
   segment: TurnWorkSegment,
-  options: { isLast: boolean; expandAll: boolean },
+  options: { isLast: boolean; expandAll: boolean; pressureLevel?: MemoryPressureLevel },
 ): boolean {
   if (options.expandAll) return true;
+  if (options.pressureLevel === 'critical') {
+    return segment.running || options.isLast;
+  }
   if (segment.stats.subagent > 0) return true;
   return segment.running || options.isLast || segment.stats.failed > 0;
 }

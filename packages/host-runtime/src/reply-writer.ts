@@ -2,7 +2,10 @@
  * Reply Writer prompt assembly and one-shot completion (spec: reply-writer).
  */
 import type { ModelRef, ReplyWriterConfig, ReplyWriterLanguage } from '@piwin/contracts';
-import { DEFAULT_REPLY_WRITER_TIMEOUT_MS } from '@piwin/contracts';
+import {
+  DEFAULT_REPLY_WRITER_SYSTEM_PROMPT,
+  DEFAULT_REPLY_WRITER_TIMEOUT_MS,
+} from '@piwin/contracts';
 import {
   completeStructuredText,
   type StructuredCompletionDependencies,
@@ -10,14 +13,7 @@ import {
 import { StructuredCompletionError } from './structured-completion-error.js';
 import type { ModelProviderConfig } from '@piwin/contracts';
 
-export const DEFAULT_REPLY_WRITER_SYSTEM_PROMPT = `<reply_writer_contract>
-You rewrite coding-agent draft replies into polished, clear, and professional developer communications.
-
-## Invariants
-1. **Factual & Technical Fidelity**: Preserve all file paths, command names, error messages, diffs, and numbers verbatim. Never invent facts.
-2. **Anti-Laziness in Code**: Keep code blocks complete; never insert placeholder comments like "// ... existing code unchanged ...".
-3. **Transparent Delivery**: Output ONLY the final response. Never mention rewriting, drafting, or underlying models.
-</reply_writer_contract>`;
+export { DEFAULT_REPLY_WRITER_SYSTEM_PROMPT };
 
 const USER_BODY_MAX_CHARS = 8_000;
 const DRAFT_MAX_CHARS = 32_000;

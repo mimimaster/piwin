@@ -16,12 +16,12 @@ import {
   buildTranscriptTurnsStructureKey,
   createTranscriptRangeExtractor,
   adoptUserScrollBeforeTurnMeasure,
+  resolveTranscriptLiveTailPinCount,
   resolveTranscriptTurnOverscan,
   shouldAdjustTranscriptScrollOnItemSizeChange,
   shouldIgnoreTailRestick,
   shouldVirtualizeTranscript,
   transcriptVirtualizerMeasurePolicy,
-  TRANSCRIPT_LIVE_TAIL_PIN_COUNT,
   TRANSCRIPT_TURN_GAP_PX,
 } from './transcript-turn-policy.js';
 import { globalMemoryGovernor } from '../notes/memory-governor.js';
@@ -222,12 +222,22 @@ function VirtualizedTranscriptTurns(
   );
   const turnIndexByMessageIdRef = useRef(turnIndexByMessageId);
   turnIndexByMessageIdRef.current = turnIndexByMessageId;
+  const memoryPressureLevel = useSyncExternalStore(
+    globalMemoryGovernor.subscribe,
+    globalMemoryGovernor.getLevel,
+    () => 'normal' as const,
+  );
+  const overscan = resolveTranscriptTurnOverscan(memoryPressureLevel);
+  const liveTailPinCount = resolveTranscriptLiveTailPinCount(
+    memoryPressureLevel,
+    props.streaming === true,
+  );
   const pinnedTurnIndex = props.pinnedMessageId
     ? (turnIndexByMessageId.get(props.pinnedMessageId) ?? null)
     : null;
   const liveTailStartIndex =
-    props.turns.length > 0
-      ? Math.max(0, props.turns.length - TRANSCRIPT_LIVE_TAIL_PIN_COUNT)
+    props.turns.length > 0 && liveTailPinCount > 0
+      ? Math.max(0, props.turns.length - liveTailPinCount)
       : null;
   const rangeExtractor = useMemo(
     () => createTranscriptRangeExtractor(pinnedTurnIndex, liveTailStartIndex),
@@ -308,12 +318,6 @@ function VirtualizedTranscriptTurns(
     [props.scrollPort.isFollowingTail, props.scrollPort.sessionId],
   );
 
-  const memoryPressureLevel = useSyncExternalStore(
-    globalMemoryGovernor.subscribe,
-    globalMemoryGovernor.getLevel,
-    () => 'normal' as const,
-  );
-  const overscan = resolveTranscriptTurnOverscan(memoryPressureLevel);
   const measurePolicy = transcriptVirtualizerMeasurePolicy();
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLElement>({
     count: props.turns.length,

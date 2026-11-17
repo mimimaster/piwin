@@ -92,6 +92,12 @@ export function PromptsPanel(props: PromptsPanelProps) {
           />
         ) : null}
 
+        <p className="muted" style={{ fontSize: '12px', marginBottom: 12 }}>
+          {isChinese
+            ? '这里管理的是输入区通过 /name 展开的快捷片段；如需管理模型系统提示词与人设，请前往「系统提示词」设置页。'
+            : 'Snippets here expand in input via /name. Manage model personas and system instructions in the System Prompts settings page.'}
+        </p>
+
         <div className="settings-toolbar" style={{ marginBottom: 20 }}>
           <TextInput
             toolbar

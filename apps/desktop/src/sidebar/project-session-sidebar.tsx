@@ -848,7 +848,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                   ref={virtualizer.measureElement}
                   className="sidebar-tree-virtual-item"
                   style={{
-                    transform: `translateY(${virtualRow.start}px)`,
+                    top: `${virtualRow.start}px`,
                     ...sidebarTreeDepthStyle(sidebarTreeRowDepth(row)),
                   }}
                 >

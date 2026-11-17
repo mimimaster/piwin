@@ -33,6 +33,7 @@ import { handleAgentCliCommand } from './grok/agent-cli-service.js';
 import { handleHostTerminalCommand } from './terminal/host-terminal-registry.js';
 import { handleEmbeddedTuiCommand } from './tui/embedded-tui-service.js';
 import { handleExternalAgentCommand } from './grok/grok-host-commands.js';
+import { reconcileDisabledExternalAgentBackends } from './grok/grok-backend-reconcile.js';
 
 const ROOT_LEASE_UNAVAILABLE_ERROR =
   'This Host lost its data directory lock. Restart the Host.';
@@ -103,7 +104,11 @@ export async function handleCommandWithTranscriptLease(
       const operation = deps.executeExtensionApply({ ...command, deploymentId }, requestId);
       deps.extensionDeploymentPromisesById.set(deploymentId, operation);
       try {
-        return await operation;
+        const result = await operation;
+        if (result.type === 'response' && result.success) {
+          await reconcileDisabledExternalAgentBackends(deps);
+        }
+        return result;
       } finally {
         if (deps.extensionDeploymentPromisesById.get(deploymentId) === operation) {
           deps.extensionDeploymentPromisesById.delete(deploymentId);
@@ -132,6 +137,15 @@ export async function handleCommandWithTranscriptLease(
     }
     const domain = await dispatchDomainCommands(command, requestId, ctx);
     if (domain) {
+      if (
+        domain.type === 'response' &&
+        domain.success &&
+        (command.type === 'extensions/set_enabled' ||
+          command.type === 'extensions/uninstall' ||
+          command.type === 'extensions/install')
+      ) {
+        await reconcileDisabledExternalAgentBackends(deps);
+      }
       const inventoryKinds = inventoryKindsChangedBy(command.type);
       if (inventoryKinds && domain.type === 'response' && domain.success) {
         // Off the response path: the push re-scans resources, and it never throws.

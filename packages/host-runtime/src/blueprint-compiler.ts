@@ -33,7 +33,6 @@ import type {
   SessionToolFamily,
 } from '@piwin/contracts';
 import {
-  DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
   resolveActiveCompactionDelegation,
 } from '@piwin/contracts';
 import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
@@ -86,6 +85,12 @@ import {
 import type { SessionBlueprint } from './session-blueprint.js';
 import { formatSkillDiscoveryPrompt } from './skills-system-prompt.js';
 import { formatCatalogSystemPrompt } from './tool-catalog/catalog-brief.js';
+import {
+  loadSessionSystemPromptPresetId,
+  resolveCompiledSystemPromptOverlay,
+  type CompiledSystemPromptOverlay,
+  type SystemPromptSurfaceSummary,
+} from './system-prompts-compile.js';
 import { windowsShellPrompt } from './tools/windows-shell-prompt.js';
 import {
   isKnownSubscriptionProviderId,
@@ -189,18 +194,32 @@ export async function compileBlueprintForWorker(
     .sort((left, right) => left.localeCompare(right));
   const location = await resolveSessionLocation(input, options.piwinRoot);
   const agentCwd = resolveAgentCwd(location, input.cwd);
+  const isConversation = isConversationChatSession(input, location.scope);
+  const sessionPresetId =
+    input.systemPromptPresetId ??
+    ((options.config === undefined || options.piwinRoot !== undefined) && options.sessionId
+      ? await loadSessionSystemPromptPresetId(options.piwinRoot, options.sessionId)
+      : undefined);
+  const systemPromptOverlay = resolveCompiledSystemPromptOverlay({
+    config,
+    input,
+    location,
+    isConversation,
+    sessionPresetId,
+  });
 
   // Conversation fast path: pure-chat sessions split before any resource or
   // context discovery so they never pay agent preparation costs and never
   // receive implicit workspace context (Pure Chat spec §5.2).
-  const plan = isConversationChatSession(input, location.scope)
-    ? compileConversationPlan(input, options, { config, location })
+  const plan = isConversation
+    ? compileConversationPlan(input, options, { config, location, systemPromptOverlay })
     : await compileAgentCapabilityPlan(input, options, {
         config,
         mcpConfig,
         mcpEnabledServerIds,
         location,
         agentCwd,
+        systemPromptOverlay,
       });
 
   return assembleCompiledBlueprint(input, options, { config, location, agentCwd, plan });
@@ -216,7 +235,9 @@ type CapabilityCompilePlan = {
   resourceManifest: ResourceManifest;
   contextManifest: ContextManifest;
   hostToolboxTargetNames: string[];
+  systemPromptOverride?: string;
   appendSystemPrompt?: string;
+  systemPromptSummary: SystemPromptSurfaceSummary;
 };
 
 type AgentCompileContext = {
@@ -225,6 +246,7 @@ type AgentCompileContext = {
   mcpEnabledServerIds: string[];
   location: ResolvedSessionLocation;
   agentCwd: string;
+  systemPromptOverlay: CompiledSystemPromptOverlay;
 };
 
 async function compileAgentCapabilityPlan(
@@ -232,7 +254,7 @@ async function compileAgentCapabilityPlan(
   options: CompileBlueprintOptions,
   ctx: AgentCompileContext,
 ): Promise<CapabilityCompilePlan> {
-  const { config, mcpConfig, mcpEnabledServerIds, location, agentCwd } = ctx;
+  const { config, mcpConfig, mcpEnabledServerIds, location, agentCwd, systemPromptOverlay } = ctx;
 
   // Discover resource paths (same logic as SDK adapter).
   const resources = options.discoverResources
@@ -389,7 +411,8 @@ async function compileAgentCapabilityPlan(
     piBuiltinToolNames: snapshot.tools.piBuiltinToolNames,
   });
   const appendSystemPromptParts = [
-    DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
+    systemPromptOverlay.baseAgentPrompt,
+    systemPromptOverlay.presetAppendPrompt,
     windowsShellPrompt(options.piwinRoot),
     artifactAppendPrompt,
     mcpAppendPrompt,
@@ -406,7 +429,11 @@ async function compileAgentCapabilityPlan(
     resourceManifest,
     contextManifest,
     hostToolboxTargetNames,
+    ...(systemPromptOverlay.systemPromptOverride
+      ? { systemPromptOverride: systemPromptOverlay.systemPromptOverride }
+      : {}),
     ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
+    systemPromptSummary: systemPromptOverlay.summary,
   };
 }
 
@@ -436,6 +463,7 @@ async function assembleCompiledBlueprint(
       ? { model: { providerId: input.model.providerId, modelId: input.model.modelId } }
       : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+    ...(plan.systemPromptOverride ? { systemPromptOverride: plan.systemPromptOverride } : {}),
     ...(plan.appendSystemPrompt ? { appendSystemPrompt: plan.appendSystemPrompt } : {}),
   });
 
@@ -525,6 +553,7 @@ async function assembleCompiledBlueprint(
     ...(compactionDelegation
       ? { compactionDelegation: { model: { ...compactionDelegation.model } } }
       : {}),
+    ...(plan.systemPromptOverride ? { systemPromptOverride: plan.systemPromptOverride } : {}),
     ...(plan.appendSystemPrompt ? { appendSystemPrompt: plan.appendSystemPrompt } : {}),
   };
 
@@ -539,6 +568,7 @@ async function assembleCompiledBlueprint(
     hostToolDescriptors: [...plan.snapshot.tools.hostTools],
     hostToolboxTargetNames: plan.hostToolboxTargetNames,
     backendBlueprint,
+    systemPromptSummary: plan.systemPromptSummary,
   };
 
   return {
@@ -560,9 +590,7 @@ function computeMcpRevision(document: McpConfigDocument): string {
   return createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }
 
-const CONVERSATION_CHAT_SYSTEM_PROMPT = `<identity>
-You are Piwin Chat, a general-purpose conversational assistant. Answer the user directly.
-</identity>`;
+import { CONVERSATION_CHAT_SYSTEM_PROMPT } from '@piwin/contracts';
 
 /** Resident system contract for pure-chat sessions: identity. */
 export function formatConversationSystemPrompt(): string {
@@ -580,9 +608,10 @@ function compileConversationPlan(
   ctx: {
     config: PiwinConfig;
     location: ResolvedSessionLocation;
+    systemPromptOverlay: CompiledSystemPromptOverlay;
   },
 ): CapabilityCompilePlan {
-  const { config, location } = ctx;
+  const { config, location, systemPromptOverlay } = ctx;
 
   const contextPolicy: ContextPolicy = {
     allowPiNativeInstructions: false,
@@ -650,7 +679,8 @@ function compileConversationPlan(
     options.mountedKnowledgeBaseNames ?? [],
   );
   const appendSystemPromptParts = [
-    formatConversationSystemPrompt(),
+    systemPromptOverlay.baseConversationPrompt,
+    systemPromptOverlay.presetAppendPrompt,
     artifactAppendPrompt,
     knowledgeAppendPrompt,
   ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
@@ -662,6 +692,10 @@ function compileConversationPlan(
     resourceManifest,
     contextManifest,
     hostToolboxTargetNames,
+    ...(systemPromptOverlay.systemPromptOverride
+      ? { systemPromptOverride: systemPromptOverlay.systemPromptOverride }
+      : {}),
     ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
+    systemPromptSummary: systemPromptOverlay.summary,
   };
 }

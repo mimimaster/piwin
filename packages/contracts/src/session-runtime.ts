@@ -80,6 +80,7 @@ export const RUNTIME_STALE_DOMAINS: ReadonlySet<SettingsDomain> = new Set<Settin
   'skills',
   'extensions',
   'prompts',
+  'systemPrompts',
   'process',
   'notes',
   'flashcards',

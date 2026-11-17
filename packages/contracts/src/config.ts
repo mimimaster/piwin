@@ -12,6 +12,7 @@ import {
 import type { SkillsConfig } from './skills.js';
 import type { ExtensionsConfig } from './extensions.js';
 import type { PromptsConfig } from './prompts.js';
+import type { SystemPromptsConfig } from './system-prompts.js';
 import type { NotesConfig } from './notes.js';
 import type { FlashcardsConfig } from './flashcards.js';
 import type { KnowledgeConfig } from './knowledge.js';
@@ -510,6 +511,8 @@ export type PiwinConfig = {
   skills?: SkillsConfig;
   extensions?: ExtensionsConfig;
   prompts?: PromptsConfig;
+  /** Custom system prompt presets, defaults, and built-in slot overrides. */
+  systemPrompts?: SystemPromptsConfig;
   compaction?: CompactionConfig;
   /** Windows Git Bash offer state. Absent means never answered. */
   shell?: ShellConfig;

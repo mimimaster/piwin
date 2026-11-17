@@ -38,7 +38,66 @@ export type MemoryDiagnosticsPanelData = {
   warmSnapshots: number;
   /** Reclaim candidates a manual release could act on right now. */
   eligibleCandidates: number;
+  /** Whether occlusion parking (`html[data-memory-parked]`) is currently active. */
+  parked?: boolean;
 };
+
+export type VisualDegradationPolicyEntry = {
+  id: 'core-motion' | 'text-shimmer' | 'glass-and-masks';
+  label: string;
+  status: string;
+  active: boolean;
+};
+
+/** Real-time count of mounted whitelisted status animations (`ui-anim-*`). */
+export function getLiveStatusAnimationCount(
+  data: Pick<MemoryDiagnosticsPanelData, 'frontend'> | null,
+): number {
+  return data?.frontend.resourceCounts['liveStatusAnimations'] ?? 0;
+}
+
+/**
+ * Current visual/motion degradation matrix matching `memory-degradation.css`.
+ * Core `ui-anim-*` status indicators stay whitelisted under `moderate` and
+ * `critical` pressure and pause only while the window is occluded (`parked`).
+ */
+export function describeVisualDegradationPolicy(
+  data: Pick<MemoryDiagnosticsPanelData, 'level' | 'parked' | 'frontend'> | null,
+  locale: DesktopLocale = 'en',
+): VisualDegradationPolicyEntry[] {
+  const copy = memoryDiagnosticsCopy(locale);
+  const level = data?.level ?? 'normal';
+  const parked = data?.parked === true;
+  const liveCount = getLiveStatusAnimationCount(data);
+  const pressureDegraded = level !== 'normal' || parked;
+
+  return [
+    {
+      id: 'core-motion',
+      label: copy.motionPolicyItems.coreMotion.label,
+      status: parked
+        ? copy.motionPolicyItems.coreMotion.paused(liveCount)
+        : copy.motionPolicyItems.coreMotion.active(liveCount),
+      active: !parked,
+    },
+    {
+      id: 'text-shimmer',
+      label: copy.motionPolicyItems.shimmer.label,
+      status: pressureDegraded
+        ? copy.motionPolicyItems.shimmer.degraded
+        : copy.motionPolicyItems.shimmer.active,
+      active: !pressureDegraded,
+    },
+    {
+      id: 'glass-and-masks',
+      label: copy.motionPolicyItems.glassAndMasks.label,
+      status: pressureDegraded
+        ? copy.motionPolicyItems.glassAndMasks.degraded
+        : copy.motionPolicyItems.glassAndMasks.active,
+      active: !pressureDegraded,
+    },
+  ];
+}
 
 export function formatBytes(bytes: number | undefined): string {
   if (bytes === undefined || !Number.isFinite(bytes) || bytes < 0) {

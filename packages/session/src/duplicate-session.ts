@@ -138,6 +138,9 @@ export async function duplicateProductSession(
   if (sourceRecord.orchestrationSchemeId) {
     record.orchestrationSchemeId = sourceRecord.orchestrationSchemeId;
   }
+  if (sourceRecord.systemPromptPresetId) {
+    record.systemPromptPresetId = sourceRecord.systemPromptPresetId;
+  }
   if (sourceRecord.delegationDisabled === true) {
     record.delegationDisabled = true;
   }

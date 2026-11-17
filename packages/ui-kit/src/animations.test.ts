@@ -1,0 +1,27 @@
+import { readFileSync } from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import { RadialBellow } from './animations.js';
+
+describe('RadialBellow animation geometry', () => {
+  it('places each vane inside a static radial slot so paused animations keep ring layout', () => {
+    const markup = renderToStaticMarkup(createElement(RadialBellow, { size: 'sm' }));
+    const slotMatches = markup.match(/class="ui-anim-radial-bellow__slot"/g) ?? [];
+    const vaneMatches = markup.match(/class="ui-anim-radial-bellow__vane"/g) ?? [];
+    expect(slotMatches).toHaveLength(8);
+    expect(vaneMatches).toHaveLength(8);
+  });
+
+  it('keeps radial placement on static slots rather than inside @keyframes', () => {
+    const css = readFileSync(new URL('./primitive-animations.css', import.meta.url), 'utf8');
+    const slotMatch = css.match(/\.ui-anim-radial-bellow__slot\s*\{([^}]*)\}/);
+    expect(slotMatch?.[1]).toContain('rotate(calc(var(--i) * 45deg)) translateX(var(--vane-radius, 20px))');
+
+    const keyframeMatch = css.match(/@keyframes ui-anim-radial-bellow\s*\{([\s\S]*?\n\})/);
+    expect(keyframeMatch?.[1]).toBeDefined();
+    expect(keyframeMatch?.[1]).not.toContain('var(--i)');
+    expect(keyframeMatch?.[1]).not.toContain('rotate(');
+    expect(keyframeMatch?.[1]).toContain('transform: scale(');
+  });
+});

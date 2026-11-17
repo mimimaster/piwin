@@ -12,8 +12,11 @@ import type {
 } from '@piwin/contracts';
 import {
   isValidOrchestrationSchemeId,
+  isValidSystemPromptPresetId,
   modelSupportsCapability,
   ORCHESTRATION_SCHEME_OFF_ID,
+  SYSTEM_PROMPT_BUILTIN_ID,
+  SYSTEM_PROMPT_INHERIT_ID,
 } from '@piwin/contracts';
 import { getSessionRecord } from '@piwin/session';
 import { fail, ok } from '../response-helpers.js';
@@ -55,7 +58,8 @@ function composerProfileUnchanged(
     sameModel(before.model, after.model) &&
     before.thinkingLevel === after.thinkingLevel &&
     before.orchestrationSchemeId === after.orchestrationSchemeId &&
-    before.delegationDisabled === after.delegationDisabled
+    before.delegationDisabled === after.delegationDisabled &&
+    before.systemPromptPresetId === after.systemPromptPresetId
   );
 }
 
@@ -77,12 +81,29 @@ export async function handleSessionComposerProfileCommand(
     ...(command.delegationDisabled !== undefined
       ? { delegationDisabled: command.delegationDisabled }
       : {}),
+    ...(command.systemPromptPresetId !== undefined
+      ? { systemPromptPresetId: command.systemPromptPresetId.trim() }
+      : {}),
   };
   if (isEmptySessionComposerProfile(profile)) {
     return fail(
       requestId,
       command.type,
-      'model, thinkingLevel, orchestrationSchemeId, or delegationDisabled is required',
+      'model, thinkingLevel, orchestrationSchemeId, delegationDisabled, or systemPromptPresetId is required',
+    );
+  }
+  const presetId = profile.systemPromptPresetId;
+  if (
+    presetId !== undefined &&
+    presetId !== '' &&
+    presetId !== SYSTEM_PROMPT_INHERIT_ID &&
+    presetId !== SYSTEM_PROMPT_BUILTIN_ID &&
+    !isValidSystemPromptPresetId(presetId)
+  ) {
+    return fail(
+      requestId,
+      command.type,
+      `invalid system prompt preset id "${presetId}"`,
     );
   }
   // A scheme deleted from Settings later is fine to keep: Desktop falls back

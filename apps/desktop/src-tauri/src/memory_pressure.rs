@@ -31,6 +31,9 @@ use tauri::Manager;
 mod monitor;
 mod sampling;
 mod types;
+mod webview_tuning;
+
+pub use webview_tuning::configure_all_webviews_memory_policy;
 
 use monitor::{diagnostics_dir, write_mapping_file, MemoryObservabilityState};
 use sampling::{
@@ -248,6 +251,14 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                 if state.record_retired(retired.clone()) {
                     payload.retired_processes.push(retired);
                 }
+            }
+            let has_new_or_restarted_webview = current_identities.iter().any(|(label, current)| {
+                previous_identities.get(label).map_or(true, |previous| {
+                    previous.pid != current.pid || previous.start_clock != current.start_clock
+                })
+            });
+            if has_new_or_restarted_webview {
+                webview_tuning::configure_all_webviews_memory_policy(&app_handle);
             }
             previous_identities = current_identities;
 
@@ -471,8 +482,14 @@ pub fn purge_webview_memory(
                 // SAFETY: with_webview hands us the live WKWebView pointer on
                 // the main thread; all calls below are public WebKit API.
                 unsafe {
+                    use objc2::runtime::AnyObject;
                     use objc2_foundation::{NSDate, NSSet};
                     use objc2_web_kit::{WKWebView, WKWebsiteDataTypeMemoryCache};
+                    let raw_webview = platform_webview.inner().cast::<AnyObject>();
+                    let Some(any_webview) = raw_webview.as_ref() else {
+                        return;
+                    };
+                    webview_tuning::purge_wkwebview_transient_state(any_webview);
                     let webview = platform_webview.inner().cast::<WKWebView>();
                     let Some(webview) = webview.as_ref() else {
                         return;

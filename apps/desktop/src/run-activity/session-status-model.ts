@@ -27,7 +27,7 @@ export type SessionHeaderRowView = {
 };
 
 export type PromptRowView = {
-  engine: 'pi-purge' | 'agy-purge' | 'context-system' | 'default';
+  engine: 'pi-purge' | 'agy-purge' | 'preset' | 'context-system' | 'default';
   tone: 'override' | 'muted' | 'warning';
   /** Shortened right-hand meta (`默认 · AGENTS ×1` or `…/.pi/SYSTEM.md`). */
   meta: string;
@@ -158,6 +158,12 @@ function derivePromptRow(
   const ctxAppPath = statuses.get('meta:context-app-path');
 
   const agentsCount = typeof ctxMeta?.agents === 'number' ? ctxMeta.agents : undefined;
+  const presetName =
+    typeof ctxMeta?.presetName === 'string' && ctxMeta.presetName.trim().length > 0
+      ? ctxMeta.presetName.trim()
+      : undefined;
+  const presetMode = ctxMeta?.presetMode === 'replace' ? 'replace' : 'append';
+  const builtinMod = ctxMeta?.builtinMod === true;
   const isAntigravity =
     runtime.agentId === 'antigravity' || agyMeta !== undefined || agyStatus !== undefined;
 
@@ -234,6 +240,34 @@ function derivePromptRow(
     };
   }
 
+  if (presetName) {
+    const modeLabel =
+      presetMode === 'replace'
+        ? zh
+          ? '替换模式'
+          : 'Replace'
+        : zh
+          ? '追加模式'
+          : 'Append';
+    const copyPath = ctxSysPath && presetMode !== 'replace' ? ctxSysPath : undefined;
+    return {
+      engine: 'preset',
+      tone: 'override',
+      meta: `${presetName}${formatAgentsSuffix(agentsCount)}`,
+      isMonoMeta: false,
+      ...(copyPath ? { activePath: copyPath } : {}),
+      tooltip: [
+        zh
+          ? `系统提示词预设生效中：${presetName}（${modeLabel}）`
+          : `System prompt preset active: ${presetName} (${modeLabel})`,
+        copyPath,
+        ctxAppPath ? `${zh ? '追加' : 'Append'}: ${ctxAppPath}` : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    };
+  }
+
   if (ctxSysPath) {
     return {
       engine: 'context-system',
@@ -260,18 +294,28 @@ function derivePromptRow(
     Boolean(runtime.nativeSessionId);
   if (!hasPromptPresence) return null;
 
-  const baseMeta = zh ? '默认' : 'Default';
-  const tooltip = isAntigravity
+  const baseMeta = builtinMod
     ? zh
-      ? '当前使用默认提示词（可通过 /agy 指定外部提示词文件）'
-      : 'Using default prompt (/agy <filepath> to override)'
+      ? '默认（已修改）'
+      : 'Default (modified)'
     : zh
-      ? '当前使用默认提示词（可通过 /purge 指定外部提示词文件）'
-      : 'Using default prompt (/purge <filepath> to override)';
+      ? '默认'
+      : 'Default';
+  const tooltip = builtinMod
+    ? zh
+      ? '当前使用已自定义修改的默认系统提示词（可在设置 → 系统提示词中查看或恢复）'
+      : 'Using customized default system prompt (view or reset in Settings → System Prompts)'
+    : isAntigravity
+      ? zh
+        ? '当前使用默认提示词（可通过 /agy 指定外部提示词文件）'
+        : 'Using default prompt (/agy <filepath> to override)'
+      : zh
+        ? '当前使用默认提示词（可通过 /purge 指定外部提示词文件）'
+        : 'Using default prompt (/purge <filepath> to override)';
 
   return {
     engine: 'default',
-    tone: 'muted',
+    tone: builtinMod ? 'override' : 'muted',
     meta: `${baseMeta}${formatAgentsSuffix(agentsCount)}`,
     isMonoMeta: false,
     tooltip: ctxAppPath
