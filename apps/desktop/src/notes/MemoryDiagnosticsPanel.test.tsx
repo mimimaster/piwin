@@ -87,7 +87,7 @@ describe('MemoryDiagnosticsPanel', () => {
     expect(footprint).toContain('critical');
     expect(text(container.querySelector('[data-testid="memory-diag-level"]'))).toBe('占用过高');
     expect(footprint).toContain('已没有闲置资源可清理');
-    expect(text(container)).toContain('任务正在进行');
+    expect(text(container)).toContain('草稿状态未就绪');
     expect(text(container.querySelector('[data-testid="memory-diag-last-action"]'))).not.toContain('8.0 MB');
     expect(container.querySelector('[data-testid="memory-diag-episode-detail"]')).toBeNull();
     const toggle = container.querySelector<HTMLButtonElement>('[data-testid="memory-diag-technical-detail-toggle"]');
@@ -132,7 +132,27 @@ describe('MemoryDiagnosticsPanel', () => {
     expect(summary).not.toContain('waiting');
     expect(container.querySelector<HTMLButtonElement>('[data-testid="memory-diag-release-btn"]')?.disabled).toBe(true);
     expect(container.querySelector<HTMLButtonElement>('[data-testid="memory-diag-restart-btn"]')?.disabled).toBe(true);
-    expect(text(container.querySelector('[data-testid="memory-diag-restart-blocked"]'))).toContain('A run is in progress');
+    expect(text(container.querySelector('[data-testid="memory-diag-restart-blocked"]'))).toContain('Draft state is unavailable');
+  });
+
+  it('allows reload during an active Host run when drafts are durable', async () => {
+    const relaunch = vi.fn();
+    const container = await renderPanel({
+      locale: 'zh-CN',
+      refreshMs: 0,
+      getNativeSnapshot: () => Promise.resolve(NATIVE),
+      recoveryDeps: {
+        isRunActive: () => true,
+        getDraftState: () => EMPTY_DRAFTS,
+        dispatchRelaunchEvent: () => true,
+        relaunch,
+      },
+    });
+    const restart = container.querySelector<HTMLButtonElement>('[data-testid="memory-diag-restart-btn"]');
+    expect(restart?.disabled).toBe(false);
+    expect(text(container.querySelector('[data-testid="memory-diag-restart-blocked"]'))).toContain(
+      '后台任务由 Host 独立托管',
+    );
   });
 
   it('renders all sections and shows native-unavailable when the snapshot is null', async () => {
@@ -276,7 +296,7 @@ describe('MemoryDiagnosticsPanel', () => {
     }
   });
 
-  it('shows live whitelisted status animation count and degradation policy matrix even at critical pressure', async () => {
+  it('pauses live status animations and strips glass under critical pressure', async () => {
     const releaseMotion = trackLiveMotionMount('radial-bellow');
     try {
       globalMemoryGovernor.setLevel('critical');
@@ -287,7 +307,7 @@ describe('MemoryDiagnosticsPanel', () => {
       });
 
       expect(text(container.querySelector('[data-testid="memory-diag-live-motion"]'))).toContain(
-        '1 项 · 白名单保活',
+        '1 项 · 高占用已暂停',
       );
 
       const toggle = container.querySelector<HTMLButtonElement>(
@@ -300,7 +320,7 @@ describe('MemoryDiagnosticsPanel', () => {
       const policySection = container.querySelector('[data-testid="memory-diag-motion-policy"]');
       expect(policySection).not.toBeNull();
       expect(text(container.querySelector('[data-testid="memory-diag-policy-core-motion"]'))).toContain(
-        '白名单保活 · 运行中（1 个）',
+        '已暂停 · 占用过高静态模式（1 个）',
       );
       expect(text(container.querySelector('[data-testid="memory-diag-policy-text-shimmer"]'))).toContain(
         '已降级',

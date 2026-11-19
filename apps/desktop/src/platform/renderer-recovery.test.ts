@@ -19,9 +19,12 @@ afterEach(() => {
 });
 
 describe('evaluateRendererRecoveryChecks', () => {
-  it('fails closed when a run is active, before checking drafts', () => {
+  it('marks active Host runs as safe-to-continue before checking drafts', () => {
     const checks = evaluateRendererRecoveryChecks({ isRunActive: () => true });
-    expect(checks).toEqual([{ id: 'run-active', ok: false, reason: 'run-active' }]);
+    expect(checks).toEqual([
+      { id: 'run-active', ok: true, reason: 'run-active-safe' },
+      { id: 'draft-state', ok: false, reason: 'draft-state-unavailable' },
+    ]);
   });
 
   it('fails closed when no draft state source is configured', () => {
@@ -37,7 +40,7 @@ describe('evaluateRendererRecoveryChecks', () => {
 });
 
 describe('requestRendererRecovery', () => {
-  it('blocks during a run and never dispatches', () => {
+  it('allows reload during an active Host run once drafts are durable', () => {
     const dispatch = vi.fn(() => true);
     const relaunch = vi.fn();
     const result = requestRendererRecovery({
@@ -46,7 +49,20 @@ describe('requestRendererRecovery', () => {
       dispatchRelaunchEvent: dispatch,
       relaunch,
     });
-    expect(result).toMatchObject({ allowed: false, reason: 'run-active' });
+    expect(result.allowed).toBe(true);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(relaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it('still blocks during an active run when draft durability cannot be checked', () => {
+    const dispatch = vi.fn(() => true);
+    const relaunch = vi.fn();
+    const result = requestRendererRecovery({
+      isRunActive: () => true,
+      dispatchRelaunchEvent: dispatch,
+      relaunch,
+    });
+    expect(result).toMatchObject({ allowed: false, reason: 'draft-state-unavailable' });
     expect(dispatch).not.toHaveBeenCalled();
     expect(relaunch).not.toHaveBeenCalled();
   });

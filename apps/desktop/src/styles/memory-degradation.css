@@ -26,6 +26,13 @@ html[data-memory-parked] * {
   backdrop-filter: none !important;
 }
 
+/* Collapse wallpaper layer under pressure or parking so translucent backing layers release. */
+html[data-memory-pressure='moderate'] .app-wallpaper,
+html[data-memory-pressure='critical'] .app-wallpaper,
+html[data-memory-parked] .app-wallpaper {
+  display: none !important;
+}
+
 /* Strip 3D perspective, preserve-3d layers, and transient transform will-change
    on flashcards during memory pressure or occlusion parking. This immediately
    destroys WebKit IOSurface offscreen buffers and returns GPU memory. */
@@ -268,11 +275,10 @@ html[data-memory-parked] .behavior-generic-active {
   filter: none !important;
 }
 
-/* Stop non-whitelisted infinite status & entrance animations under pressure or parking.
-   Core ui-anim-* status indicators (AgentLocator / RadialBellow, etc.) are
-   explicitly whitelisted while the window is visible — even at moderate or
-   critical pressure — and use pure scale/opacity keyframes with static radial
-   slots so they only pause when the window is occluded (data-memory-parked). */
+/* Stop infinite status & entrance animations under pressure or parking.
+   Core ui-anim-* status indicators (AgentLocator / RadialBellow) stay running
+   only at moderate pressure while visible; critical pressure and occlusion
+   parking stop them to eliminate continuous 60fps compositor commits. */
 html[data-memory-pressure='moderate'] .behavior-thinking-active,
 html[data-memory-pressure='critical'] .behavior-thinking-active,
 html[data-memory-parked] .behavior-thinking-active,
@@ -306,6 +312,8 @@ html[data-memory-parked] .bubble.is-new,
 html[data-memory-pressure='moderate'] .action-marquee-item,
 html[data-memory-pressure='critical'] .action-marquee-item,
 html[data-memory-parked] .action-marquee-item,
+html[data-memory-pressure='critical'] [class*='ui-anim-'],
+html[data-memory-pressure='critical'] [class*='ui-anim-'] *,
 html[data-memory-parked] [class*='ui-anim-'],
 html[data-memory-parked] [class*='ui-anim-'] * {
   animation: none !important;
@@ -317,6 +325,10 @@ html[data-memory-parked] .lamp::after {
   content: none !important;
   display: none !important;
   animation: none !important;
+}
+
+html[data-memory-pressure='critical'] .ui-anim-radial-bellow__vane {
+  opacity: 0.72 !important;
 }
 
 html[data-memory-parked] .ui-anim-radial-bellow__vane {

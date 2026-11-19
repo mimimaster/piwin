@@ -3,6 +3,7 @@ import type { DesktopLocale } from '../i18n/desktop-locale.js';
 const ENGLISH = {
   mainUsage: 'Footprint',
   mainUsageEn: '',
+  residentMemory: 'RSS',
   allWindows: 'All windows',
   samplingLabel: 'Sampling',
   governorLabel: 'Governor',
@@ -65,6 +66,7 @@ const ENGLISH = {
   restart: 'Reload view',
   noIdle: 'Nothing idle to release.',
   restartHint: 'Checks passed — safe to reload the current view.',
+  restartHintRunActive: 'Active run stays alive in Host — safe to reload this view.',
   releaseFailed: 'Cleanup failed. Please try again later.',
   manualNone: 'Nothing idle to release — only protected or visible views remain.',
   manualNoRelease: 'No released bytes were confirmed.',
@@ -93,22 +95,29 @@ const ENGLISH = {
   estimateHint: 'Resource estimate is separate from measured process footprint.',
   checks: 'Reload checks',
   checkNames: {
-    'run-active': 'No active run',
+    'run-active': 'Host run continuity',
     'draft-state': 'Draft state readable',
     'draft-durability': 'Drafts durable',
     'relaunch-veto': 'Views allow reload',
   },
   motionSection: 'Motion & degradation policy',
   motionLiveLabel: 'Live status animations',
-  motionLiveSummary: (count: number, parked: boolean) =>
-    `${count} active · ${parked ? 'paused (window hidden)' : 'whitelisted'}`,
+  motionLiveSummary: (count: number, pauseReason: 'parked' | 'critical' | null) =>
+    `${count} active · ${
+      pauseReason === 'parked'
+        ? 'paused (window hidden)'
+        : pauseReason === 'critical'
+          ? 'paused (critical pressure)'
+          : 'active (normal/moderate)'
+    }`,
   motionPolicyNote:
-    'Core status animations (ui-anim-*) stay whitelisted at moderate and critical pressure and only pause while the window is hidden. WebKit does not report per-element IOSurface bytes.',
+    'Core status animations (ui-anim-*) stay active at normal/moderate pressure, and pause under critical pressure (1536 MiB) or when the window is hidden alongside opaque solid surfaces. WebKit does not report per-element IOSurface bytes.',
   motionPolicyItems: {
     coreMotion: {
       label: 'Core status icon (ui-anim-*)',
-      active: (count: number) => `Whitelisted · active (${count} mounted)`,
+      active: (count: number) => `Active (${count} mounted)`,
       paused: (count: number) => `Paused · window hidden (${count} mounted)`,
+      pausedCritical: (count: number) => `Paused · critical memory (${count} mounted)`,
     },
     shimmer: {
       label: 'Status text shimmer (wb-shimmer)',
@@ -126,6 +135,7 @@ const ENGLISH = {
 const CHINESE: typeof ENGLISH = {
   mainUsage: '内存占用',
   mainUsageEn: 'Footprint',
+  residentMemory: '常驻 RSS',
   allWindows: '全窗口 Total',
   samplingLabel: '采样 Sampling',
   governorLabel: '调控 Governor',
@@ -188,6 +198,7 @@ const CHINESE: typeof ENGLISH = {
   restart: '重载视图 Reload',
   noIdle: '无可释放的闲置项',
   restartHint: '检查已通过，可安全 Reload 当前视图',
+  restartHintRunActive: '后台任务由 Host 独立托管，重载视图不会中断正在进行的任务',
   releaseFailed: '清理失败，请稍后重试。',
   manualNone: '无可清理的闲置资源，当前可见视图受保护保留。',
   manualNoRelease: '未确认到实际释放量。',
@@ -216,22 +227,29 @@ const CHINESE: typeof ENGLISH = {
   estimateHint: '资源估算独立于进程实测 Footprint。',
   checks: '重载检查 Reload Checks',
   checkNames: {
-    'run-active': '无进行中任务 · Run idle',
+    'run-active': '后台任务无损续接 · Host run',
     'draft-state': '草稿状态可读 · Draft state',
     'draft-durability': '草稿已保存 · Durable',
     'relaunch-veto': '视图允许重载 · No veto',
   },
   motionSection: '动效与降级策略 Motion policy',
   motionLiveLabel: '动态状态图标 Live motion',
-  motionLiveSummary: (count: number, parked: boolean) =>
-    `${count} 项 · ${parked ? '窗口隐藏已暂停' : '白名单保活（高内存不降级）'}`,
+  motionLiveSummary: (count: number, pauseReason: 'parked' | 'critical' | null) =>
+    `${count} 项 · ${
+      pauseReason === 'parked'
+        ? '窗口隐藏已暂停'
+        : pauseReason === 'critical'
+          ? '高占用已暂停（静态省电）'
+          : '运行中'
+    }`,
   motionPolicyNote:
-    '核心状态图标（ui-anim-*）在占用偏高（768 MiB）与过高（1536 MiB）下保持白名单保活，仅窗口长期隐藏时暂停；WebKit 不提供按单个 CSS 组件拆分的 IOSurface 字节数。',
+    '核心状态图标（ui-anim-*）仅在正常与偏高（768 MiB）下保持运行，达到占用过高（1536 MiB）或窗口隐藏时即切换为静态省电状态，并同步切回实心纯色画布；WebKit 不提供按单个 CSS 组件拆分的 IOSurface 字节数。',
   motionPolicyItems: {
     coreMotion: {
       label: '核心状态图标 (ui-anim-*)',
-      active: (count: number) => `白名单保活 · 运行中（${count} 个）`,
+      active: (count: number) => `运行中（${count} 个）`,
       paused: (count: number) => `已暂停 · 窗口隐藏（${count} 个）`,
+      pausedCritical: (count: number) => `已暂停 · 占用过高静态模式（${count} 个）`,
     },
     shimmer: {
       label: '文字流光 (wb-shimmer)',

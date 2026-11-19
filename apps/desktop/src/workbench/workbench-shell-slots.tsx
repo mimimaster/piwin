@@ -493,6 +493,7 @@ export function WorkbenchShellFrame(props: WorkbenchShellFrameProps) {
                 browserMiniPlacementKey={browserPresentation.placementKey}
                 dismissed={browserPresentation.miniDismissed}
                 onDismiss={browserPresentation.dismissMini}
+                onCloseBrowser={browserPresentation.closeBrowser}
                 onOpenTool={openRightTab}
                 onReloadBrowser={() => {
                   void browserClient.browserReload();

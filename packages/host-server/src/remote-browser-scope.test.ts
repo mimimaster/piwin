@@ -3,7 +3,7 @@ import type { HostCommand } from '@piwin/contracts';
 import { isSafeRemoteCommand } from './remote-command-validation.js';
 
 describe('remote browser conversation scope', () => {
-  it.each(['browser/start', 'browser/stop', 'browser/reload', 'browser/restart'] as const)(
+  it.each(['browser/start', 'browser/stop', 'browser/close', 'browser/reload', 'browser/restart'] as const)(
     'accepts legacy and conversation-scoped %s', (type) => {
       expect(isSafeRemoteCommand({ type })).toBe(true);
       expect(isSafeRemoteCommand({ type, sessionId: 'session-a' })).toBe(true);

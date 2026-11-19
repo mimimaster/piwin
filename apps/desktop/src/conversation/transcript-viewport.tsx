@@ -96,10 +96,14 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     historyViewActive: props.historyViewActive === true,
     canLoadOlder: props.canLoadOlder === true,
     onUnscrollableHistoryIntent: () => {
+      if (olderResidentRevealerRef.current?.() === true) {
+        return;
+      }
       handleLoadOlderRef.current();
     },
   });
   const readingAnchorRestorerRef = useRef<TranscriptReadingAnchorRestorer | null>(null);
+  const olderResidentRevealerRef = useRef<(() => boolean) | null>(null);
   const { lastSeenMessageId, unseenCount } = useTranscriptUnseenCount({
     initialLastSeenMessageId:
       remembered && !remembered.followTail ? remembered.lastSeenMessageId : null,
@@ -138,6 +142,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     ...props,
     scroll,
     readingAnchorRestorerRef,
+    olderResidentRevealerRef,
     onReturnToLive: returnToLive,
   });
   handleLoadOlderRef.current = paging.loadOlder;
@@ -228,6 +233,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       beginLocalFoldLayout={scroll.beginLocalFoldLayout}
       beginDeliberateJump={reading.cancelPending}
       readingAnchorRestorerRef={readingAnchorRestorerRef}
+      olderResidentRevealerRef={olderResidentRevealerRef}
     >
       <div className={`transcript-viewport${opening ? ' is-opening' : ''}`}>
         {opening || (props.awaitingTranscript && props.messageCount === 0 && !props.historyViewActive) ? (

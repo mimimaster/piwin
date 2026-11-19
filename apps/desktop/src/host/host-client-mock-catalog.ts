@@ -466,6 +466,56 @@ export async function handleMockCatalogCommands(
             ],
           },
         };
+      case 'system-prompts/list-files':
+        return {
+          id,
+          type: 'response',
+          command: 'system-prompts/list-files',
+          success: true,
+          data: {
+            systemPromptsDir: '/mock/.piwin/system-prompts',
+            files: [
+              {
+                path: '/mock/.piwin/system-prompts/persona.md',
+                displayPath: 'persona.md',
+                fileName: 'persona.md',
+                extension: 'md',
+                source: 'global',
+                sizeBytes: 128,
+                updatedAtMs: 1_731_800_000_000,
+              },
+              {
+                path: '/mock/.piwin/system-prompts/rules.txt',
+                displayPath: 'rules.txt',
+                fileName: 'rules.txt',
+                extension: 'txt',
+                source: 'global',
+                sizeBytes: 96,
+                updatedAtMs: 1_731_800_000_000,
+              },
+            ],
+          },
+        };
+      case 'system-prompts/read-files': {
+        const requestedPaths = Array.isArray(command.paths) ? command.paths : [];
+        return {
+          id,
+          type: 'response',
+          command: 'system-prompts/read-files',
+          success: true,
+          data: {
+            files: requestedPaths.map((filePath) => ({
+              path: String(filePath),
+              resolvedPath: String(filePath),
+              fileName: String(filePath).split(/[\\/]/).pop() || 'prompt.md',
+              exists: true,
+              content: `# Mock Prompt\n\nLoaded from ${String(filePath)}`,
+              sizeBytes: 64,
+              updatedAtMs: 1_731_800_000_000,
+            })),
+          },
+        };
+      }
       case 'extension/ui_resolve':
         return {
           id,

@@ -37,6 +37,7 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
   );
   const liveMotionCount = getLiveStatusAnimationCount(data);
   const parked = data?.parked === true;
+  const motionPauseReason = parked ? 'parked' : data?.level === 'critical' ? 'critical' : null;
 
   return (
     <div className="memory-diagnostics" data-testid="memory-diagnostics-panel" data-condition={report.condition}>
@@ -53,9 +54,22 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
           <div className="memory-diag-number" data-testid="memory-diag-main-bytes">
             {formatBytes(report.mainBytes)}
           </div>
-          {report.aggregateBytes !== undefined && report.aggregateBytes !== report.mainBytes ? (
+          {report.residentBytes !== undefined ||
+          (report.aggregateBytes !== undefined && report.aggregateBytes !== report.mainBytes) ? (
             <span className="memory-diag-aggregate">
-              {copy.allWindows} {formatBytes(report.aggregateBytes)}
+              {report.residentBytes !== undefined ? (
+                <span data-testid="memory-diag-resident">
+                  {copy.residentMemory} {formatBytes(report.residentBytes)}
+                </span>
+              ) : null}
+              {report.residentBytes !== undefined &&
+              report.aggregateBytes !== undefined &&
+              report.aggregateBytes !== report.mainBytes
+                ? ' · '
+                : null}
+              {report.aggregateBytes !== undefined && report.aggregateBytes !== report.mainBytes
+                ? `${copy.allWindows} ${formatBytes(report.aggregateBytes)}`
+                : null}
             </span>
           ) : null}
         </div>
@@ -94,7 +108,7 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
         </dl>
         <div className="memory-diag-caches" data-testid="memory-diag-caches">
           <MemoryDiagRow label={copy.motionLiveLabel} testId="memory-diag-live-motion">
-            {copy.motionLiveSummary(liveMotionCount, parked)}
+            {copy.motionLiveSummary(liveMotionCount, motionPauseReason)}
           </MemoryDiagRow>
           {caches.length === 0 ? (
             <MemoryDiagNote>{data === null ? copy.explanation.loading : copy.noCachesCompact}</MemoryDiagNote>
@@ -196,7 +210,11 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
           )}
           <MemoryDiagNote testId="memory-diag-restart-blocked">
             {recoveryBlocker === undefined
-              ? copy.restartHint
+              ? state.recoveryChecks.some(
+                  (check) => check.id === 'run-active' && check.reason === 'run-active-safe',
+                )
+                ? copy.restartHintRunActive
+                : copy.restartHint
               : describeRecoveryReason(recoveryBlocker.reason, locale)}
           </MemoryDiagNote>
           {state.recoveryResult === null ? null : (

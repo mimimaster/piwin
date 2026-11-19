@@ -37,6 +37,7 @@ export type BrowserMiniAlertBanner = {
 export type BrowserMiniCardLabels = {
   expand?: string | undefined;
   dismiss?: string | undefined;
+  close?: string | undefined;
   reload?: string | undefined;
   resetPosition?: string | undefined;
   agentOperating?: string | undefined;
@@ -76,6 +77,8 @@ export type BrowserMiniCardProps = {
   onExpand?: (() => void) | undefined;
   /** Minimize/dismiss the mini card back into the Session Rail indicator. */
   onDismiss?: (() => void) | undefined;
+  /** Explicitly shut down the background Chromium runtime for this session. */
+  onClose?: (() => void) | undefined;
   /** Optional reload micro-action (typically enabled when not mid-agent-gesture). */
   onReload?: (() => void) | undefined;
   /** Snap a floating mini window back to the docked slot below Session Rail. */
@@ -137,6 +140,7 @@ function isInteractiveControlTarget(target: EventTarget | null): boolean {
 const DEFAULT_LABELS: Required<BrowserMiniCardLabels> = {
   expand: '展开到右侧浏览器面板',
   dismiss: '收起小窗到导轨',
+  close: '关闭浏览器',
   reload: '刷新当前页面',
   resetPosition: '吸附回右上导轨',
   agentOperating: 'AI 操作中',
@@ -173,6 +177,7 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
     children,
     onExpand,
     onDismiss,
+    onClose,
     onReload,
     onResetPosition,
     onDragStart,
@@ -350,6 +355,7 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
   const hasControls =
     onExpand !== undefined ||
     onDismiss !== undefined ||
+    onClose !== undefined ||
     onReload !== undefined ||
     (placementMode === 'floating' && onResetPosition !== undefined);
   const showDomainPill = hasControls || (tabCount !== undefined && tabCount > 1);
@@ -439,7 +445,7 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
         </div>
       ) : null}
 
-      {statusOverlayText && frameSrc ? (
+      {statusOverlayText && (frameSrc || children) ? (
         <div
           className="piwin-browser-mini-state-pill"
           data-testid={`${testId}-state-pill`}
@@ -523,6 +529,25 @@ export function BrowserMiniCard(props: BrowserMiniCardProps): ReactElement {
                   aria-label={copy.dismiss}
                   title={copy.dismiss}
                   onClick={onDismiss}
+                >
+                  <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden="true">
+                    <path
+                      d="M3.25 7H10.75"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </button>
+              ) : null}
+              {onClose ? (
+                <button
+                  type="button"
+                  className="piwin-browser-mini-hud-btn piwin-browser-mini-hud-btn--close"
+                  data-testid={`${testId}-close`}
+                  aria-label={copy.close}
+                  title={copy.close}
+                  onClick={onClose}
                 >
                   <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden="true">
                     <path

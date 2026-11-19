@@ -24,6 +24,7 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/screenshot',
   'browser/capture',
   'browser/stop',
+  'browser/close',
   'browser/restart',
   'browser/reload',
   'browser/input',
@@ -177,6 +178,15 @@ export async function handleBrowserCommand(
           ? session.stop(command.leaseId)
           : session.stop(command.leaseId, { reason: command.reason }));
         return ok(requestId, 'browser/stop', { stopped: true });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/close': {
+      try {
+        await session.shutdown();
+        return ok(requestId, 'browser/close', { closed: true });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);
       }

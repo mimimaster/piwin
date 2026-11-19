@@ -1,16 +1,20 @@
 import type { SessionTranscriptMessage } from '@piwin/contracts';
 import type { ChatMessageUi, ChatUiState } from './chat-reducer';
 
-export const MAX_TRANSCRIPT_CACHE_MESSAGES = 160;
+export const MAX_TRANSCRIPT_CACHE_MESSAGES = 80;
 /**
  * History view (reading older pages) keeps more rows than the live tail. One
  * agent turn can hold hundreds of tool-only messages that render as a single
- * closed "已工作 · N 个工具" fold; at 160 the window was shorter than that
- * invisible run, so paging older evicted the one reply the reader was looking
- * at. Folded rows do not render, and the byte cap still bounds memory.
+ * closed "已工作 · N 个工具" fold; higher cap lets paging keep surrounding context,
+ * while the byte cap still bounds memory.
  */
-export const MAX_HISTORY_VIEW_MESSAGES = 600;
-export const MAX_TRANSCRIPT_CACHE_BYTES = 2 * 1024 * 1024;
+export const MAX_HISTORY_VIEW_MESSAGES = 300;
+export const MAX_TRANSCRIPT_CACHE_BYTES = 1024 * 1024;
+
+export type TranscriptWindowLimits = {
+  maxMessages?: number;
+  maxBytes?: number;
+};
 
 export type TranscriptPageCacheMerge = {
   messages: ChatMessageUi[];
@@ -35,7 +39,10 @@ export type BoundedTranscriptWindow = {
 export function retainBoundedTranscriptWindow(
   messages: readonly ChatMessageUi[],
   protectedMessageIds: ReadonlySet<string> = new Set(),
+  limits: TranscriptWindowLimits = {},
 ): BoundedTranscriptWindow {
+  const maxMessages = limits.maxMessages ?? MAX_TRANSCRIPT_CACHE_MESSAGES;
+  const maxBytes = limits.maxBytes ?? MAX_TRANSCRIPT_CACHE_BYTES;
   const retainedIndexes = new Set<number>();
   let retainedCount = 0;
   let retainedBytes = 2;
@@ -55,8 +62,8 @@ export function retainBoundedTranscriptWindow(
     if (message === undefined) continue;
     const messageBytes = measureTranscriptMessageBytes(message);
     if (
-      retainedCount + 1 > MAX_TRANSCRIPT_CACHE_MESSAGES ||
-      retainedBytes + messageBytes + (retainedCount === 0 ? 0 : 1) > MAX_TRANSCRIPT_CACHE_BYTES
+      retainedCount + 1 > maxMessages ||
+      retainedBytes + messageBytes + (retainedCount === 0 ? 0 : 1) > maxBytes
     ) {
       continue;
     }

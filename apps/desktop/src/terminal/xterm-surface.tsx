@@ -26,7 +26,12 @@ import {
 } from './terminal-font-size';
 import { resolveTerminalKeyChord, type TerminalKeyIntent } from './xterm-key-bindings';
 import { detectShortcutDisplayPlatform } from '../platform/desktop-shortcut-catalog';
-import { attachXtermWebglRenderer, type XtermRenderer } from './xterm-webgl-renderer';
+import { globalMemoryGovernor, type MemoryPressureLevel } from '../notes/memory-governor.js';
+import {
+  attachXtermWebglRenderer,
+  clearSharedXtermTextureAtlas,
+  type XtermRenderer,
+} from './xterm-webgl-renderer';
 import { attachXtermImageLinks } from './xterm-image-links.js';
 import { attachTerminalUrlLinks } from './xterm-url-links.js';
 import { attachXtermImageAddon, type XtermImages } from './xterm-image-addon';
@@ -83,6 +88,17 @@ export type XtermSurfaceProps = {
 const MIN_OPEN_WIDTH = 40;
 const MIN_OPEN_HEIGHT = 40;
 const RESIZE_DEBOUNCE_MS = 120;
+
+function resolveXtermScrollback(level: MemoryPressureLevel): number {
+  switch (level) {
+    case 'critical':
+      return 600;
+    case 'moderate':
+      return 1_500;
+    default:
+      return 5_000;
+  }
+}
 
 function reclaimFullBleedColumns(terminal: Terminal, container: HTMLElement): void {
   const screen = container.querySelector('.xterm-screen');
@@ -148,9 +164,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
 
     const terminal = new Terminal({
       cursorBlink: true,
-      // A shell runs for hours: xterm's 1000-line default drops the build
-      // output the user is scrolling back for.
-      scrollback: 10000,
+      scrollback: resolveXtermScrollback(globalMemoryGovernor.getLevel()),
       fontSize: readTerminalFontSize(),
       fontFamily: readDeckXtermFontFamily(),
       theme: readDeckXtermTheme(),
@@ -416,7 +430,18 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     });
     themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-theme-id', 'data-theme-mode', 'style'],
+      attributeFilter: ['data-theme-id', 'data-theme-mode', 'data-memory-pressure', 'style'],
+    });
+
+    const unsubscribeGovernor = globalMemoryGovernor.subscribe((level) => {
+      if (disposed) {
+        return;
+      }
+      terminal.options.scrollback = resolveXtermScrollback(level);
+      if (level !== 'normal' && !visibleRef.current) {
+        terminal.clearTextureAtlas();
+        clearSharedXtermTextureAtlas();
+      }
     });
 
     return () => {
@@ -424,6 +449,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       showRef.current = null;
       resizeNowRef.current = null;
       bootingRef.current = false;
+      unsubscribeGovernor();
       themeObserver.disconnect();
       if (resizeDebounce) {
         clearTimeout(resizeDebounce);
@@ -445,7 +471,14 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   }, [props.cwd, props.projectPath, props.tui?.sessionId, props.tui?.remoteTarget, props.pty, props.fullBleed]);
 
   useEffect(() => {
-    if (props.visible === false) { terminalRef.current?.blur(); return; }
+    if (props.visible === false) {
+      terminalRef.current?.blur();
+      if (globalMemoryGovernor.getLevel() !== 'normal') {
+        terminalRef.current?.clearTextureAtlas();
+        clearSharedXtermTextureAtlas();
+      }
+      return;
+    }
     const frame = requestAnimationFrame(() => showRef.current?.());
     return () => cancelAnimationFrame(frame);
   }, [props.visible]);

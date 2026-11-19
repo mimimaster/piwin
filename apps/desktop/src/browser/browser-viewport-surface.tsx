@@ -4,20 +4,23 @@
  */
 import type {
   KeyboardEvent,
+  MouseEvent,
   PointerEvent,
   ReactElement,
   RefObject,
   WheelEvent,
 } from 'react';
 import { IconBrowser } from '../tool-cards/shell-icons';
+import { BrowserFrameCanvas } from './browser-frame-canvas.js';
 import type { BrowserHighlightBox } from './browser-session-lease';
 import type { BrowserDisplayBox, BrowserDisplayZoom } from './browser-display-box';
 
 export type BrowserViewportSurfaceProps = {
   containerRef: RefObject<HTMLDivElement | null>;
-  imgRef: RefObject<HTMLImageElement | null>;
+  imgRef: { current: HTMLElement | null };
   imeRef: RefObject<HTMLTextAreaElement | null>;
   frameSrc: string;
+  frameBitmap?: ImageBitmap | undefined;
   frameAlt: string;
   starting: string;
   pickMode: boolean;
@@ -30,12 +33,12 @@ export type BrowserViewportSurfaceProps = {
   overlay: BrowserHighlightBox | null;
   overlayOffsetX: number;
   overlayOffsetY: number;
-  onPointerDown: (event: PointerEvent<HTMLImageElement>) => void;
-  onPointerMove: (event: PointerEvent<HTMLImageElement>) => void;
-  onPointerUp: (event: PointerEvent<HTMLImageElement>) => void;
-  onPointerCancel: (event: PointerEvent<HTMLImageElement>) => void;
-  onClick: (event: import('react').MouseEvent<HTMLImageElement>) => void;
-  onWheel: (event: WheelEvent<HTMLImageElement>) => void;
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLElement>) => void;
+  onPointerCancel: (event: PointerEvent<HTMLElement>) => void;
+  onClick: (event: MouseEvent<HTMLElement>) => void;
+  onWheel: (event: WheelEvent<HTMLElement>) => void;
   onImeKey: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onCompositionEnd: (event: { data: string; currentTarget: HTMLTextAreaElement }) => void;
   onPaste: (event: { preventDefault: () => void; clipboardData: DataTransfer }) => void;
@@ -62,9 +65,30 @@ export function BrowserViewportSurface(props: BrowserViewportSurfaceProps): Reac
       data-fill={props.fillPanel ? 'true' : 'false'}
       onPointerEnter={props.onPointerEnterSurface}
     >
-      {props.frameSrc ? (
+      {props.frameBitmap !== undefined ? (
+        <BrowserFrameCanvas
+          bitmap={props.frameBitmap}
+          elementRef={props.imgRef}
+          className={`browser-session-frame${props.pickMode ? ' pick-mode' : ''}${
+            props.runtimeInteractEnabled ? '' : ' stale'
+          }`}
+          testId="browser-session-frame"
+          stale={!props.runtimeInteractEnabled}
+          ariaLabel={props.frameAlt}
+          style={displayStyle}
+          onPointerDown={props.onPointerDown}
+          onPointerMove={props.onPointerMove}
+          onPointerUp={props.onPointerUp}
+          onPointerCancel={props.onPointerCancel}
+          onClick={props.onClick}
+          onWheel={props.onWheel}
+          onContextMenu={(event) => event.preventDefault()}
+        />
+      ) : props.frameSrc ? (
         <img
-          ref={props.imgRef}
+          ref={(node) => {
+            props.imgRef.current = node;
+          }}
           className={`browser-session-frame${props.pickMode ? ' pick-mode' : ''}${
             props.runtimeInteractEnabled ? '' : ' stale'
           }`}

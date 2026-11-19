@@ -1,22 +1,27 @@
 /**
- * Scope bindings (Global / Current Project / Current Session) and live effective preview.
+ * Unified top bar for System Prompts: tab switcher on the left, compact scope
+ * selectors (Global / Project / Session) + effective preview button on the right.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Select } from '@piwin/ui-kit';
+import { Button, IconEye, SegmentedControl } from '@piwin/ui-kit';
 import {
   createDefaultSystemPromptsConfig,
   formatError,
+  formatSystemPromptFileStack,
   readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
   SYSTEM_PROMPT_BUILTIN_ID,
   SYSTEM_PROMPT_INHERIT_ID,
   type PiwinConfig,
   type SessionSummary,
+  type SystemPromptFileReadItem,
+  type SystemPromptFilesReadData,
 } from '@piwin/contracts';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
-import { FieldRow } from '../field-row';
-import { PageTitle } from '../page-title';
+import { promptFileDisplayName, promptFileExtensionLabel } from './prompt-file-actions';
+import type { PromptPreviewLayer, PromptPreviewPayload } from './PromptPreviewModal';
+import type { SystemPromptsTab } from './system-prompts-focus';
 
 function sourceLabel(
   kind: ReturnType<typeof resolveActiveSystemPromptSelection>['sourceKind'],
@@ -25,21 +30,25 @@ function sourceLabel(
 ): string {
   switch (kind) {
     case 'session-preset':
-      return isZh ? `当前会话预设：${presetName ?? ''}` : `Session preset: ${presetName ?? ''}`;
+      return isZh ? `当前会话 · ${presetName ?? ''}` : `Session · ${presetName ?? ''}`;
     case 'session-builtin':
-      return isZh ? '当前会话强制使用系统默认' : 'Session forced built-in default';
+      return isZh ? '当前会话 · 系统默认' : 'Session · Built-in';
     case 'project-preset':
-      return isZh ? `当前项目预设：${presetName ?? ''}` : `Project preset: ${presetName ?? ''}`;
+      return isZh ? `当前项目 · ${presetName ?? ''}` : `Project · ${presetName ?? ''}`;
     case 'project-builtin':
-      return isZh ? '当前项目强制使用系统默认' : 'Project forced built-in default';
+      return isZh ? '当前项目 · 系统默认' : 'Project · Built-in';
     case 'global-preset':
-      return isZh ? `全局默认预设：${presetName ?? ''}` : `Global preset: ${presetName ?? ''}`;
+      return isZh ? `全局默认 · ${presetName ?? ''}` : `Global · ${presetName ?? ''}`;
     case 'builtin':
-      return isZh ? '系统默认提示词' : 'System built-in default';
+      return isZh ? '系统内置默认' : 'Built-in default';
   }
 }
 
-export function SystemPromptsScopeCard(): ReactElement {
+export function SystemPromptsScopeCard(props: {
+  tab: SystemPromptsTab;
+  onTabChange: (tab: SystemPromptsTab) => void;
+  onOpenPreview: (payload: PromptPreviewPayload) => void;
+}): ReactElement {
   const { config, projectPath, activeSessionId, request, hostClient, saveConfig, setError, setInfo } =
     useSettings();
   const { locale } = useDesktopLocale();
@@ -47,7 +56,7 @@ export function SystemPromptsScopeCard(): ReactElement {
 
   const [sessionPresetId, setSessionPresetId] = useState<string>(SYSTEM_PROMPT_INHERIT_ID);
   const [savingSession, setSavingSession] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     if (!activeSessionId) {
@@ -63,7 +72,7 @@ export function SystemPromptsScopeCard(): ReactElement {
         setSessionPresetId(current?.systemPromptPresetId ?? SYSTEM_PROMPT_INHERIT_ID);
       })
       .catch(() => {
-        // Best-effort restore; keep inherit when session list is unavailable.
+        // Keep inherit when session list is unavailable.
       });
     return () => {
       cancelled = true;
@@ -82,21 +91,118 @@ export function SystemPromptsScopeCard(): ReactElement {
       projectPath,
       sessionPresetId: activeSessionId ? sessionPresetId : undefined,
     });
-    const agentBase = readBuiltinSystemPromptValue(config, 'agent.default').effectiveContent;
-    const chatBase = readBuiltinSystemPromptValue(config, 'conversation.chat').effectiveContent;
-    const baseText = projectPath ? agentBase : chatBase;
-    const previewText =
-      resolved.preset?.mode === 'replace'
-        ? resolved.preset.content
-        : resolved.preset?.mode === 'append'
-          ? `${baseText}\n\n${resolved.preset.content}`
-          : baseText;
+    const baseText = readBuiltinSystemPromptValue(
+      config,
+      projectPath ? 'agent.default' : 'conversation.chat',
+    ).effectiveContent;
     return {
       resolved,
-      previewText,
+      baseText,
       sourceText: sourceLabel(resolved.sourceKind, resolved.preset?.name, isZh),
     };
   }, [activeSessionId, config, isZh, projectPath, sessionPresetId]);
+
+  async function handleOpenEffectivePreview(): Promise<void> {
+    const preset = effective.resolved.preset;
+    if (!preset) {
+      props.onOpenPreview({
+        title: isZh ? '当前生效系统提示词' : 'Effective System Prompt',
+        badge: effective.sourceText,
+        badgeTone: 'neutral',
+        layers: [
+          {
+            id: 'builtin',
+            label: isZh ? '系统默认' : 'Built-in',
+            content: effective.baseText,
+          },
+        ],
+      });
+      return;
+    }
+
+    setLoadingPreview(true);
+    try {
+      const readByPath = new Map<string, SystemPromptFileReadItem>();
+      if (hostClient?.request && preset.filePaths.length > 0) {
+        const isRemote = hostClient.getTransport?.() === 'remote';
+        const response = await hostClient.request({
+          type: 'system-prompts/read-files',
+          paths: preset.filePaths,
+          ...(!isRemote && projectPath ? { projectPath } : {}),
+        });
+        if (response.success) {
+          const data = response.data as SystemPromptFilesReadData | undefined;
+          for (const item of data?.files ?? []) {
+            readByPath.set(item.path, item);
+          }
+        }
+      }
+
+      const validContents: string[] = [];
+      const fileLayers: PromptPreviewLayer[] = preset.filePaths.map((filePath, index) => {
+        const item = readByPath.get(filePath);
+        const fileName = item?.fileName ?? promptFileDisplayName(filePath);
+        const missing = item ? !item.exists : false;
+        if (!missing && item?.content.trim()) {
+          validContents.push(item.content);
+        }
+        return {
+          id: `file-${index}`,
+          label: `${String(index + 1).padStart(2, '0')} @${fileName}`,
+          badge: promptFileExtensionLabel(filePath),
+          filePath: item?.resolvedPath ?? filePath,
+          content: item?.content ?? '',
+          missing,
+          ...(item?.error ? { error: item.error } : {}),
+          ...(item?.sizeBytes !== undefined ? { sizeBytes: item.sizeBytes } : {}),
+        };
+      });
+
+      const stackedText = formatSystemPromptFileStack(validContents);
+      const isReplace = preset.mode === 'replace' && stackedText.length > 0;
+      const combinedText = isReplace
+        ? stackedText
+        : stackedText.length > 0
+          ? `${effective.baseText}\n\n${stackedText}`
+          : effective.baseText;
+
+      const layers: PromptPreviewLayer[] = [
+        {
+          id: 'effective',
+          label: isZh ? '完整合成' : 'Combined',
+          content: combinedText,
+        },
+        ...(!isReplace
+          ? [
+              {
+                id: 'base',
+                label: isZh ? '内置基底' : 'Built-in base',
+                content: effective.baseText,
+              },
+            ]
+          : []),
+        ...fileLayers,
+      ];
+
+      props.onOpenPreview({
+        title: effective.sourceText,
+        badge:
+          preset.mode === 'replace'
+            ? isZh
+              ? '替换'
+              : 'Replace'
+            : isZh
+              ? '追加'
+              : 'Append',
+        badgeTone: 'running',
+        layers,
+      });
+    } catch (error) {
+      setError(formatError(error));
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
 
   async function updateGlobalDefault(nextId: string): Promise<void> {
     if (!config) return;
@@ -108,10 +214,7 @@ export function SystemPromptsScopeCard(): ReactElement {
     };
     const ok = await saveConfig(nextConfig, { quiet: true });
     if (ok) {
-      setInfo(
-        isZh ? '已更新全局默认系统提示词，下一轮对话生效。' : 'Global default saved. Applies on next turn.',
-        'success',
-      );
+      setInfo(isZh ? '已更新全局默认方案。' : 'Global default updated.', 'success');
     }
   }
 
@@ -133,10 +236,7 @@ export function SystemPromptsScopeCard(): ReactElement {
     };
     const ok = await saveConfig(nextConfig, { quiet: true });
     if (ok) {
-      setInfo(
-        isZh ? '已更新当前项目系统提示词，下一轮对话生效。' : 'Project prompt updated. Applies on next turn.',
-        'success',
-      );
+      setInfo(isZh ? '已更新项目方案。' : 'Project prompt updated.', 'success');
     }
   }
 
@@ -154,10 +254,7 @@ export function SystemPromptsScopeCard(): ReactElement {
         return;
       }
       setSessionPresetId(nextId);
-      setInfo(
-        isZh ? '已切换当前会话系统提示词，下一轮对话生效。' : 'Session prompt updated. Applies on next turn.',
-        'success',
-      );
+      setInfo(isZh ? '已切换会话方案。' : 'Session prompt updated.', 'success');
     } catch (error) {
       setError(formatError(error));
     } finally {
@@ -165,117 +262,117 @@ export function SystemPromptsScopeCard(): ReactElement {
     }
   }
 
-  function handleCopyPreview(): void {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        void navigator.clipboard.writeText(effective.previewText);
-      }
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard may be unavailable in restricted contexts.
-    }
-  }
-
-  const presetOptions = presets.map((preset) => ({
-    value: preset.id,
-    label: `${preset.name} (${preset.mode === 'replace' ? (isZh ? '替换' : 'Replace') : isZh ? '追加' : 'Append'})`,
-  }));
-
   return (
-    <section className="settings-section settings-section-card" data-testid="system-prompts-scope-card">
-      <PageTitle
-        title={isZh ? '系统提示词' : 'System Prompts'}
-        description={
-          isZh
-            ? '管理自定义系统提示词预设，查看或调整各模块内置提示词。优先级：当前会话 > 当前项目 > 全局默认 > 系统内置。'
-            : 'Manage custom system prompt presets and inspect or customize built-in module prompts. Priority: Session > Project > Global > Built-in.'
-        }
+    <div className="sysprompt-topbar" data-testid="system-prompts-scope-card">
+      <SegmentedControl
+        value={props.tab}
+        size="xs"
+        testId="system-prompts-tab-control"
+        onChange={(nextTab) => props.onTabChange(nextTab === 'builtins' ? 'builtins' : 'presets')}
+        data={[
+          { value: 'presets', label: isZh ? '预设方案' : 'Presets' },
+          { value: 'builtins', label: isZh ? '内置提示词' : 'Built-ins' },
+        ]}
       />
 
-      <FieldRow
-        label={isZh ? '全局默认' : 'Global default'}
-        description={isZh ? '所有新会话与未单独指定的项目默认使用。' : 'Used by default across sessions unless overridden.'}
-        testId="system-prompts-global-row"
-      >
-        <Select
-          value={globalSelection}
-          testId="system-prompts-global-select"
-          onChange={(event) => void updateGlobalDefault(event.currentTarget.value)}
-          data={[
-            { value: SYSTEM_PROMPT_BUILTIN_ID, label: isZh ? '系统内置默认' : 'Built-in default' },
-            ...presetOptions,
-          ]}
-        />
-      </FieldRow>
-
-      {projectPath ? (
-        <FieldRow
-          label={isZh ? '当前项目' : 'Current project'}
-          description={projectPath}
-          testId="system-prompts-project-row"
+      <div className="sysprompt-scope-bar">
+        <label
+          className="sysprompt-scope-pill"
+          title={isZh ? '全局默认系统提示词' : 'Global default prompt'}
         >
-          <Select
-            value={projectSelection}
-            testId="system-prompts-project-select"
-            onChange={(event) => void updateProjectDefault(event.currentTarget.value)}
-            data={[
-              { value: SYSTEM_PROMPT_INHERIT_ID, label: isZh ? '跟随全局默认' : 'Inherit global default' },
-              { value: SYSTEM_PROMPT_BUILTIN_ID, label: isZh ? '仅使用系统默认' : 'Built-in default only' },
-              ...presetOptions,
-            ]}
-          />
-        </FieldRow>
-      ) : null}
+          <span className="sysprompt-scope-key">{isZh ? '全局' : 'Global'}</span>
+          <select
+            className="sysprompt-scope-select"
+            value={globalSelection}
+            data-testid="system-prompts-global-select"
+            aria-label={isZh ? '全局默认' : 'Global default'}
+            onChange={(event) => void updateGlobalDefault(event.currentTarget.value)}
+          >
+            <option value={SYSTEM_PROMPT_BUILTIN_ID}>
+              {isZh ? '系统默认' : 'Built-in'}
+            </option>
+            {presets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
-      {activeSessionId && hostClient?.request ? (
-        <FieldRow
-          label={isZh ? '当前会话' : 'Current session'}
-          description={isZh ? '仅影响当前打开的会话，切换后下一轮对话自动生效。' : 'Applies only to the active session on the next turn.'}
-          testId="system-prompts-session-row"
-        >
-          <Select
-            disabled={savingSession}
-            value={sessionPresetId}
-            testId="system-prompts-session-select"
-            onChange={(event) => void updateSessionPreset(event.currentTarget.value)}
-            data={[
-              { value: SYSTEM_PROMPT_INHERIT_ID, label: isZh ? '跟随项目 / 全局默认' : 'Inherit project / global' },
-              { value: SYSTEM_PROMPT_BUILTIN_ID, label: isZh ? '仅使用系统默认' : 'Built-in default only' },
-              ...presetOptions,
-            ]}
-          />
-        </FieldRow>
-      ) : null}
+        {projectPath ? (
+          <label className="sysprompt-scope-pill" title={projectPath}>
+            <span className="sysprompt-scope-key">{isZh ? '项目' : 'Project'}</span>
+            <select
+              className="sysprompt-scope-select"
+              value={projectSelection}
+              data-testid="system-prompts-project-select"
+              aria-label={isZh ? '当前项目' : 'Current project'}
+              onChange={(event) => void updateProjectDefault(event.currentTarget.value)}
+            >
+              <option value={SYSTEM_PROMPT_INHERIT_ID}>
+                {isZh ? '跟随全局' : 'Inherit'}
+              </option>
+              <option value={SYSTEM_PROMPT_BUILTIN_ID}>
+                {isZh ? '系统默认' : 'Built-in'}
+              </option>
+              {presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
-      <details style={{ marginTop: 10 }} data-testid="system-prompts-effective-preview">
-        <summary style={{ cursor: 'pointer', fontSize: '0.88em', opacity: 0.78 }}>
-          {isZh
-            ? `查看当前实际生效提示词（${effective.sourceText}）`
-            : `View effective prompt (${effective.sourceText})`}
-        </summary>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-          <Button size="compact" variant="ghost" onClick={handleCopyPreview}>
-            {copied ? (isZh ? '已复制' : 'Copied') : isZh ? '复制全文' : 'Copy'}
-          </Button>
-        </div>
-        <pre
-          style={{
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontSize: '0.82em',
-            opacity: 0.8,
-            maxHeight: '260px',
-            overflow: 'auto',
-            padding: '10px',
-            background: 'var(--piwin-surface-2, rgba(0,0,0,0.03))',
-            borderRadius: '6px',
-            marginTop: '6px',
-          }}
+        {activeSessionId && hostClient?.request ? (
+          <label
+            className="sysprompt-scope-pill"
+            title={isZh ? '仅对当前打开的会话生效' : 'Applies to active session only'}
+          >
+            <span className="sysprompt-scope-key">{isZh ? '会话' : 'Session'}</span>
+            <select
+              className="sysprompt-scope-select"
+              disabled={savingSession}
+              value={sessionPresetId}
+              data-testid="system-prompts-session-select"
+              aria-label={isZh ? '当前会话' : 'Current session'}
+              onChange={(event) => void updateSessionPreset(event.currentTarget.value)}
+            >
+              <option value={SYSTEM_PROMPT_INHERIT_ID}>
+                {isZh ? '跟随上级' : 'Inherit'}
+              </option>
+              <option value={SYSTEM_PROMPT_BUILTIN_ID}>
+                {isZh ? '系统默认' : 'Built-in'}
+              </option>
+              {presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        <Button
+          size="compact"
+          variant="secondary"
+          disabled={loadingPreview}
+          onClick={() => void handleOpenEffectivePreview()}
+          title={effective.sourceText}
+          data-testid="system-prompts-effective-preview-btn"
         >
-          {effective.previewText}
-        </pre>
-      </details>
-    </section>
+          <IconEye size={13} />
+          <span>
+            {loadingPreview
+              ? isZh
+                ? '读取中…'
+                : 'Loading…'
+              : isZh
+                ? '生效预览'
+                : 'Effective'}
+          </span>
+        </Button>
+      </div>
+    </div>
   );
 }

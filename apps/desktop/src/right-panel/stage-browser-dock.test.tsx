@@ -118,6 +118,19 @@ describe('StageBrowserDock', () => {
     expect(el.querySelector('[data-testid="browser-mini"]')).toBeNull();
   });
 
+  it('invokes onCloseBrowser and hides the mini when clicking the close button', async () => {
+    const onCloseBrowser = vi.fn();
+    const { el } = await renderDock({ onCloseBrowser });
+    expect(el.querySelector('[data-testid="browser-mini"]')).not.toBeNull();
+
+    act(() => {
+      el.querySelector<HTMLButtonElement>('[data-testid="browser-mini-close"]')?.click();
+    });
+
+    expect(onCloseBrowser).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('[data-testid="browser-mini"]')).toBeNull();
+  });
+
   it('floats the mini after a real drag and snaps it back on reset', async () => {
     const { el } = await renderDock();
     const mini = el.querySelector<HTMLElement>('[data-testid="browser-mini"]');

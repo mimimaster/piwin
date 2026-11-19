@@ -201,7 +201,7 @@
   background: var(--zhu-wash);
   border-radius: 7px;
   border-bottom-color: transparent;
-  box-shadow: inset 2px 0 0 var(--zhu);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--zhu) 32%, var(--l2));
 }
 
 .session-row {
@@ -745,10 +745,9 @@
 
 .gate {
   border-radius: 8px;
-  background: var(--s3);
-  box-shadow: var(--sh2);
+  background: color-mix(in srgb, var(--zhu) 5%, var(--s3));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--zhu) 35%, var(--l2)), var(--sh2);
   padding: 17px;
-  border-left: 2px solid var(--zhu);
   margin-top: 17px;
 }
 
@@ -984,22 +983,4 @@
   box-shadow: var(--sh2);
   display: grid;
   place-items: center;
-}
-
-/* Swipe-to-reveal session rows: structure lives in @piwin/ui-kit
-   (swipe-row.css); Inkstone supplies the colors. */
-.session-item .ui-swipe-row {
-  flex: 1;
-  --ui-swipe-action-fg: var(--on-zhu);
-  --ui-swipe-neutral-bg: var(--t3);
-  --ui-swipe-accent-bg: var(--lamp);
-  --ui-swipe-danger-bg: var(--zhu);
-  --ui-swipe-content-bg: var(--s2);
-}
-.session-item .ui-swipe-content {
-  display: flex;
-  /* The swipe wrapper sizes to content; without this the row stops short of
-     the ⋯ button and the divider runs past everything. */
-  flex: 1;
-  min-width: 0;
 }

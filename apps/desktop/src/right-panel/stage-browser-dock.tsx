@@ -35,6 +35,7 @@ export type StageBrowserDockProps = {
   /** Workbench owns dismissal so the presentation lease follows it too. */
   dismissed?: boolean;
   onDismiss?: () => void;
+  onCloseBrowser?: () => void;
 };
 
 type MiniPlacement = 'docked' | 'floating';
@@ -62,7 +63,7 @@ function StagePhoneChip({
 }
 
 export function StageBrowserDock(props: StageBrowserDockProps): ReactElement {
-  const { locale, onOpenTool, onDismiss } = props;
+  const { locale, onOpenTool, onDismiss, onCloseBrowser } = props;
   const session = useSharedBrowserSession();
   const [miniDismissed, setMiniDismissed] = useState(false);
   const [placement, setPlacement] = useState<MiniPlacement>('docked');
@@ -91,6 +92,11 @@ export function StageBrowserDock(props: StageBrowserDockProps): ReactElement {
     setPlacement('docked');
   }, [onDismiss]);
 
+  const handleCloseBrowser = useCallback(() => {
+    closeMini();
+    onCloseBrowser?.();
+  }, [closeMini, onCloseBrowser]);
+
   if (props.phone === true) {
     if (!hasBrowserMiniActivity(activity) || props.overlayOpen) return <></>;
     return (
@@ -112,6 +118,7 @@ export function StageBrowserDock(props: StageBrowserDockProps): ReactElement {
       placement={placement}
       onExpand={() => onOpenTool('browser')}
       onDismiss={closeMini}
+      {...(onCloseBrowser ? { onClose: handleCloseBrowser } : {})}
       onStartFloating={() => setPlacement('floating')}
       onSnapBack={() => setPlacement('docked')}
       onReload={props.onReloadBrowser}

@@ -3,9 +3,9 @@
    per AGENTS.md 3.2). Core dock/card/toolbar stays in region-composer.css.
 
    Deck rule: an interruption is a lid snapped to the composer card — a real
-   object that demands attention. Tone is carried by a left stripe (iris /
-   amber / coral), not by repainting the whole surface. Permission actions use
-   the same iris primary + coral deny pattern as the rest of the product. */
+   object that demands attention. Tone is carried by a subtle surface wash and
+   uniform 1px rim (iris / amber / coral), never a concave corner stripe. Permission
+   actions use the same iris primary + coral deny pattern as the rest of the product. */
 
 /* ─── Agent interruption dock (shared shell, ADR 0023 + 0024) ──────── */
 
@@ -43,23 +43,26 @@
   }
 }
 
-/* Tone variants — left status stripe only; the card surface stays neutral. */
+/* Tone variants — subtle wash + uniform 1px rim, never a concave corner stripe. */
 .agent-interruption--question {
+  background: color-mix(in srgb, var(--iris) 6%, var(--surface-3));
   box-shadow:
     var(--elev-2),
-    inset 4px 0 0 var(--iris);
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 35%, var(--line-1));
 }
 
 .agent-interruption--warning {
+  background: color-mix(in srgb, var(--amber) 6%, var(--surface-3));
   box-shadow:
     var(--elev-2),
-    inset 4px 0 0 var(--amber);
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 38%, var(--line-1));
 }
 
 .agent-interruption--danger {
+  background: color-mix(in srgb, var(--coral) 6%, var(--surface-3));
   box-shadow:
     var(--elev-2),
-    inset 4px 0 0 var(--coral);
+    inset 0 0 0 1px color-mix(in srgb, var(--coral) 40%, var(--line-1));
 }
 
 /* ── Header ── */

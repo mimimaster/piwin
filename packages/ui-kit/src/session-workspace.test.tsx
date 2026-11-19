@@ -227,4 +227,41 @@ describe('BrowserMiniCard primitives', () => {
     expect(onViewportActivate).toHaveBeenCalledTimes(1);
     expect(onExpand).not.toHaveBeenCalled();
   });
+
+  it('keeps dismiss and close actions separate without triggering card expand or viewport click', () => {
+    const onExpand = vi.fn();
+    const onViewportActivate = vi.fn();
+    const onDismiss = vi.fn();
+    const onClose = vi.fn();
+    const el = mount(
+      <BrowserMiniCard
+        title="localhost:3000"
+        frameSrc="data:image/gif;base64,R0lGODlhAQABAAAAACw="
+        onExpand={onExpand}
+        onViewportActivate={onViewportActivate}
+        onDismiss={onDismiss}
+        onClose={onClose}
+      />,
+    );
+    const dismissBtn = el.querySelector('[data-testid="browser-mini-card-dismiss"]') as HTMLButtonElement;
+    const closeBtn = el.querySelector('[data-testid="browser-mini-card-close"]') as HTMLButtonElement;
+    expect(dismissBtn).not.toBeNull();
+    expect(closeBtn).not.toBeNull();
+
+    act(() => {
+      dismissBtn.click();
+    });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onExpand).not.toHaveBeenCalled();
+    expect(onViewportActivate).not.toHaveBeenCalled();
+
+    act(() => {
+      closeBtn.click();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onExpand).not.toHaveBeenCalled();
+    expect(onViewportActivate).not.toHaveBeenCalled();
+  });
 });

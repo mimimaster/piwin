@@ -297,6 +297,10 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
         {visibleMessages.length > 0 || (!historyViewActive && state.streaming) ? (
           <StableChatThread
             messages={visibleMessages}
+            historyViewActive={historyViewActive}
+            canLoadOlder={canLoadOlderTranscript(state)}
+            historyLoading={transcriptHistoryLoading}
+            onLoadOlder={() => onLoadOlder()}
             onLoadEarlierWork={onLoadEarlierWork}
             {...(activeSessionId ? { sessionId: activeSessionId } : {})}
             hydrating={state.awaitingTranscript}

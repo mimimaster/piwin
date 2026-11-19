@@ -2,28 +2,16 @@
  * Normalization helpers for `PiwinConfig.systemPrompts`.
  */
 import type {
-  DirectSystemPromptOverrideSlotId,
   SystemPromptPreset,
   SystemPromptsConfig,
 } from '@piwin/contracts';
 import {
   isValidSystemPromptPresetId,
-  MAX_SYSTEM_PROMPT_CONTENT_CHARS,
   MAX_SYSTEM_PROMPT_PRESETS,
+  normalizeSystemPromptFileStack,
   SYSTEM_PROMPT_BUILTIN_ID,
 } from '@piwin/contracts';
 import { asRecord } from './config-store-primitives.js';
-
-const DIRECT_OVERRIDE_SLOTS: readonly DirectSystemPromptOverrideSlotId[] = [
-  'agent.default',
-  'agent.goal',
-  'conversation.chat',
-  'web.fetch-extract',
-];
-
-function isDirectOverrideSlotId(key: string): key is DirectSystemPromptOverrideSlotId {
-  return (DIRECT_OVERRIDE_SLOTS as readonly string[]).includes(key);
-}
 
 function normalizeBoundedText(raw: unknown, maxChars: number): string | undefined {
   if (typeof raw !== 'string') return undefined;
@@ -45,8 +33,11 @@ export function normalizeSystemPromptsConfig(value: unknown): SystemPromptsConfi
       if (!item) continue;
       const id = typeof item.id === 'string' ? item.id.trim() : '';
       const name = normalizeBoundedText(item.name, 120);
-      const content = normalizeBoundedText(item.content, MAX_SYSTEM_PROMPT_CONTENT_CHARS);
-      if (!isValidSystemPromptPresetId(id) || seenIds.has(id) || !name || !content) {
+      const rawPaths = Array.isArray(item.filePaths)
+        ? item.filePaths.filter((entry): entry is string => typeof entry === 'string')
+        : [];
+      const filePaths = normalizeSystemPromptFileStack(rawPaths);
+      if (!isValidSystemPromptPresetId(id) || seenIds.has(id) || !name || filePaths.length === 0) {
         continue;
       }
       seenIds.add(id);
@@ -54,7 +45,7 @@ export function normalizeSystemPromptsConfig(value: unknown): SystemPromptsConfi
         id,
         name,
         mode: item.mode === 'replace' ? 'replace' : 'append',
-        content,
+        filePaths,
         updatedAt:
           typeof item.updatedAt === 'string' && item.updatedAt.trim().length > 0
             ? item.updatedAt.trim()
@@ -82,21 +73,8 @@ export function normalizeSystemPromptsConfig(value: unknown): SystemPromptsConfi
     }
   }
 
-  const builtinOverrides: Partial<Record<DirectSystemPromptOverrideSlotId, string>> = {};
-  const rawOverrides = asRecord(record.builtinOverrides);
-  if (rawOverrides) {
-    for (const [slotId, rawText] of Object.entries(rawOverrides)) {
-      if (!isDirectOverrideSlotId(slotId)) continue;
-      const text = normalizeBoundedText(rawText, MAX_SYSTEM_PROMPT_CONTENT_CHARS);
-      if (text) {
-        builtinOverrides[slotId] = text;
-      }
-    }
-  }
-
   const hasProjects = Object.keys(projectPresetIds).length > 0;
-  const hasOverrides = Object.keys(builtinOverrides).length > 0;
-  if (presets.length === 0 && !defaultPresetId && !hasProjects && !hasOverrides) {
+  if (presets.length === 0 && !defaultPresetId && !hasProjects) {
     return undefined;
   }
 
@@ -104,6 +82,5 @@ export function normalizeSystemPromptsConfig(value: unknown): SystemPromptsConfi
     presets,
     ...(defaultPresetId ? { defaultPresetId } : {}),
     ...(hasProjects ? { projectPresetIds } : {}),
-    ...(hasOverrides ? { builtinOverrides } : {}),
   };
 }

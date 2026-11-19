@@ -200,12 +200,13 @@ export async function compileBlueprintForWorker(
     ((options.config === undefined || options.piwinRoot !== undefined) && options.sessionId
       ? await loadSessionSystemPromptPresetId(options.piwinRoot, options.sessionId)
       : undefined);
-  const systemPromptOverlay = resolveCompiledSystemPromptOverlay({
+  const systemPromptOverlay = await resolveCompiledSystemPromptOverlay({
     config,
     input,
     location,
     isConversation,
     sessionPresetId,
+    piwinRoot: options.piwinRoot,
   });
 
   // Conversation fast path: pure-chat sessions split before any resource or
@@ -346,7 +347,7 @@ async function compileAgentCapabilityPlan(
   const settingsRevision = createSettingsSnapshot(config).runtimeRevision;
   const rulesRevision =
     options.rulesRevision ?? computePermissionRulesRevision(createBundledRuleSet());
-  const projectRevision = computeProjectRevision(location.scope);
+  const projectRevision = `${computeProjectRevision(location.scope)}:${systemPromptOverlay.revisionSeed}`;
   const mcpRevision = computeMcpRevision(mcpConfig);
   const resourceCatalogRevision = computeResourceRevision(resourceResolution.catalog);
   const extensionSetRevision = computeExtensionSetRevision(resourceResolution.activeEntries);
@@ -653,7 +654,7 @@ function compileConversationPlan(
     inputs: {
       rulesRevision,
       settingsRevision,
-      projectRevision: computeProjectRevision(location.scope),
+      projectRevision: `${computeProjectRevision(location.scope)}:${systemPromptOverlay.revisionSeed}`,
       mcpRevision: computeMcpRevision({ mcpServers: {} }),
       resourceCatalogRevision: computeResourceRevision(emptyCatalog),
       extensionSetRevision: computeExtensionSetRevision(subscriptionExtensionResources(options.subscriptionAccounts)),

@@ -13,3 +13,21 @@
   height: 13px;
   flex: none;
 }
+
+/* Swipe-to-reveal session rows: structure lives in @piwin/ui-kit
+   (swipe-row.css); Inkstone supplies the colors. */
+.session-item .ui-swipe-row {
+  flex: 1;
+  --ui-swipe-action-fg: var(--on-zhu);
+  --ui-swipe-neutral-bg: var(--t3);
+  --ui-swipe-accent-bg: var(--lamp);
+  --ui-swipe-danger-bg: var(--zhu);
+  --ui-swipe-content-bg: var(--s2);
+}
+.session-item .ui-swipe-content {
+  display: flex;
+  /* The swipe wrapper sizes to content; without this the row stops short of
+     the ⋯ button and the divider runs past everything. */
+  flex: 1;
+  min-width: 0;
+}

@@ -16,6 +16,7 @@ import type { HostClientOptions, TransportMode } from './host-client-transport-d
 import { HostClientRemoteTransport } from './host-client-remote-transport.js';
 import {
   requestBrowserCapture,
+  requestBrowserClose,
   requestBrowserInput,
   requestBrowserNavigate,
   requestBrowserPickAt,
@@ -263,6 +264,11 @@ export class HostClient extends HostClientRemoteTransport {
   /** Release the Desktop mirror lease and its current Chromium runtime. */
   async browserStop(leaseId?: string): Promise<HostResponse> {
     return requestBrowserStop(this, leaseId);
+  }
+
+  /** Explicitly shut down the Host-owned Chromium runtime for this scope. */
+  async browserClose(): Promise<HostResponse> {
+    return requestBrowserClose(this);
   }
 
   /** Rebuild the Host-owned runtime in place. Does not mint a new mirror lease. */

@@ -21,6 +21,7 @@ import { scheduleIdleTask } from '../automation/schedule-idle-task';
 import { loadStreamdownMathPlugin } from '../markdown/streamdown-math-plugin.js';
 import { startMemoryDiagnosticsReporter } from '../notes/memory-diagnostics.js';
 import { readComposerDraftPartitionId } from '../composer/composer-draft-persistence.js';
+import { installMemoryAutoRecycle } from '../notes/memory-auto-recycle.js';
 import {
   configureRendererRecovery,
   persistedDraftStateReader,
@@ -108,6 +109,19 @@ function HostWorkbench({
   const { activeSubPage, closeSubPage, desktopLocale, isOverlayPresentation, layoutMode } = chrome;
   const { openKnowledge, rightPanelOpen, rightPanelResize, rightPanelTab } = chrome;
   const { sessionListChrome, sessionListQuery, setActiveSubPage, shell, terminal } = chrome;
+  const protectedSurfaceRef = useRef(false);
+  protectedSurfaceRef.current =
+    chrome.settingsOpen ||
+    activeSubPage !== null ||
+    (typeof document !== 'undefined' && document.querySelector('[data-testid="xterm-surface"]') !== null);
+  useEffect(
+    () =>
+      installMemoryAutoRecycle({
+        isRunActive: () => runActiveRef.current,
+        isProtectedSurfaceActive: () => protectedSurfaceRef.current,
+      }),
+    [],
+  );
   const conversationPanesEnabled =
     state.activeScope.kind === 'general' || state.activeScope.kind === 'project';
   const dockingEnabled = isDockingWorkspaceEnabled();

@@ -7,7 +7,8 @@ file-open amendment accepted 2026-09-04 · supersedes the iframe-based
 `BrowserPanel` preview · first-use Chromium download amendment accepted
 2026-09-18 · conversation isolation amendment accepted 2026-11-04 · bounded
 native frame delivery amendment accepted 2026-11-10 · presentation visibility
-and guarded idle residency amendment accepted 2026-11-12
+and guarded idle residency amendment accepted 2026-11-12 · explicit `browser/close`
+and per-conversation mini dismissal amendment accepted 2026-11-18
 
 ## Context
 
@@ -501,3 +502,26 @@ leave the checkpoint intact. No input write is automatically replayed.
 
 Evidence and remaining packaged endurance acceptance:
 [November 12 containment record](../plans/2026-11-12-browser-memory-containment.md).
+
+### 2026-11-18 explicit browser close (`browser/close`) and per-conversation mini dismissal amendment
+
+`browser/stop` releases only the caller's mirror lease so conversation-scoped
+`keepAlive` runtimes retain login/page state when a preview is collapsed. When
+the user explicitly closes the browser from the mini HUD (`×`), Desktop sends a
+separate `browser/close` command handled by `BrowserSession.shutdown()`:
+
+- Unlike `BrowserSession.close()` (which permanently marks the session closed and
+  clears all Host push subscribers), `shutdown()` runs inside `runExclusive`,
+  cancels pending mirror restarts, discards any idle residency checkpoint and
+  interaction/page-state protection, clears active mirror leases, releases user
+  and agent controller locks (`browser-close`), calls `runtime.releaseRuntime()`,
+  clears cached `url`/`title`, and emits a `lifecycle: 'stopped'` `browser/state`
+  push without `url`/`title`.
+- `BrowserSession` remains open and its frozen `browser_*` tool registrations
+  stay valid, so subsequent `navigate` or `browser/start` calls launch a fresh
+  Chromium context without throwing `BrowserSessionClosedError`.
+- In Desktop (`useWorkbenchBrowserPresentation`), mini dismissal state (`—`) is
+  stored per conversation `(hostClient, hostInstanceId, sessionId)` rather than
+  as a single active-session flag, so switching conversations and returning keeps
+  a dismissed preview hidden until the user opens the full Browser panel, a new
+  agent turn drives the browser, or the conversation's browser stops.

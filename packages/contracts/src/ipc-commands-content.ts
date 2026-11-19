@@ -180,6 +180,13 @@ export type HostContentCommand =
       promptId: string;
       enabled: boolean;
     }
+  | { id?: string; type: 'system-prompts/list-files'; projectPath?: string }
+  | {
+      id?: string;
+      type: 'system-prompts/read-files';
+      paths: string[];
+      projectPath?: string;
+    }
   | { id?: string; type: 'mcp/get' }
   | { id?: string; type: 'mcp/validate'; document: unknown }
   | { id?: string; type: 'mcp/save'; document: unknown }
@@ -330,6 +337,7 @@ export type HostContentCommand =
   | { id?: string; type: 'browser/screenshot'; sessionId?: string; path?: string }
   | { id?: string; type: 'browser/capture'; sessionId?: string; quality?: number; fullPage?: boolean }
   | { id?: string; type: 'browser/stop'; sessionId?: string; leaseId?: string }
+  | { id?: string; type: 'browser/close'; sessionId?: string }
   | { id?: string; type: 'browser/restart'; sessionId?: string }
   | { id?: string; type: 'browser/reload'; sessionId?: string }
   | { id?: string; type: 'browser/input'; sessionId?: string; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }

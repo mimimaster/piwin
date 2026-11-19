@@ -353,6 +353,7 @@ mod tests {
                 pid: Some(42),
                 start_clock: Some("7".to_string()),
                 footprint_bytes: Some(1),
+                resident_bytes: None,
                 shared: false,
             }],
         };

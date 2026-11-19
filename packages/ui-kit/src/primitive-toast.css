@@ -47,6 +47,7 @@
 
 .mantine-Notification-root,
 .ui-toast {
+  --ui-toast-tone: var(--azure, var(--state-waiting, #3a7797));
   pointer-events: auto;
   position: relative;
   overflow: hidden;
@@ -55,11 +56,11 @@
   min-width: 280px;
   max-width: 500px;
   min-height: 36px;
-  padding: 8px 12px 8px 16px;
+  padding: 8px 12px;
   border-radius: var(--radius-md, var(--r-card, 8px));
   background: var(--surface-popover, var(--surface-2, #1e1e1e));
   color: var(--text-1, #ededed);
-  border: 1px solid var(--line-soft, var(--line-1, rgba(255, 255, 255, 0.1)));
+  border: 1px solid color-mix(in srgb, var(--ui-toast-tone) 32%, var(--line-soft, var(--line-1, rgba(255, 255, 255, 0.1))));
   box-shadow: var(--sh3, 0 14px 34px -12px rgba(0, 0, 0, 0.5));
 }
 
@@ -98,46 +99,37 @@
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .mantine-Notification-root,
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .ui-toast {
   background: var(--s3);
-  border: 1px solid var(--l2);
+  border: 1px solid color-mix(in srgb, var(--ui-toast-tone) 32%, var(--l2));
   color: var(--t1);
   box-shadow: var(--sh3);
 }
 
-/* 100% straight vertical indicator bar along the left edge — never concave.
-   Mantine hides its own bar whenever an icon is present, and every bridged
-   notification carries a seal, so `display` has to be restated here. */
+/* Suppress Mantine's built-in left accent bar; tone is carried by the seal
+   and a uniform 1px tinted border so rounded corners never clip a stripe. */
 .mantine-Notification-root::before,
 .mantine-Notification-root[data-with-icon]::before,
 .ui-toast::before {
-  content: '';
-  display: block;
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3.5px;
-  border-radius: 0;
-  background: var(--azure, var(--state-waiting, #3a7797));
+  display: none;
 }
 
-.ui-toast.tone-success::before,
-.mantine-Notification-root[data-tone='success']::before {
-  background: var(--pine, var(--ok, #3d7c5e));
+.ui-toast.tone-success,
+.mantine-Notification-root[data-tone='success'] {
+  --ui-toast-tone: var(--pine, var(--ok, #3d7c5e));
 }
 
-.ui-toast.tone-error::before,
-.mantine-Notification-root[data-tone='error']::before {
-  background: var(--crimson, var(--danger, #9c2e3d));
+.ui-toast.tone-error,
+.mantine-Notification-root[data-tone='error'] {
+  --ui-toast-tone: var(--crimson, var(--danger, #9c2e3d));
 }
 
-.ui-toast.tone-warning::before,
-.mantine-Notification-root[data-tone='warning']::before {
-  background: var(--ochre, var(--warn, #94611a));
+.ui-toast.tone-warning,
+.mantine-Notification-root[data-tone='warning'] {
+  --ui-toast-tone: var(--ochre, var(--warn, #94611a));
 }
 
-.ui-toast.tone-info::before,
-.mantine-Notification-root[data-tone='info']::before {
-  background: var(--azure, var(--state-waiting, #3a7797));
+.ui-toast.tone-info,
+.mantine-Notification-root[data-tone='info'] {
+  --ui-toast-tone: var(--azure, var(--state-waiting, #3a7797));
 }
 
 .ui-toast-seal-wrap {

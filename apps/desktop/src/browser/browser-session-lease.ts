@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import type { HostServerMessage, WebElementPickResult } from '@piwin/contracts';
 import type { HostClient } from '../host/host-client';
 import { isTauriRuntime } from '../host/host-client-transport-detect.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
 import { createBrowserSessionClient, type BrowserSessionClient } from './browser-session-client';
+import { canRenderBrowserFrameCanvas } from './browser-frame-canvas.js';
 import { createBrowserFrameDecoder } from './browser-frame-decoder';
 import { openBrowserFrameNativeStream } from './browser-frame-native-stream.js';
 import {
@@ -143,35 +145,53 @@ export function useBrowserSessionLease(input: {
         }
       });
     }
+    const useBitmapPipeline = canRenderBrowserFrameCanvas();
     const decoder = createBrowserFrameDecoder({
       ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      minFrameIntervalMs: () => {
+        const level = globalMemoryGovernor.getLevel();
+        return level === 'critical' ? 1_000 : level === 'moderate' ? 500 : 0;
+      },
       onReady: (view) => {
         if (activeLeaseRef.current === mirrorLeaseId) dispatch({ type: 'frame-ready', view });
       },
       onError: (reason) => {
         if (activeLeaseRef.current === mirrorLeaseId) dispatch({ type: 'frame-error', reason });
       },
-      decode: async (src, signal) => {
-        if (typeof Image === 'undefined') return;
-        const image = new Image();
-        const abort = (): void => {
-          image.src = '';
-        };
-        signal.addEventListener('abort', abort, { once: true });
-        image.src = src;
-        if (typeof image.decode !== 'function') {
-          signal.removeEventListener('abort', abort);
-          image.src = '';
-          return;
-        }
-        try {
-          await image.decode();
-          if (signal.aborted) throw new Error('decode-aborted');
-        } finally {
-          signal.removeEventListener('abort', abort);
-          image.src = '';
-        }
-      },
+      ...(useBitmapPipeline
+        ? {
+            decodeBitmap: async (blob, signal) => {
+              const bitmap = await createImageBitmap(blob);
+              if (signal.aborted) {
+                bitmap.close();
+                throw new Error('decode-aborted');
+              }
+              return bitmap;
+            },
+          }
+        : {
+            decode: async (src, signal) => {
+              if (typeof Image === 'undefined') return;
+              const image = new Image();
+              const abort = (): void => {
+                image.src = '';
+              };
+              signal.addEventListener('abort', abort, { once: true });
+              image.src = src;
+              if (typeof image.decode !== 'function') {
+                signal.removeEventListener('abort', abort);
+                image.src = '';
+                return;
+              }
+              try {
+                await image.decode();
+                if (signal.aborted) throw new Error('decode-aborted');
+              } finally {
+                signal.removeEventListener('abort', abort);
+                image.src = '';
+              }
+            },
+          }),
     });
     decoderRef.current = decoder;
     let lastIdentity: {

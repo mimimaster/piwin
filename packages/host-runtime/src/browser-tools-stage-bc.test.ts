@@ -31,6 +31,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     suspendIdle: async () => ({ suspended: false, reason: 'not-resident' }),
     start: async () => ({}),
     stop: async () => {},
+    shutdown: async () => {},
     navigate: async () => {},
     snapshot: async () => [],
     click: async () => {},

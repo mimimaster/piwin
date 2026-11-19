@@ -688,7 +688,7 @@ html:not([data-theme-mode='light']) {
 .md-callout {
   margin: var(--s-4) 0;
   border-radius: var(--r-control);
-  border-left: 4px solid var(--iris);
+  border: 1px solid color-mix(in srgb, var(--iris) 32%, transparent);
   background: var(--iris-wash);
   padding: var(--s-4) var(--s-5);
 }
@@ -708,7 +708,7 @@ html:not([data-theme-mode='light']) {
 }
 
 .md-callout-tip {
-  border-left-color: var(--mint);
+  border-color: color-mix(in srgb, var(--mint) 35%, transparent);
   background: color-mix(in srgb, var(--mint) 10%, transparent);
 }
 
@@ -717,7 +717,7 @@ html:not([data-theme-mode='light']) {
 }
 
 .md-callout-warning {
-  border-left-color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 35%, transparent);
   background: color-mix(in srgb, var(--amber) 10%, transparent);
 }
 
@@ -727,7 +727,7 @@ html:not([data-theme-mode='light']) {
 
 .md-callout-important,
 .md-callout-caution {
-  border-left-color: var(--coral);
+  border-color: color-mix(in srgb, var(--coral) 35%, transparent);
   background: color-mix(in srgb, var(--coral) 10%, transparent);
 }
 

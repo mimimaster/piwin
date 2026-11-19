@@ -41,6 +41,114 @@ describe('pi-agent-failure', () => {
     });
   });
 
+  it('classifies HTTP 403 safety refusals and generic blocks without triggering provider-authentication', () => {
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: 'OpenAI API error (403): 403 "I\'m sorry, I can\'t help with that request."',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-http-error',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+    expect(
+      agentFailureFromPiEvent({
+        errorMessage: 'OpenAI API error (403): 403 "I\'m sorry, I can\'t help with that request."',
+      }),
+    ).toMatchObject({
+      code: 'provider-http-error',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: '403 status code (no body)',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-http-error',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: '403 unsupported_country_region_territory',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-http-error',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+  });
+
+  it('classifies HTTP 403 quota/resource exhaustion as provider-quota', () => {
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage:
+          '403 You have either run out of available resources or do not have an active Grok subscription',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-quota',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: '403 Team has used all available credits or reached its monthly spending limit',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-quota',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+  });
+
+  it('keeps explicit credential rejection 403 as provider-authentication', () => {
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: '403 Forbidden: The OAuth2 access token could not be validated',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-authentication',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: '403 unauthenticated:bad-credentials',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-authentication',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+    expect(
+      agentFailureFromPiFacts({
+        errorMessage: '403 Invalid API key',
+        httpStatus: 403,
+      }),
+    ).toMatchObject({
+      code: 'provider-authentication',
+      origin: 'provider',
+      httpStatus: 403,
+      retriable: false,
+    });
+  });
+
   it('classifies Anthropic extra-usage 400 as quota before generic HTTP mapping', () => {
     expect(
       agentFailureFromPiFacts({

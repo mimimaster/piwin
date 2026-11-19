@@ -28,6 +28,7 @@
 @import './settings-host-access.css';
 @import './settings-orchestration.css';
 @import './settings-permissions.css';
+@import './region-settings-system-prompts.css';
 @import './inkstone/settings.css';
 @import './inkstone/appearance.css';
 /* Phone presentation of the settings page. Last, so it refines the sheets

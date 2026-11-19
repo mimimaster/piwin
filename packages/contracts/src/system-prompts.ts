@@ -1,24 +1,31 @@
 /**
  * System Prompts management & inspection contracts.
  *
- * Keeps custom system prompt presets, global/project defaults, and built-in
- * slot overrides under the `systemPrompts` SettingsDomain, while preserving
- * existing `replyWriter.systemPrompt`, `visionDelegation.systemPrompt`, and
- * `artifact.decisionPrompt` fields as single sources of truth.
+ * Custom presets reference ordered stacks of external `.md` / `.txt` files
+ * instead of storing inline editable prompt text, while preserving existing
+ * `replyWriter.systemPrompt`, `visionDelegation.systemPrompt`, and
+ * `artifact.decisionPrompt` inspection compatibility for built-in slots.
  */
 
 import type { PiwinConfig } from './config.js';
-import { createDefaultArtifactConfig, DEFAULT_ARTIFACT_DECISION_PROMPT } from './artifact.js';
+import { DEFAULT_ARTIFACT_DECISION_PROMPT } from './artifact.js';
 import { AGENT_MODE_SYSTEM_PREAMBLES, DEFAULT_AGENT_MODE_SYSTEM_PROMPT } from './permission.js';
 import { DEFAULT_FETCH_DELEGATE_OUTPUT_CHARS } from './web.js';
 
 export type SystemPromptMode = 'append' | 'replace';
 
+export const ALLOWED_SYSTEM_PROMPT_FILE_EXTENSIONS = ['.md', '.txt'] as const;
+export const MAX_SYSTEM_PROMPT_STACK_FILES = 20;
+export const MAX_SYSTEM_PROMPT_FILE_BYTES = 256 * 1024;
+export const MAX_SYSTEM_PROMPT_PRESETS = 100;
+export const MAX_SYSTEM_PROMPT_CONTENT_CHARS = 128_000;
+
 export type SystemPromptPreset = {
   id: string;
   name: string;
   mode: SystemPromptMode;
-  content: string;
+  /** Ordered stack of `.md` / `.txt` file paths (top-to-bottom). */
+  filePaths: string[];
   updatedAt: string;
 };
 
@@ -32,22 +39,11 @@ export type BuiltinSystemPromptSlotId =
   | 'web.fetch-extract'
   | 'walkthrough.system';
 
-export type OverridableBuiltinSlotId = Exclude<BuiltinSystemPromptSlotId, 'walkthrough.system'>;
-
-export type DirectSystemPromptOverrideSlotId =
-  | 'agent.default'
-  | 'agent.goal'
-  | 'conversation.chat'
-  | 'web.fetch-extract';
-
 /** Sentinel id forcing built-in defaults (skipping inherited global/project presets). */
 export const SYSTEM_PROMPT_BUILTIN_ID = '__builtin__';
 
 /** Sentinel id clearing a session/project override so it inherits the parent scope. */
 export const SYSTEM_PROMPT_INHERIT_ID = 'inherit';
-
-export const MAX_SYSTEM_PROMPT_PRESETS = 100;
-export const MAX_SYSTEM_PROMPT_CONTENT_CHARS = 64_000;
 
 export type SystemPromptsConfig = {
   presets: SystemPromptPreset[];
@@ -55,8 +51,38 @@ export type SystemPromptsConfig = {
   defaultPresetId?: string;
   /** Per-project custom preset id (or `SYSTEM_PROMPT_BUILTIN_ID` to opt out). */
   projectPresetIds?: Record<string, string>;
-  /** Direct overrides for built-in slots without an existing PiwinConfig field. */
-  builtinOverrides?: Partial<Record<DirectSystemPromptOverrideSlotId, string>>;
+};
+
+export type SystemPromptCandidateSource = 'global' | 'project';
+
+export type SystemPromptFileCandidate = {
+  path: string;
+  displayPath: string;
+  fileName: string;
+  extension: 'md' | 'txt';
+  source: SystemPromptCandidateSource;
+  sizeBytes: number;
+  updatedAtMs: number;
+};
+
+export type SystemPromptFilesListData = {
+  systemPromptsDir: string;
+  files: SystemPromptFileCandidate[];
+};
+
+export type SystemPromptFileReadItem = {
+  path: string;
+  resolvedPath: string;
+  fileName: string;
+  exists: boolean;
+  content: string;
+  sizeBytes: number;
+  updatedAtMs?: number;
+  error?: string;
+};
+
+export type SystemPromptFilesReadData = {
+  files: SystemPromptFileReadItem[];
 };
 
 export const CONVERSATION_CHAT_SYSTEM_PROMPT = `<identity>
@@ -187,6 +213,51 @@ export function isValidSystemPromptPresetId(id: string): boolean {
   return SYSTEM_PROMPT_PRESET_ID_RE.test(id);
 }
 
+/** Reject blank paths, NUL bytes, and anything other than `.md` / `.txt`. */
+export function isSupportedSystemPromptFilePath(filePath: string): boolean {
+  if (typeof filePath !== 'string') return false;
+  const trimmed = filePath.trim();
+  if (trimmed.length === 0 || trimmed.includes('\0')) return false;
+  if (trimmed.endsWith('/') || trimmed.endsWith('\\')) return false;
+  const lower = trimmed.toLowerCase();
+  const baseName = lower.split(/[\\/]/).pop() ?? '';
+  if (baseName === '.md' || baseName === '.txt') return false;
+  return ALLOWED_SYSTEM_PROMPT_FILE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+export function normalizeSystemPromptFileStack(paths: readonly string[]): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const rawPath of paths) {
+    if (typeof rawPath !== 'string') continue;
+    const trimmed = rawPath.trim();
+    if (!isSupportedSystemPromptFilePath(trimmed) || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+    if (normalized.length >= MAX_SYSTEM_PROMPT_STACK_FILES) {
+      break;
+    }
+  }
+  return normalized;
+}
+
+export function formatSystemPromptFileStack(contents: readonly string[]): string {
+  const sections: string[] = [];
+  for (const raw of contents) {
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      sections.push(trimmed);
+    }
+  }
+  const combined = sections.join('\n\n');
+  if (combined.length <= MAX_SYSTEM_PROMPT_CONTENT_CHARS) {
+    return combined;
+  }
+  return combined.slice(0, MAX_SYSTEM_PROMPT_CONTENT_CHARS);
+}
+
 export function createDefaultSystemPromptsConfig(): SystemPromptsConfig {
   return { presets: [] };
 }
@@ -250,13 +321,11 @@ export function readBuiltinSystemPromptValue(
           : undefined;
       break;
     case 'walkthrough.system':
-      rawOverride = undefined;
-      break;
     case 'agent.default':
     case 'agent.goal':
     case 'conversation.chat':
     case 'web.fetch-extract':
-      rawOverride = config?.systemPrompts?.builtinOverrides?.[slotId];
+      rawOverride = undefined;
       break;
   }
   const trimmed = rawOverride?.trim();
@@ -270,63 +339,6 @@ export function readBuiltinSystemPromptValue(
     isOverridden,
     ...(isOverridden ? { overrideContent: trimmed } : {}),
     effectiveContent: isOverridden ? trimmed : descriptor.defaultContent,
-  };
-}
-
-export function applyBuiltinSystemPromptOverride(
-  config: PiwinConfig,
-  slotId: OverridableBuiltinSlotId,
-  content: string | null,
-): PiwinConfig {
-  const descriptor = findBuiltinSystemPromptDescriptor(slotId);
-  const trimmed = content?.trim() ?? '';
-  const shouldClear = trimmed.length === 0 || trimmed === descriptor.defaultContent.trim();
-
-  if (slotId === 'delegate.reply-writer') {
-    const current = config.replyWriter ?? { enabled: false, language: 'zh-CN' as const };
-    const { systemPrompt: _prev, ...rest } = current;
-    return {
-      ...config,
-      replyWriter: shouldClear ? rest : { ...rest, systemPrompt: trimmed },
-    };
-  }
-
-  if (slotId === 'delegate.vision') {
-    const current = config.visionDelegation ?? { enabled: false };
-    const { systemPrompt: _prev, ...rest } = current;
-    return {
-      ...config,
-      visionDelegation: shouldClear ? rest : { ...rest, systemPrompt: trimmed },
-    };
-  }
-
-  if (slotId === 'artifact.decision') {
-    const artifact = config.artifact ?? createDefaultArtifactConfig();
-    return {
-      ...config,
-      artifact: {
-        ...artifact,
-        decisionPrompt: shouldClear
-          ? { mode: 'default', customPrompt: '' }
-          : { mode: 'custom', customPrompt: trimmed },
-      },
-    };
-  }
-
-  const currentSystemPrompts = config.systemPrompts ?? createDefaultSystemPromptsConfig();
-  const nextOverrides = { ...(currentSystemPrompts.builtinOverrides ?? {}) };
-  if (shouldClear) {
-    delete nextOverrides[slotId];
-  } else {
-    nextOverrides[slotId] = trimmed;
-  }
-  const { builtinOverrides: _prevOverrides, ...restSystemPrompts } = currentSystemPrompts;
-  return {
-    ...config,
-    systemPrompts:
-      Object.keys(nextOverrides).length > 0
-        ? { ...restSystemPrompts, builtinOverrides: nextOverrides }
-        : restSystemPrompts,
   };
 }
 

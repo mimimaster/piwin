@@ -14,6 +14,7 @@ import { formatError } from '@piwin/contracts';
 import { fail, ok } from './response-helpers.js';
 import { handleHostCreateEntry } from './commands/host-create-entry.js';
 import { handleHostListDir } from './commands/host-list-dir.js';
+import { handleSystemPromptCommand } from './commands/system-prompt-commands.js';
 import { detectSystemProxy, readMacosSystemProxy } from './network-proxy/macos-system-proxy.js';
 import { projectActivitySummary } from './activity-summary.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
@@ -169,6 +170,14 @@ export async function handleCommandWithTranscriptLease(
     );
     if (sessionLive) {
       return sessionLive;
+    }
+    const systemPrompt = await handleSystemPromptCommand(
+      command,
+      requestId,
+      deps.options.piwinRoot,
+    );
+    if (systemPrompt) {
+      return systemPrompt;
     }
     switch (command.type) {
       case 'host/ping':

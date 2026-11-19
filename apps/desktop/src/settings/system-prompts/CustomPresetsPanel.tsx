@@ -1,56 +1,65 @@
 /**
- * Custom system prompt presets manager: create, edit, delete, and set as global default.
+ * Unified custom preset workbench: preset tabs, single-line controls, and `@` file stack.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { Button, Select, TextArea, TextInput } from '@piwin/ui-kit';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  Button,
+  IconEye,
+  IconPlus,
+  IconTrash,
+  SegmentedControl,
+  TextInput,
+} from '@piwin/ui-kit';
 import {
   createDefaultSystemPromptsConfig,
-  MAX_SYSTEM_PROMPT_CONTENT_CHARS,
+  formatSystemPromptFileStack,
+  normalizeSystemPromptFileStack,
   slugifySystemPromptPresetId,
   type PiwinConfig,
+  type SystemPromptFileCandidate,
+  type SystemPromptFileReadItem,
+  type SystemPromptFilesListData,
+  type SystemPromptFilesReadData,
   type SystemPromptMode,
   type SystemPromptPreset,
 } from '@piwin/contracts';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
-import { FieldRow } from '../field-row';
-import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
+import { PromptFileStackEditor } from './PromptFileStackEditor';
+import { promptFileDisplayName, promptFileExtensionLabel } from './prompt-file-actions';
+import type { PromptPreviewLayer, PromptPreviewPayload } from './PromptPreviewModal';
 
-export type PresetDraftSeed = {
-  name: string;
-  content: string;
-  mode?: SystemPromptMode;
-};
+function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
 
 export function CustomPresetsPanel(props: {
-  draftSeed?: PresetDraftSeed | null;
-  onConsumeSeed?: () => void;
+  onOpenPreview: (payload: PromptPreviewPayload) => void;
 }): ReactElement {
-  const { config, saveConfig, setError, setInfo } = useSettings();
+  const { config, projectPath, hostClient, saveConfig, setError, setInfo } = useSettings();
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
 
   const systemPrompts = config?.systemPrompts ?? createDefaultSystemPromptsConfig();
   const presets = systemPrompts.presets;
+  const isRemote = hostClient?.getTransport?.() === 'remote';
+  const hostRequest = hostClient?.request;
 
   const [selectedId, setSelectedId] = useState<string>('__new__');
   const [name, setName] = useState('');
   const [mode, setMode] = useState<SystemPromptMode>('append');
-  const [content, setContent] = useState('');
+  const [filePaths, setFilePaths] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [candidates, setCandidates] = useState<SystemPromptFileCandidate[]>([]);
+  const [systemPromptsDir, setSystemPromptsDir] = useState<string | undefined>(undefined);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [readItemsByPath, setReadItemsByPath] = useState<ReadonlyMap<string, SystemPromptFileReadItem>>(
+    () => new Map(),
+  );
   const initializedRef = useRef(false);
-  const { draftSeed, onConsumeSeed } = props;
 
   useEffect(() => {
-    if (draftSeed) {
-      initializedRef.current = true;
-      setSelectedId('__new__');
-      setName(draftSeed.name);
-      setMode(draftSeed.mode ?? 'append');
-      setContent(draftSeed.content);
-      onConsumeSeed?.();
-      return;
-    }
     if (!initializedRef.current) {
       initializedRef.current = true;
       const first = presets[0];
@@ -58,7 +67,7 @@ export function CustomPresetsPanel(props: {
         setSelectedId(first.id);
         setName(first.name);
         setMode(first.mode);
-        setContent(first.content);
+        setFilePaths(first.filePaths);
       }
       return;
     }
@@ -67,25 +76,85 @@ export function CustomPresetsPanel(props: {
       if (existing) {
         setName(existing.name);
         setMode(existing.mode);
-        setContent(existing.content);
+        setFilePaths(existing.filePaths);
       }
     }
-  }, [draftSeed, onConsumeSeed, presets, selectedId]);
+  }, [presets, selectedId]);
+
+  const refreshCandidates = useCallback(async () => {
+    if (!hostRequest) return;
+    setLoadingCandidates(true);
+    try {
+      const response = await hostRequest({
+        type: 'system-prompts/list-files',
+        ...(!isRemote && projectPath ? { projectPath } : {}),
+      });
+      if (!response.success) return;
+      const data = response.data as SystemPromptFilesListData | undefined;
+      if (data) {
+        setSystemPromptsDir(data.systemPromptsDir);
+        setCandidates(data.files ?? []);
+      }
+    } catch {
+      // Best-effort discovery.
+    } finally {
+      setLoadingCandidates(false);
+    }
+  }, [hostRequest, isRemote, projectPath]);
+
+  useEffect(() => {
+    void refreshCandidates();
+  }, [refreshCandidates]);
+
+  const refreshStackContents = useCallback(
+    async (paths: readonly string[]): Promise<ReadonlyMap<string, SystemPromptFileReadItem>> => {
+      if (!hostRequest || paths.length === 0) {
+        const empty = new Map<string, SystemPromptFileReadItem>();
+        setReadItemsByPath(empty);
+        return empty;
+      }
+      try {
+        const response = await hostRequest({
+          type: 'system-prompts/read-files',
+          paths: [...paths],
+          ...(!isRemote && projectPath ? { projectPath } : {}),
+        });
+        if (!response.success) return readItemsByPath;
+        const data = response.data as SystemPromptFilesReadData | undefined;
+        const map = new Map<string, SystemPromptFileReadItem>();
+        for (const item of data?.files ?? []) {
+          map.set(item.path, item);
+        }
+        setReadItemsByPath(map);
+        return map;
+      } catch {
+        return readItemsByPath;
+      }
+    },
+    [hostRequest, isRemote, projectPath, readItemsByPath],
+  );
+
+  useEffect(() => {
+    void refreshStackContents(filePaths);
+    // Re-read whenever the file stack changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePaths, hostRequest, isRemote, projectPath]);
 
   const activePreset =
     selectedId === '__new__' ? undefined : presets.find((item) => item.id === selectedId);
+  const normalizedPaths = useMemo(() => normalizeSystemPromptFileStack(filePaths), [filePaths]);
   const isDirty = activePreset
     ? activePreset.name !== name.trim() ||
       activePreset.mode !== mode ||
-      activePreset.content !== content.trim()
-    : name.trim().length > 0 || content.trim().length > 0;
-  const canSave = name.trim().length > 0 && content.trim().length > 0 && isDirty && !saving;
+      !sameStringArray(activePreset.filePaths, normalizedPaths)
+    : name.trim().length > 0 || normalizedPaths.length > 0;
+  const canSave = name.trim().length > 0 && normalizedPaths.length > 0 && isDirty && !saving;
 
   function startNewPreset(): void {
     setSelectedId('__new__');
     setName('');
     setMode('append');
-    setContent('');
+    setFilePaths([]);
   }
 
   function selectPreset(id: string): void {
@@ -98,15 +167,80 @@ export function CustomPresetsPanel(props: {
     setSelectedId(found.id);
     setName(found.name);
     setMode(found.mode);
-    setContent(found.content);
+    setFilePaths(found.filePaths);
+  }
+
+  async function openSingleFilePreview(filePath: string): Promise<void> {
+    const latestMap = await refreshStackContents([filePath]);
+    const item = latestMap.get(filePath);
+    const fileName = item?.fileName ?? promptFileDisplayName(filePath);
+    props.onOpenPreview({
+      title: `@${fileName}`,
+      badge: promptFileExtensionLabel(filePath),
+      badgeTone: item && !item.exists ? 'warning' : 'neutral',
+      layers: [
+        {
+          id: 'file',
+          label: `@${fileName}`,
+          filePath: item?.resolvedPath ?? filePath,
+          content: item?.content ?? '',
+          missing: item ? !item.exists : false,
+          ...(item?.error ? { error: item.error } : {}),
+          ...(item?.sizeBytes !== undefined ? { sizeBytes: item.sizeBytes } : {}),
+        },
+      ],
+    });
+  }
+
+  async function openCombinedStackPreview(): Promise<void> {
+    if (normalizedPaths.length === 0) return;
+    const latestMap = await refreshStackContents(normalizedPaths);
+    const validContents: string[] = [];
+    const fileLayers: PromptPreviewLayer[] = normalizedPaths.map((filePath, index) => {
+      const item = latestMap.get(filePath);
+      const fileName = item?.fileName ?? promptFileDisplayName(filePath);
+      const missing = item ? !item.exists : false;
+      if (!missing && item?.content.trim()) {
+        validContents.push(item.content);
+      }
+      return {
+        id: `layer-${index}`,
+        label: `${String(index + 1).padStart(2, '0')} @${fileName}`,
+        badge: promptFileExtensionLabel(filePath),
+        filePath: item?.resolvedPath ?? filePath,
+        content: item?.content ?? '',
+        missing,
+        ...(item?.error ? { error: item.error } : {}),
+        ...(item?.sizeBytes !== undefined ? { sizeBytes: item.sizeBytes } : {}),
+      };
+    });
+
+    const combinedText = formatSystemPromptFileStack(validContents);
+    const titleName = name.trim() || (isZh ? '未命名方案' : 'Untitled preset');
+    props.onOpenPreview({
+      title: titleName,
+      badge: mode === 'replace' ? (isZh ? '替换' : 'Replace') : isZh ? '追加' : 'Append',
+      badgeTone: 'running',
+      layers: [
+        {
+          id: 'combined',
+          label: isZh ? '完整合成' : 'Combined',
+          content: combinedText,
+        },
+        ...fileLayers,
+      ],
+    });
   }
 
   async function handleSave(): Promise<void> {
     if (!config) return;
     const trimmedName = name.trim();
-    const trimmedContent = content.trim();
-    if (!trimmedName || !trimmedContent) {
-      setError(isZh ? '请填写预设名称和提示词内容。' : 'Please enter both name and content.');
+    if (!trimmedName || normalizedPaths.length === 0) {
+      setError(
+        isZh
+          ? '请填写方案名称并至少添加一个 .md 或 .txt 文件。'
+          : 'Enter a preset name and add at least one .md or .txt file.',
+      );
       return;
     }
     setSaving(true);
@@ -122,7 +256,7 @@ export function CustomPresetsPanel(props: {
         id: targetId,
         name: trimmedName,
         mode,
-        content: trimmedContent,
+        filePaths: normalizedPaths,
         updatedAt: now,
       };
       const nextPresets = activePreset
@@ -138,10 +272,7 @@ export function CustomPresetsPanel(props: {
       const ok = await saveConfig(nextConfig, { quiet: true });
       if (ok) {
         setSelectedId(targetId);
-        setInfo(
-          isZh ? `已保存提示词预设「${trimmedName}」。` : `Saved preset "${trimmedName}".`,
-          'success',
-        );
+        setInfo(isZh ? `已保存「${trimmedName}」。` : `Saved "${trimmedName}".`, 'success');
       }
     } finally {
       setSaving(false);
@@ -155,8 +286,8 @@ export function CustomPresetsPanel(props: {
       const deletedId = activePreset.id;
       const nextPresets = presets.filter((item) => item.id !== deletedId);
       const nextProjects = { ...(systemPrompts.projectPresetIds ?? {}) };
-      for (const [path, presetId] of Object.entries(nextProjects)) {
-        if (presetId === deletedId) delete nextProjects[path];
+      for (const [pathKey, presetId] of Object.entries(nextProjects)) {
+        if (presetId === deletedId) delete nextProjects[pathKey];
       }
       const nextSystemPrompts = {
         ...systemPrompts,
@@ -180,11 +311,11 @@ export function CustomPresetsPanel(props: {
           setSelectedId(fallback.id);
           setName(fallback.name);
           setMode(fallback.mode);
-          setContent(fallback.content);
+          setFilePaths(fallback.filePaths);
         } else {
           startNewPreset();
         }
-        setInfo(isZh ? `已删除预设「${activePreset.name}」。` : `Deleted "${activePreset.name}".`);
+        setInfo(isZh ? `已删除「${activePreset.name}」。` : `Deleted "${activePreset.name}".`);
       }
     } finally {
       setSaving(false);
@@ -205,116 +336,130 @@ export function CustomPresetsPanel(props: {
     );
     if (ok) {
       setInfo(
-        isZh
-          ? `已将「${activePreset.name}」设为全局默认。`
-          : `Set "${activePreset.name}" as global default.`,
+        isZh ? `已设为全局默认：${activePreset.name}` : `Global default: ${activePreset.name}`,
         'success',
       );
     }
   }
 
   return (
-    <section className="settings-section settings-section-card" data-testid="system-prompts-presets-panel">
-      <PageTitle
-        title={isZh ? '自定义预设库' : 'Custom Presets'}
-        description={
-          isZh
-            ? '为不同场景保存多套系统提示词，可随时在全局、项目或单会话中切换。'
-            : 'Save reusable system prompt presets for different workflows.'
-        }
-        trailing={
-          <Button
-            size="compact"
+    <section
+      className="settings-section settings-section-card sysprompt-workbench"
+      data-testid="system-prompts-presets-panel"
+    >
+      {presets.length > 0 ? (
+        <div
+          className="sysprompt-preset-tabs"
+          role="tablist"
+          aria-label={isZh ? '预设方案' : 'Presets'}
+        >
+          {presets.map((item) => {
+            const selected = item.id === selectedId;
+            const isDefault = item.id === systemPrompts.defaultPresetId;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => selectPreset(item.id)}
+                className={`sysprompt-preset-pill${selected ? ' is-selected' : ''}`}
+                data-testid={`sysprompt-preset-pill-${item.id}`}
+                title={
+                  isDefault
+                    ? isZh
+                      ? '当前全局默认'
+                      : 'Global default'
+                    : item.mode === 'replace'
+                      ? isZh
+                        ? '替换模式'
+                        : 'Replace mode'
+                      : isZh
+                        ? '追加模式'
+                        : 'Append mode'
+                }
+              >
+                {isDefault ? <span className="sysprompt-default-dot" aria-hidden="true" /> : null}
+                <span className="sysprompt-preset-pill-name">{item.name}</span>
+                <span className="sysprompt-preset-count">{item.filePaths.length}</span>
+              </button>
+            );
+          })}
+          {selectedId === '__new__' ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected
+              className="sysprompt-preset-pill is-selected is-draft"
+              onClick={startNewPreset}
+            >
+              <span className="sysprompt-preset-pill-name">
+                {name.trim() || (isZh ? '未保存' : 'New')}
+              </span>
+              <span className="sysprompt-preset-count">{filePaths.length}</span>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="sysprompt-new-pill"
             onClick={startNewPreset}
             data-testid="system-prompts-new-preset"
           >
-            {isZh ? '+ 新建预设' : '+ New preset'}
-          </Button>
-        }
-      />
-
-      {presets.length > 0 ? (
-        <FieldRow label={isZh ? '选择预设' : 'Select preset'}>
-          <Select
-            value={selectedId}
-            testId="system-prompts-preset-select"
-            onChange={(event) => selectPreset(event.currentTarget.value)}
-            data={[
-              ...presets.map((item) => ({
-                value: item.id,
-                label:
-                  item.id === systemPrompts.defaultPresetId
-                    ? `${item.name} · ${isZh ? '全局默认' : 'Global default'}`
-                    : item.name,
-              })),
-              ...(selectedId === '__new__'
-                ? [{ value: '__new__', label: isZh ? '（新建未保存预设）' : '(New unsaved preset)' }]
-                : []),
-            ]}
-          />
-        </FieldRow>
+            <IconPlus size={12} />
+            <span>{isZh ? '新建' : 'New'}</span>
+          </button>
+        </div>
       ) : null}
 
-      <FieldRow label={isZh ? '预设名称' : 'Preset name'}>
-        <TextInput
-          value={name}
-          disabled={saving}
-          placeholder={isZh ? '例如：严格代码审查、简洁翻译助手' : 'e.g. Strict Reviewer'}
-          testId="system-prompts-preset-name"
-          onChange={(event) => setName(event.currentTarget.value)}
-        />
-      </FieldRow>
+      <div className="sysprompt-control-bar">
+        <div className="sysprompt-name-wrap">
+          <TextInput
+            toolbar
+            value={name}
+            disabled={saving}
+            placeholder={isZh ? '方案名称（如：严格代码审查）' : 'Preset name'}
+            aria-label={isZh ? '方案名称' : 'Preset name'}
+            testId="system-prompts-preset-name"
+            onChange={(event) => setName(event.currentTarget.value)}
+          />
+        </div>
 
-      <FieldRow
-        label={isZh ? '生效方式' : 'Apply mode'}
-        description={
-          mode === 'append'
-            ? isZh
-              ? '追加模式：保留 piwin 默认工作契约与工具规范，并在其后附加本提示词（推荐）。'
-              : 'Append: keeps built-in contracts and tools, appending your prompt after them.'
-            : isZh
-              ? '替换模式：替代默认身份与运行契约，保留已启用工具与项目规则。'
-              : 'Replace: replaces default identity/contract while keeping active tools and project rules.'
-        }
-      >
-        <Select
-          value={mode}
-          disabled={saving}
-          testId="system-prompts-preset-mode"
-          onChange={(event) => setMode(event.currentTarget.value === 'replace' ? 'replace' : 'append')}
-          data={[
-            { value: 'append', label: isZh ? '追加到默认提示词后（推荐）' : 'Append to default (Recommended)' },
-            { value: 'replace', label: isZh ? '替换默认人设与契约' : 'Replace default persona' },
-          ]}
-        />
-      </FieldRow>
+        <div
+          className="sysprompt-mode-wrap"
+          title={
+            mode === 'append'
+              ? isZh
+                ? '追加到系统默认契约之后'
+                : 'Append after built-in default'
+              : isZh
+                ? '替换默认人设与契约'
+                : 'Replace default persona'
+          }
+        >
+          <SegmentedControl
+            size="xs"
+            value={mode}
+            testId="system-prompts-preset-mode"
+            onChange={(nextValue) => setMode(nextValue === 'replace' ? 'replace' : 'append')}
+            data={[
+              { value: 'append', label: isZh ? '追加' : 'Append' },
+              { value: 'replace', label: isZh ? '替换' : 'Replace' },
+            ]}
+          />
+        </div>
 
-      <div className="ui-field" style={{ marginTop: 10 }}>
-        <TextArea
-          label={isZh ? '提示词正文' : 'Prompt content'}
-          rows={12}
-          maxLength={MAX_SYSTEM_PROMPT_CONTENT_CHARS}
-          disabled={saving}
-          value={content}
-          placeholder={isZh ? '输入给模型的系统级指令…' : 'Enter system instructions for the model…'}
-          onChange={(nextValue) => setContent(nextValue)}
-          testId="system-prompts-preset-content"
-        />
-      </div>
-
-      <div className="settings-section-actions settings-card-footer">
-        <div style={{ display: 'flex', gap: 8 }}>
-          {activePreset ? (
-            <Button
-              size="compact"
-              variant="ghost"
-              disabled={saving}
-              onClick={() => void handleDelete()}
-              data-testid="system-prompts-preset-delete"
-            >
-              {isZh ? '删除' : 'Delete'}
-            </Button>
-          ) : null}
+        <div className="sysprompt-control-actions">
+          <Button
+            size="compact"
+            variant="secondary"
+            disabled={normalizedPaths.length === 0}
+            onClick={() => void openCombinedStackPreview()}
+            title={isZh ? '预览合成结果' : 'Preview combined prompt'}
+            data-testid="system-prompts-preset-preview"
+          >
+            <IconEye size={13} />
+            <span>{isZh ? '预览' : 'Preview'}</span>
+          </Button>
           {activePreset && activePreset.id !== systemPrompts.defaultPresetId ? (
             <Button
               size="compact"
@@ -323,21 +468,46 @@ export function CustomPresetsPanel(props: {
               onClick={() => void handleSetGlobalDefault()}
               data-testid="system-prompts-preset-set-global"
             >
-              {isZh ? '设为全局默认' : 'Set global default'}
+              {isZh ? '设为默认' : 'Set default'}
             </Button>
           ) : null}
+          {activePreset ? (
+            <button
+              type="button"
+              className="sysprompt-icon-action is-danger"
+              disabled={saving}
+              onClick={() => void handleDelete()}
+              title={isZh ? '删除方案' : 'Delete preset'}
+              aria-label={isZh ? '删除方案' : 'Delete preset'}
+              data-testid="system-prompts-preset-delete"
+            >
+              <IconTrash size={14} />
+            </button>
+          ) : null}
+          <Button
+            size="compact"
+            variant="primary"
+            disabled={!canSave}
+            onClick={() => void handleSave()}
+            data-testid="system-prompts-preset-save"
+          >
+            {saving ? (isZh ? '保存中…' : 'Saving…') : isZh ? '保存' : 'Save'}
+          </Button>
         </div>
-
-        <Button
-          size="compact"
-          variant="primary"
-          disabled={!canSave}
-          onClick={() => void handleSave()}
-          data-testid="system-prompts-preset-save"
-        >
-          {saving ? (isZh ? '保存中…' : 'Saving…') : isZh ? '保存预设' : 'Save preset'}
-        </Button>
       </div>
+
+      <PromptFileStackEditor
+        filePaths={filePaths}
+        candidates={candidates}
+        {...(systemPromptsDir ? { systemPromptsDir } : {})}
+        projectPath={projectPath}
+        readItemsByPath={readItemsByPath}
+        loadingCandidates={loadingCandidates}
+        disabled={saving}
+        onChangeFilePaths={setFilePaths}
+        onPreviewFile={(filePath) => void openSingleFilePreview(filePath)}
+        onRefreshCandidates={() => void refreshCandidates()}
+      />
     </section>
   );
 }

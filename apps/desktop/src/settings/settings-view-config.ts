@@ -147,6 +147,9 @@ export function mergeSettingsViewConfig(partial: unknown): PiwinConfig {
   if (record.prompts && typeof record.prompts === 'object') {
     result.prompts = record.prompts as NonNullable<PiwinConfig['prompts']>;
   }
+  if (record.systemPrompts && typeof record.systemPrompts === 'object') {
+    result.systemPrompts = record.systemPrompts as NonNullable<PiwinConfig['systemPrompts']>;
+  }
   if (record.compaction && typeof record.compaction === 'object') {
     result.compaction = record.compaction as NonNullable<PiwinConfig['compaction']>;
   }

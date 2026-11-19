@@ -1,4 +1,4 @@
-import { classifyCompactionNoOp, SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS } from '@piwin/contracts';
+import { classifyCompactionNoOp } from '@piwin/contracts';
 import type { SessionTranscriptMessage, SessionTranscriptPageInfo } from '@piwin/contracts';
 import { extractUserFacingBody } from '@piwin/session/derive-default-name';
 import {
@@ -7,7 +7,14 @@ import {
   type BoundedTextAccumulator,
   type BoundedTextAccumulatorOptions,
 } from './bounded-text-accumulator';
-import { createTranscriptCacheMetadata, retainBoundedTranscriptWindow } from './transcript-page-cache';
+import { globalMemoryGovernor, type MemoryPressureLevel } from '../notes/memory-governor.js';
+import {
+  createTranscriptCacheMetadata,
+  MAX_TRANSCRIPT_CACHE_BYTES,
+  MAX_TRANSCRIPT_CACHE_MESSAGES,
+  retainBoundedTranscriptWindow,
+  type TranscriptWindowLimits,
+} from './transcript-page-cache';
 import type { ChatMessageUi, ChatUiState, RunRecordUi } from './chat-ui-types';
 import { createBoundedToolOutput, projectBoundedToolPresentation } from './chat-reducer-tools';
 import { mergeIdleLoop } from '../run-activity/run-idle-loop-merge';
@@ -199,12 +206,28 @@ export function collectLiveTranscriptMessageIds(
   return liveIds;
 }
 
+export const TRANSCRIPT_PROTECTED_TAIL_MESSAGES = 16;
+
+function resolveTranscriptWindowLimits(level: MemoryPressureLevel): TranscriptWindowLimits {
+  switch (level) {
+    case 'critical':
+      return { maxMessages: 24, maxBytes: 256 * 1024 };
+    case 'moderate':
+      return { maxMessages: 48, maxBytes: 512 * 1024 };
+    default:
+      return {
+        maxMessages: MAX_TRANSCRIPT_CACHE_MESSAGES,
+        maxBytes: MAX_TRANSCRIPT_CACHE_BYTES,
+      };
+  }
+}
+
 export function collectRetainedTranscriptMessageIds(
   messages: readonly ChatMessageUi[],
   streaming: boolean,
 ): Set<string> {
   const retainedIds = collectLiveTranscriptMessageIds(messages, streaming);
-  const tailStart = Math.max(0, messages.length - SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS);
+  const tailStart = Math.max(0, messages.length - TRANSCRIPT_PROTECTED_TAIL_MESSAGES);
   for (let index = tailStart; index < messages.length; index += 1) {
     const message = messages[index];
     if (message !== undefined) retainedIds.add(message.id);
@@ -320,6 +343,7 @@ export function enforceBoundedTranscriptWindow(state: ChatUiState): ChatUiState 
   const bounded = retainBoundedTranscriptWindow(
     state.messages,
     collectRetainedTranscriptMessageIds(state.messages, state.streaming),
+    resolveTranscriptWindowLimits(globalMemoryGovernor.getLevel()),
   );
   const transcriptWindow = createTranscriptCacheMetadata(state.transcriptWindow, bounded, state.messages.length);
   if (bounded.droppedCount === 0) {

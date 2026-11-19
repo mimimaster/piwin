@@ -943,4 +943,59 @@ describe('mirror lease vs agent claim', () => {
     await session.stop('panel');
     expect(context.close).toHaveBeenCalledTimes(1);
   });
+
+  it('shutdown releases keepAlive Chromium, clears state/checkpoint, and stays reusable', async () => {
+    const first = installWorkingBrowser();
+    first.page.evaluate.mockResolvedValue(true);
+    const session = createBrowserSession({ keepAlive: true });
+    const events: Array<{ type: string; lifecycle?: string; mirror?: string; url?: string; owner?: string }> = [];
+    session.subscribe((event) => {
+      events.push(event as { type: string; lifecycle?: string; mirror?: string; url?: string; owner?: string });
+    });
+
+    await session.start('panel-1');
+    await session.navigate('https://example.com', { actor: 'user' });
+    await session.type('#field', 'unsaved', { actor: 'user' });
+    expect(session.currentState().url).toBe('https://example.com');
+    expect(session.residencySnapshot().protection).toBe('visible');
+
+    await session.shutdown();
+
+    expect(first.context.close).toHaveBeenCalledTimes(1);
+    expect(session.currentState()).toEqual({});
+    expect(session.status()).toMatchObject({ lifecycle: 'stopped', mirror: 'off' });
+    expect(session.residencySnapshot()).toMatchObject({ resident: false, eligible: false });
+    expect(session.controllerState()).toEqual({ owner: 'idle', agentWantsLock: false });
+
+    const stoppedState = events.filter((event) => event.type === 'browser/state').at(-1);
+    expect(stoppedState).toMatchObject({
+      type: 'browser/state',
+      lifecycle: 'stopped',
+      mirror: 'off',
+      tabs: [],
+      pendingDialog: null,
+    });
+    expect(stoppedState).not.toHaveProperty('url');
+    expect(stoppedState).not.toHaveProperty('title');
+
+    const second = installWorkingBrowser();
+    second.page.url.mockResolvedValue('https://fresh.example');
+    second.page.title.mockResolvedValue('Fresh');
+    await expect(session.navigate('https://fresh.example', { actor: 'user' })).resolves.toBeUndefined();
+    await expect(session.start('panel-2')).resolves.toMatchObject({ url: 'https://fresh.example' });
+    expect(launchMock).toHaveBeenCalledTimes(2);
+
+    // Also discards any idle checkpoint so a subsequent start opens a clean page.
+    second.page.evaluate.mockResolvedValue(true);
+    await session.stop('panel-2');
+    expect(await session.suspendIdle(Date.now())).toEqual({ suspended: true });
+    await session.shutdown();
+
+    const third = installWorkingBrowser();
+    third.page.url.mockResolvedValue('about:blank');
+    third.page.title.mockResolvedValue('');
+    await session.start('panel-3');
+    expect(third.page.goto).not.toHaveBeenCalled();
+    await session.close();
+  });
 });

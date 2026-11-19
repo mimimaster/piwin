@@ -89,6 +89,7 @@ pub fn run() {
             show_main_window,
             reveal_in_file_manager::reveal_in_file_manager,
             reveal_in_file_manager::path_exists_locally,
+            reveal_in_file_manager::open_prompt_file_in_editor,
             save_user_file::copy_local_file,
             save_user_file::write_saved_file,
             memory_pressure::purge_webview_memory,

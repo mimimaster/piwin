@@ -387,3 +387,34 @@ describe('applyHostLoginFollowUpDomains', () => {
     expect(next.notes).toBe(current.notes);
   });
 });
+
+describe('mergeSettingsViewConfig systemPrompts', () => {
+  it('retains systemPrompts file-stacked presets and scope bindings on read and write', () => {
+    const systemPrompts = {
+      presets: [
+        {
+          id: 'reviewer',
+          name: 'Reviewer',
+          mode: 'append' as const,
+          filePaths: ['/tmp/persona.md', '/tmp/rules.txt'],
+          updatedAt: '2026-11-18T00:00:00.000Z',
+        },
+      ],
+      defaultPresetId: 'reviewer',
+      projectPresetIds: { '/repo/demo': 'reviewer' },
+    };
+    const merged = mergeSettingsViewConfig({ systemPrompts });
+    expect(merged.systemPrompts).toEqual(systemPrompts);
+
+    const written = configFromSettingsWriteResponse(
+      {
+        type: 'response',
+        command: 'settings/apply',
+        success: true,
+        data: { snapshot: { config: { systemPrompts }, revision: 'rev-2' } },
+      },
+      createSettingsViewConfig(),
+    );
+    expect(written.systemPrompts).toEqual(systemPrompts);
+  });
+});

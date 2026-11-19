@@ -28,6 +28,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     suspendIdle: async () => ({ suspended: false, reason: 'not-resident' }),
     start: async () => ({ url: 'http://localhost:3000', title: 'Test' }),
     stop: async () => {},
+    shutdown: async () => {},
     navigate: async (url) => {},
     snapshot: async () => [],
     click: async () => {},
@@ -170,6 +171,7 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/screenshot' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/capture' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/stop' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/close' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/restart' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/reload' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/input', events: [] })).toBe(true);
@@ -306,6 +308,26 @@ describe('handleBrowserCommand', () => {
       createContext(session),
     );
     expect(stop).toHaveBeenCalledWith('panel-1', { reason: 'disconnect' });
+  });
+
+  it('browser/close delegates to session.shutdown without permanently closing the session', async () => {
+    const shutdown = vi.fn().mockResolvedValue(undefined);
+    const close = vi.fn().mockResolvedValue(undefined);
+    const getBrowserSession = vi.fn(() => createMockSession({ shutdown, close }));
+    const result = await handleBrowserCommand(
+      { type: 'browser/close', sessionId: 'session-a' },
+      'req-1',
+      createContext(undefined, [], { getBrowserSession }),
+    );
+    expect(getBrowserSession).toHaveBeenCalledWith('session-a');
+    expect(shutdown).toHaveBeenCalledTimes(1);
+    expect(close).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      type: 'response',
+      command: 'browser/close',
+      success: true,
+      data: { closed: true },
+    });
   });
 
   it('browser/restart delegates to session.restart without a new lease', async () => {

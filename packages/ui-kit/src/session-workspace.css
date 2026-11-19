@@ -213,6 +213,10 @@
   transform: scale(1.06);
 }
 
+.piwin-browser-mini-hud-btn--close:hover {
+  background: rgba(210, 56, 68, 0.88);
+}
+
 .piwin-browser-mini-hud-btn:focus-visible {
   outline: 2px solid var(--pw-mini-accent);
   outline-offset: 1px;

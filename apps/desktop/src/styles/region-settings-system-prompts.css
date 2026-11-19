@@ -1,0 +1,799 @@
+/* Settings -> System Prompts: unified topbar, `@` file stack, and minimal read-only modal. */
+
+.sysprompt-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sysprompt-page .piwin-button .mantine-Button-label,
+.sysprompt-preview-body .piwin-button .mantine-Button-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Unified Top Bar ──────────────────────────────────────────────────────── */
+
+.sysprompt-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sysprompt-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sysprompt-scope-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  border-radius: var(--r-control, 7px);
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.22)));
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.06)));
+  overflow: hidden;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.sysprompt-scope-pill:hover {
+  border-color: var(--l3, var(--line-2, rgba(128, 128, 128, 0.36)));
+}
+
+.sysprompt-scope-pill:focus-within {
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+  box-shadow: 0 0 0 2px var(--zhu-wash, rgba(176, 58, 36, 0.14));
+}
+
+.sysprompt-scope-key {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t3, var(--text-3, inherit));
+  border-right: 1px solid var(--l1, var(--line-1, rgba(128, 128, 128, 0.14)));
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sysprompt-scope-select {
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--t1, var(--text-1, inherit));
+  font-size: 12px;
+  font-weight: 500;
+  height: 100%;
+  padding: 0 8px;
+  max-width: 164px;
+  cursor: pointer;
+}
+
+/* ── Unified Preset Workbench ─────────────────────────────────────────────── */
+
+.sysprompt-workbench,
+.sysprompt-builtins-panel {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sysprompt-preset-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sysprompt-preset-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-control, 7px);
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.2)));
+  background: var(--s2, var(--surface-2, transparent));
+  color: var(--t2, var(--text-2, inherit));
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.sysprompt-preset-pill:hover {
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.1)));
+  color: var(--t1, var(--text-1, inherit));
+}
+
+.sysprompt-preset-pill.is-selected {
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.12)));
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+  color: var(--t1, var(--text-1, inherit));
+  box-shadow: var(--sh1, none);
+}
+
+.sysprompt-preset-pill.is-draft {
+  border-style: dashed;
+}
+
+.sysprompt-default-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--pine, #3d7c5e);
+  flex-shrink: 0;
+}
+
+.sysprompt-preset-pill-name {
+  font-weight: 600;
+}
+
+.sysprompt-preset-count {
+  font-family: var(--mono, monospace);
+  font-size: 10.5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--s1, var(--surface-1, rgba(128, 128, 128, 0.14)));
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-new-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--r-control, 7px);
+  border: 1px dashed var(--l3, var(--line-2, rgba(128, 128, 128, 0.3)));
+  background: transparent;
+  color: var(--t3, var(--text-3, inherit));
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sysprompt-new-pill:hover {
+  color: var(--t1, var(--text-1, inherit));
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+/* ── Single-Line Control Bar ──────────────────────────────────────────────── */
+
+.sysprompt-control-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sysprompt-name-wrap {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
+.sysprompt-mode-wrap {
+  flex-shrink: 0;
+}
+
+.sysprompt-control-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+/* ── `@` Input Bar & Stack Rail ───────────────────────────────────────────── */
+
+.sysprompt-stack-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sysprompt-at-combobox {
+  position: relative;
+}
+
+.sysprompt-at-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 6px;
+  border-radius: var(--r-control, 8px);
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.24)));
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.05)));
+}
+
+.sysprompt-at-input-shell:focus-within {
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+  box-shadow: 0 0 0 2px var(--zhu-wash, rgba(176, 58, 36, 0.14));
+}
+
+.sysprompt-at-trigger-chip {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.22)));
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.12));
+  color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+  font-family: var(--mono, monospace);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sysprompt-at-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--t1, var(--text-1, inherit));
+  font-size: 12.5px;
+}
+
+.sysprompt-at-input::placeholder {
+  color: var(--t4, var(--text-3, rgba(128, 128, 128, 0.7)));
+}
+
+.sysprompt-at-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sysprompt-bar-action,
+.sysprompt-bar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.2)));
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.08)));
+  color: var(--t2, var(--text-2, inherit));
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.sysprompt-bar-action {
+  padding: 0 8px;
+}
+
+.sysprompt-bar-icon {
+  width: 24px;
+  padding: 0;
+}
+
+.sysprompt-bar-action:hover:not(:disabled),
+.sysprompt-bar-icon:hover:not(:disabled) {
+  color: var(--t1, var(--text-1, inherit));
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.14)));
+  border-color: var(--l3, var(--line-2, rgba(128, 128, 128, 0.3)));
+}
+
+.sysprompt-at-popover {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--r-card, 10px);
+  background: var(--s3, var(--surface-3, #fff));
+  border: 1px solid var(--l3, var(--line-2, rgba(128, 128, 128, 0.28)));
+  box-shadow: var(--sh3, 0 12px 28px rgba(0, 0, 0, 0.22));
+}
+
+.sysprompt-at-group + .sysprompt-at-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--l1, var(--line-1, rgba(128, 128, 128, 0.14)));
+}
+
+.sysprompt-at-group-label {
+  padding: 3px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-at-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--t1, var(--text-1, inherit));
+  text-align: left;
+  cursor: pointer;
+}
+
+.sysprompt-at-option.is-selected,
+.sysprompt-at-option:hover:not(:disabled) {
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.12)));
+}
+
+.sysprompt-at-option.is-added {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sysprompt-at-option-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.sysprompt-at-option-name {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.sysprompt-at-option-path {
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  color: var(--t3, var(--text-3, inherit));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sysprompt-at-option-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-at-empty {
+  padding: 12px 10px;
+  font-size: 12px;
+  color: var(--t3, var(--text-3, inherit));
+  text-align: center;
+}
+
+.sysprompt-empty-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 64px;
+  padding: 0 16px;
+  border-radius: var(--r-card, 10px);
+  border: 1px dashed var(--l3, var(--line-2, rgba(128, 128, 128, 0.28)));
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.03)));
+  color: var(--t3, var(--text-3, inherit));
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+
+.sysprompt-empty-slot:hover:not(:disabled) {
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+  color: var(--t1, var(--text-1, inherit));
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.06)));
+}
+
+.sysprompt-empty-at {
+  font-family: var(--mono, monospace);
+  font-weight: 700;
+  color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+/* ── Single-Row Compact Stack Cards ───────────────────────────────────────── */
+
+.sysprompt-format-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.12));
+  color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+.sysprompt-stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sysprompt-stack-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 3px 6px 3px 4px;
+  border-radius: var(--r-control, 8px);
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.05)));
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.18)));
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.sysprompt-stack-card.is-missing {
+  border-color: var(--lamp, #b8801f);
+}
+
+.sysprompt-stack-card.is-drop-target {
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+  background: var(--zhu-wash, rgba(176, 58, 36, 0.08));
+}
+
+.sysprompt-stack-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sysprompt-stack-card-main:hover {
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.08)));
+}
+
+.sysprompt-stack-order {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono, monospace);
+  font-size: 10.5px;
+  font-weight: 700;
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.14)));
+  color: var(--t2, var(--text-2, inherit));
+}
+
+.sysprompt-stack-filename {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1, var(--text-1, inherit));
+  white-space: nowrap;
+}
+
+.sysprompt-source-pill {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.12)));
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-stack-subpath {
+  min-width: 0;
+  flex: 1;
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+  color: var(--t3, var(--text-3, inherit));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sysprompt-stack-bytes {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-stack-preview-eye {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--t3, var(--text-3, inherit));
+  opacity: 0.48;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.sysprompt-stack-card-main:hover .sysprompt-stack-preview-eye {
+  opacity: 1;
+  color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+.sysprompt-stack-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.sysprompt-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--t3, var(--text-3, inherit));
+  cursor: pointer;
+}
+
+.sysprompt-icon-action:hover:not(:disabled) {
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.14)));
+  border-color: var(--l2, var(--line-1, rgba(128, 128, 128, 0.2)));
+  color: var(--t1, var(--text-1, inherit));
+}
+
+.sysprompt-icon-action:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.sysprompt-icon-action.is-danger:hover:not(:disabled) {
+  color: var(--crimson, #b03a24);
+}
+
+/* ── Built-in Read-only Grid ──────────────────────────────────────────────── */
+
+.sysprompt-builtin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sysprompt-builtin-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 11px 13px;
+  border-radius: var(--r-card, 10px);
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.18)));
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.05)));
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.sysprompt-builtin-card:hover {
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.1)));
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+.sysprompt-builtin-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sysprompt-builtin-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t1, var(--text-1, inherit));
+}
+
+.sysprompt-builtin-card-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-builtin-eye {
+  display: inline-flex;
+  opacity: 0.5;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.sysprompt-builtin-card:hover .sysprompt-builtin-eye {
+  opacity: 1;
+  color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+.sysprompt-builtin-card-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--t2, var(--text-2, inherit));
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Minimal Read-only Preview Modal ──────────────────────────────────────── */
+
+.sysprompt-modal-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sysprompt-modal-title-icon {
+  display: inline-flex;
+  color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+.sysprompt-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sysprompt-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sysprompt-preview-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.sysprompt-layer-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.2)));
+  background: var(--s2, var(--surface-2, transparent));
+  color: var(--t2, var(--text-2, inherit));
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sysprompt-layer-tab.is-active {
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.14)));
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+  color: var(--t1, var(--text-1, inherit));
+  font-weight: 600;
+}
+
+.sysprompt-layer-tab.is-missing {
+  border-color: var(--lamp, #b8801f);
+}
+
+.sysprompt-preview-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sysprompt-preview-path {
+  font-family: var(--mono, monospace);
+  font-size: 11.5px;
+  color: var(--t2, var(--text-2, inherit));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sysprompt-preview-subpath {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-preview-subpath code {
+  font-family: var(--mono, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sysprompt-preview-stats {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sysprompt-preview-code {
+  margin: 0;
+  padding: 14px 16px;
+  max-height: min(60vh, 480px);
+  overflow: auto;
+  border-radius: var(--r-card, 10px);
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.18)));
+  background: var(--code, var(--s1, rgba(128, 128, 128, 0.08)));
+  color: var(--t1, var(--text-1, inherit));
+  font-family: var(--mono, monospace);
+  font-size: 12px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.sysprompt-preset-pill:focus-visible,
+.sysprompt-new-pill:focus-visible,
+.sysprompt-at-trigger-chip:focus-visible,
+.sysprompt-bar-action:focus-visible,
+.sysprompt-bar-icon:focus-visible,
+.sysprompt-at-option:focus-visible,
+.sysprompt-empty-slot:focus-visible,
+.sysprompt-stack-card-main:focus-visible,
+.sysprompt-icon-action:focus-visible,
+.sysprompt-builtin-card:focus-visible,
+.sysprompt-layer-tab:focus-visible,
+.sysprompt-preview-code:focus-visible {
+  outline: 2px solid var(--zhu, var(--iris, var(--accent, #b03a24)));
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .sysprompt-builtin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sysprompt-control-actions {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sysprompt-scope-pill,
+  .sysprompt-preset-pill,
+  .sysprompt-empty-slot,
+  .sysprompt-stack-card,
+  .sysprompt-builtin-card {
+    transition: none;
+  }
+}

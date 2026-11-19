@@ -144,18 +144,14 @@ html[data-theme-id*='paper'] .knowledge-workspace {
   --ochre: #94611a;
 }
 
-/* Vault Stage Root: neutral black with high transparency & backdrop blur matching main shell */
+/* Vault Stage Root: opaque neutral dark surface matching main shell */
 .vault-stage.knowledge-workspace {
-  background: rgba(10, 10, 12, 0.8) !important;
-  backdrop-filter: blur(28px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(140%) !important;
+  background: var(--s1) !important;
 }
 
 /* StudioTopbar inside Knowledge Workspace */
 .knowledge-workspace .vault-bar {
   background: var(--kw-nav-bg) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
   border-bottom: 1px solid var(--kw-card-border) !important;
 }
 
@@ -191,8 +187,6 @@ html[data-theme-id*='paper'] .knowledge-workspace {
   padding: 12px 10px;
   border-right: 1px solid var(--kw-card-border);
   background: var(--kw-nav-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 .kw-nav-group {

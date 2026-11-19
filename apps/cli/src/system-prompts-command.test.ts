@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -23,9 +23,14 @@ afterEach(() => {
 });
 
 describe('piwin system-prompts CLI', () => {
-  it('lists, shows, and switches global and project presets', async () => {
+  it('lists, shows stacked .md/.txt files, and switches global and project presets', async () => {
     const root = makeTempRoot();
     vi.stubEnv('PIWIN_ROOT', root);
+
+    const fileA = join(root, 'base.md');
+    const fileB = join(root, 'rules.txt');
+    writeFileSync(fileA, 'Be concise and direct.', 'utf8');
+    writeFileSync(fileB, 'Cite file paths.', 'utf8');
 
     const cfg = createDefaultPiwinConfig();
     await savePiwinConfig(
@@ -37,7 +42,7 @@ describe('piwin system-prompts CLI', () => {
               id: 'concise',
               name: 'Concise Helper',
               mode: 'append',
-              content: 'Be concise and direct.',
+              filePaths: [fileA, fileB],
               updatedAt: '2026-11-17T00:00:00.000Z',
             },
           ],
@@ -52,12 +57,16 @@ describe('piwin system-prompts CLI', () => {
     });
 
     await commandSystemPrompts(['system-prompts', 'list']);
-    expect(logs.join('\n')).toContain('concise');
-    expect(logs.join('\n')).toContain('agent.default');
+    const listOutput = logs.join('\n');
+    expect(listOutput).toContain('concise');
+    expect(listOutput).toContain('@base.md -> @rules.txt');
+    expect(listOutput).toContain('agent.default');
 
     logs.length = 0;
     await commandSystemPrompts(['system-prompts', 'show', 'concise']);
-    expect(logs.join('\n')).toContain('Be concise and direct.');
+    const showOutput = logs.join('\n');
+    expect(showOutput).toContain('Be concise and direct.');
+    expect(showOutput).toContain('Cite file paths.');
 
     await commandSystemPrompts(['system-prompts', 'use', 'concise']);
     let updated = await loadPiwinConfig(root);

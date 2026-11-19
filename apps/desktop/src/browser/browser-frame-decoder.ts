@@ -28,6 +28,7 @@ export type BrowserFrameErrorReason =
 
 export type BrowserFrameView = {
   src: string;
+  bitmap?: ImageBitmap | undefined;
   viewportWidth: number;
   viewportHeight: number;
   encodedWidth: number;
@@ -65,6 +66,9 @@ export type BrowserFrameDecoderOptions = {
   onError: (reason: BrowserFrameErrorReason) => void;
   timeoutMs?: number;
   decode?: (src: string, signal: AbortSignal) => Promise<void>;
+  decodeBitmap?: (blob: Blob, signal: AbortSignal) => Promise<ImageBitmap>;
+  minFrameIntervalMs?: () => number;
+  now?: () => number;
   createObjectUrl?: (blob: Blob) => string;
   revokeObjectUrl?: (url: string) => void;
   schedule?: (callback: () => void, ms: number) => number;
@@ -78,14 +82,31 @@ type DecodeCandidate = {
   push: BrowserFramePush;
   blob: Blob | undefined;
   src: string;
+  bitmap?: ImageBitmap | undefined;
   epoch: number;
   abort: AbortController;
   released: boolean;
 };
 
-function viewFromPush(push: BrowserFramePush, src: string): BrowserFrameView {
+const BITMAP_RETIRE_GRACE_MS = 32;
+
+function closeBitmapQuietly(bitmap: ImageBitmap | undefined): void {
+  if (bitmap === undefined) return;
+  try {
+    bitmap.close();
+  } catch {
+    /* ignore already-closed bitmaps */
+  }
+}
+
+function viewFromPush(
+  push: BrowserFramePush,
+  src: string,
+  bitmap?: ImageBitmap,
+): BrowserFrameView {
   return {
     src,
+    ...(bitmap === undefined ? {} : { bitmap }),
     viewportWidth: push.width,
     viewportHeight: push.height,
     encodedWidth: push.encodedWidth,
@@ -104,6 +125,8 @@ function viewFromPush(push: BrowserFramePush, src: string): BrowserFrameView {
 export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): BrowserFrameDecoder {
   const timeoutMs = options.timeoutMs ?? BROWSER_FRAME_PAYLOAD_TIMEOUT_MS;
   const decode = options.decode ?? (async () => undefined);
+  const decodeBitmap = options.decodeBitmap;
+  const now = options.now ?? (() => Date.now());
   const createObjectUrl = options.createObjectUrl ?? ((blob: Blob) => URL.createObjectURL(blob));
   const revokeObjectUrl = options.revokeObjectUrl ?? ((url: string) => URL.revokeObjectURL(url));
   const schedule = options.schedule ?? ((callback, ms) => window.setTimeout(callback, ms));
@@ -119,15 +142,44 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
   let unmatchedBinary: { header: BrowserFrameBinaryHeader; jpeg: Uint8Array } | undefined;
   let timedOutIdentity: string | undefined;
   let highWaterIdentity: BrowserFrameIdentity | undefined;
+  let lastCommittedAtMs = Number.NEGATIVE_INFINITY;
+  let throttleTimer: number | undefined;
+  const retiringBitmaps = new Map<number, ImageBitmap>();
 
   function releaseUrl(url: string | undefined): void {
     if (url?.startsWith('blob:')) revokeObjectUrl(url);
+  }
+
+  function flushRetiringBitmaps(): void {
+    for (const [timer, bitmap] of retiringBitmaps) {
+      cancel(timer);
+      closeBitmapQuietly(bitmap);
+    }
+    retiringBitmaps.clear();
+  }
+
+  function retireBitmap(bitmap: ImageBitmap | undefined): void {
+    if (bitmap === undefined) return;
+    const timer = schedule(() => {
+      retiringBitmaps.delete(timer);
+      closeBitmapQuietly(bitmap);
+    }, BITMAP_RETIRE_GRACE_MS);
+    retiringBitmaps.set(timer, bitmap);
+  }
+
+  function clearThrottleTimer(): void {
+    if (throttleTimer === undefined) return;
+    cancel(throttleTimer);
+    throttleTimer = undefined;
   }
 
   function releaseCandidate(candidate: DecodeCandidate): void {
     if (candidate.released) return;
     candidate.released = true;
     candidate.blob = undefined;
+    const candidateBitmap = candidate.bitmap;
+    candidate.bitmap = undefined;
+    closeBitmapQuietly(candidateBitmap);
     candidate.abort.abort();
     releaseUrl(candidate.src);
   }
@@ -143,9 +195,15 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
     unmatchedBinary = undefined;
     timedOutIdentity = undefined;
     highWaterIdentity = undefined;
+    lastCommittedAtMs = Number.NEGATIVE_INFINITY;
+    clearThrottleTimer();
+    flushRetiringBitmaps();
     clearPendingMeta();
     if (active !== undefined) releaseCandidate(active);
-    if (current !== undefined) releaseUrl(current.view.src);
+    if (current !== undefined) {
+      releaseUrl(current.view.src);
+      closeBitmapQuietly(current.view.bitmap);
+    }
     current = undefined;
   }
 
@@ -161,6 +219,21 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
 
   function pump(): void {
     if (disposed || active !== undefined || pendingFrame === undefined) return;
+    const minIntervalMs = options.minFrameIntervalMs?.() ?? 0;
+    if (minIntervalMs > 0 && Number.isFinite(lastCommittedAtMs)) {
+      const elapsed = now() - lastCommittedAtMs;
+      if (elapsed < minIntervalMs) {
+        if (throttleTimer === undefined) {
+          throttleTimer = schedule(() => {
+            throttleTimer = undefined;
+            pump();
+          }, Math.max(1, minIntervalMs - elapsed));
+        }
+        return;
+      }
+    }
+    clearThrottleTimer();
+
     const frame = pendingFrame;
     pendingFrame = undefined;
     if (!matchesTarget(frame.push)) {
@@ -172,7 +245,9 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
     let src: string;
     try {
       blob = new Blob([frame.jpeg as BlobPart], { type: 'image/jpeg' });
-      src = createObjectUrl(blob);
+      src = decodeBitmap !== undefined
+        ? `bitmap://frame/${frame.push.generation}/${frame.push.frameId}`
+        : createObjectUrl(blob);
     } catch {
       fail('decode-failed');
       pump();
@@ -189,7 +264,7 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
     };
     active = candidate;
 
-    const settle = (decoded: boolean): void => {
+    const settle = (decoded: boolean, bitmap?: ImageBitmap): void => {
       if (active === candidate) active = undefined;
       const canCommit = decoded && !disposed && candidate.epoch === epoch &&
         matchesTarget(candidate.push) && (current === undefined ||
@@ -198,16 +273,25 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
       if (canCommit && !candidate.released && decodedBlob !== undefined) {
         const previous = current;
         const next = {
-          view: viewFromPush(candidate.push, candidate.src), blob: decodedBlob,
+          view: viewFromPush(candidate.push, candidate.src, bitmap),
+          blob: decodedBlob,
           identity: browserFrameIdentity(candidate.push),
         };
         candidate.blob = undefined;
+        candidate.bitmap = undefined;
         current = next;
+        lastCommittedAtMs = now();
         options.onReady(next.view);
-        if (previous !== undefined && previous.view.src !== next.view.src) {
-          releaseUrl(previous.view.src);
+        if (previous !== undefined) {
+          if (previous.view.src !== next.view.src) {
+            releaseUrl(previous.view.src);
+          }
+          if (previous.view.bitmap !== next.view.bitmap) {
+            retireBitmap(previous.view.bitmap);
+          }
         }
       } else {
+        closeBitmapQuietly(bitmap);
         releaseCandidate(candidate);
         if (!decoded && !disposed && candidate.epoch === epoch && matchesTarget(candidate.push)) {
           fail('decode-failed');
@@ -215,6 +299,14 @@ export function createBrowserFrameDecoder(options: BrowserFrameDecoderOptions): 
       }
       pump();
     };
+
+    if (decodeBitmap !== undefined) {
+      void decodeBitmap(blob, candidate.abort.signal).then(
+        (bitmap) => settle(true, bitmap),
+        () => settle(false),
+      );
+      return;
+    }
 
     void decode(candidate.src, candidate.abort.signal).then(
       () => settle(true),

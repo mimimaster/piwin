@@ -1,17 +1,24 @@
+import path from 'node:path';
 import {
   BUILTIN_SYSTEM_PROMPTS,
   createDefaultSystemPromptsConfig,
+  formatSystemPromptFileStack,
   readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
   SYSTEM_PROMPT_BUILTIN_ID,
   SYSTEM_PROMPT_INHERIT_ID,
   type BuiltinSystemPromptSlotId,
 } from '@piwin/contracts';
-import { getPiwinRoot, loadPiwinConfig, savePiwinConfig } from '@piwin/host-runtime';
+import {
+  getPiwinRoot,
+  loadPiwinConfig,
+  readSystemPromptFiles,
+  savePiwinConfig,
+} from '@piwin/host-runtime';
 import { parseOptionalProject } from './cli-args.js';
 
 /**
- * `piwin system-prompts` subcommand: list, show, and switch system prompt presets.
+ * `piwin system-prompts` subcommand: list, show, and switch file-stacked system prompt presets.
  */
 export async function commandSystemPrompts(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
@@ -22,7 +29,9 @@ export async function commandSystemPrompts(argv: string[]): Promise<void> {
 
   if (sub === 'list') {
     const active = resolveActiveSystemPromptSelection({ config, projectPath });
-    console.log(`Active (${projectPath ? `project ${projectPath}` : 'global'}): ${active.sourceKind} -> ${active.effectiveSelectionId}`);
+    console.log(
+      `Active (${projectPath ? `project ${projectPath}` : 'global'}): ${active.sourceKind} -> ${active.effectiveSelectionId}`,
+    );
     console.log('');
     console.log('Custom Presets:');
     if (systemPrompts.presets.length === 0) {
@@ -30,19 +39,18 @@ export async function commandSystemPrompts(argv: string[]): Promise<void> {
     } else {
       for (const preset of systemPrompts.presets) {
         const isGlobal = systemPrompts.defaultPresetId === preset.id ? ' [global-default]' : '';
-        console.log(`  ${preset.id}\t[${preset.mode}]\t${preset.name}${isGlobal}`);
+        const atNames = preset.filePaths
+          .map((filePath) => `@${path.basename(filePath)}`)
+          .join(' -> ');
+        console.log(
+          `  ${preset.id}\t[${preset.mode}]\t${preset.name}\t(${preset.filePaths.length} files: ${atNames})${isGlobal}`,
+        );
       }
     }
     console.log('');
-    console.log('Built-in Prompts:');
+    console.log('Built-in Prompts (read-only):');
     for (const slot of BUILTIN_SYSTEM_PROMPTS) {
-      const value = readBuiltinSystemPromptValue(config, slot.slotId);
-      const tag = !slot.overridable
-        ? '[read-only]'
-        : value.isOverridden
-          ? '[custom]'
-          : '[default]';
-      console.log(`  ${slot.slotId}\t${tag}\t${slot.titleEn}`);
+      console.log(`  ${slot.slotId}\t[read-only]\t${slot.titleEn}`);
     }
     return;
   }
@@ -56,21 +64,36 @@ export async function commandSystemPrompts(argv: string[]): Promise<void> {
     }
     const preset = systemPrompts.presets.find((item) => item.id === targetId);
     if (preset) {
+      const read = await readSystemPromptFiles({
+        paths: preset.filePaths,
+        piwinRoot: root,
+        projectPath,
+      });
       console.log(`id: ${preset.id}`);
       console.log(`name: ${preset.name}`);
       console.log(`mode: ${preset.mode}`);
       console.log(`updatedAt: ${preset.updatedAt}`);
+      console.log('files:');
+      for (const file of read.files) {
+        const status = file.exists ? `${file.sizeBytes}B` : `MISSING (${file.error ?? 'not found'})`;
+        console.log(`  - @${file.fileName} (${file.resolvedPath}) [${status}]`);
+      }
       console.log('---');
-      console.log(preset.content);
+      const compiled = formatSystemPromptFileStack(
+        read.files.filter((file) => file.exists).map((file) => file.content),
+      );
+      console.log(compiled || '(empty — all referenced files are missing or blank)');
       return;
     }
     const builtin = BUILTIN_SYSTEM_PROMPTS.find((item) => item.slotId === targetId);
     if (builtin) {
-      const value = readBuiltinSystemPromptValue(config, builtin.slotId as BuiltinSystemPromptSlotId);
+      const value = readBuiltinSystemPromptValue(
+        config,
+        builtin.slotId as BuiltinSystemPromptSlotId,
+      );
       console.log(`slotId: ${builtin.slotId}`);
       console.log(`title: ${builtin.titleEn} (${builtin.titleZh})`);
-      console.log(`overridable: ${builtin.overridable}`);
-      console.log(`overridden: ${value.isOverridden}`);
+      console.log('mode: read-only');
       console.log('---');
       console.log(value.effectiveContent);
       return;
@@ -139,6 +162,8 @@ export async function commandSystemPrompts(argv: string[]): Promise<void> {
   }
 
   console.error(`Unknown system-prompts subcommand: ${sub}`);
-  console.error('Usage: piwin system-prompts list | show <id> | use <preset-id|default|inherit> [--project <path>]');
+  console.error(
+    'Usage: piwin system-prompts list | show <id> | use <preset-id|default|inherit> [--project <path>]',
+  );
   process.exitCode = 1;
 }

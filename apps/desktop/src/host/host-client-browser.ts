@@ -136,6 +136,11 @@ export function requestBrowserStop(
   });
 }
 
+/** Explicitly shut down the Host-owned browser runtime for this scope. */
+export function requestBrowserClose(client: HostCommandRequestClient): Promise<HostResponse> {
+  return client.request({ type: 'browser/close' });
+}
+
 /** Rebuild the Host-owned runtime in place. Does not mint a new mirror lease. */
 export function requestBrowserRestart(client: HostCommandRequestClient): Promise<HostResponse> {
   return client.request({ type: 'browser/restart' });

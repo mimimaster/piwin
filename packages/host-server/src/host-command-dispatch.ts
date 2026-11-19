@@ -104,7 +104,9 @@ export async function dispatchHostCommand(
   // The binary frame channel is gated on this client actually mirroring the
   // workbench (spec §4.1.2): remember its lease while it is the panel owner.
   const browserLeaseCommand =
-    frame.command.type === 'browser/start' || frame.command.type === 'browser/stop'
+    frame.command.type === 'browser/start' ||
+    frame.command.type === 'browser/stop' ||
+    frame.command.type === 'browser/close'
       ? frame.command
       : undefined;
 
@@ -134,7 +136,11 @@ export async function dispatchHostCommand(
     });
     if (browserLeaseCommand !== undefined && safeResponse.success) {
       applyBrowserLeaseCommand(connection.browserMirrorLeases, browserLeaseCommand);
-      if (browserLeaseCommand.type === 'browser/stop' || connection.browserMirrorLeases.size === 0) {
+      if (
+        browserLeaseCommand.type === 'browser/stop' ||
+        browserLeaseCommand.type === 'browser/close' ||
+        connection.browserMirrorLeases.size === 0
+      ) {
         connection.pendingBrowserFrame = undefined;
       }
     }

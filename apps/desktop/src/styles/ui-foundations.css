@@ -500,60 +500,36 @@ textarea:focus {
 
 /* ── ui-kit: Notice ───────────────────────────────────────────────── */
 
-/* Tone is carried by a left stripe rather than a tinted border all round: at
-   notice size a full colored outline competes with the run state. */
+/* Tone is carried by a subtle surface wash and uniform 1px rim, never a
+   corner-clipped left stripe. */
 .ui-notice {
   position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--s-5);
-  padding: var(--s-5) var(--s-5) var(--s-5) var(--s-6);
+  padding: var(--s-5) var(--s-6);
   border-radius: var(--r-card);
   border: 0;
   background: var(--surface-3);
-  box-shadow: var(--elev-2);
+  box-shadow: var(--elev-2), inset 0 0 0 1px var(--line-1);
   margin: var(--s-4) var(--s-6);
   overflow: hidden;
 }
 
-.ui-notice.tone-error,
-.ui-notice.tone-warning,
-.ui-notice.tone-success {
-  border: 0;
-}
-
-.ui-notice.tone-error::before,
-.ui-notice.tone-warning::before,
-.ui-notice.tone-success::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 2px;
-}
-
 .ui-notice.tone-error {
   background: color-mix(in srgb, var(--coral) 8%, var(--surface-3));
-}
-
-.ui-notice.tone-error::before {
-  background: var(--coral);
+  box-shadow: var(--elev-2), inset 0 0 0 1px color-mix(in srgb, var(--coral) 35%, var(--line-1));
 }
 
 .ui-notice.tone-warning {
   background: color-mix(in srgb, var(--amber) 8%, var(--surface-3));
-}
-
-.ui-notice.tone-warning::before {
-  background: var(--amber);
+  box-shadow: var(--elev-2), inset 0 0 0 1px color-mix(in srgb, var(--amber) 35%, var(--line-1));
 }
 
 .ui-notice.tone-success {
   background: color-mix(in srgb, var(--mint) 8%, var(--surface-3));
-}
-
-.ui-notice.tone-success::before {
-  background: var(--mint);
+  box-shadow: var(--elev-2), inset 0 0 0 1px color-mix(in srgb, var(--mint) 35%, var(--line-1));
 }
 
 /* Panel-embedded notices align with their container, not the stage gutter. */

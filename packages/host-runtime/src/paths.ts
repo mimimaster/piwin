@@ -205,6 +205,11 @@ export function getPiwinPromptsDir(rootDir: string): string {
   return join(rootDir, 'prompts');
 }
 
+/** Host-owned system prompt files root (`<piwinRoot>/system-prompts`). */
+export function getPiwinSystemPromptsDir(rootDir: string): string {
+  return join(rootDir, 'system-prompts');
+}
+
 export function getPiwinSessionsDir(rootDir: string): string {
   return join(rootDir, 'sessions');
 }

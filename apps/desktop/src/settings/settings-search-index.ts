@@ -29,7 +29,8 @@ const SETTINGS_SEARCH_TERMS: Readonly<Record<SettingsSectionId, readonly string[
   oauth: ['oauth', 'login', 'account', 'subscription', '登录', '账户', '订阅'],
   'system-prompts': [
     'system prompt', 'system prompts', 'preset', 'persona', 'SYSTEM.md',
-    '系统提示词', '人设', '预设', '内置提示词',
+    '@', 'md', 'txt', 'stack',
+    '系统提示词', '人设', '预设', '内置提示词', '文件堆叠', '文件引用',
   ],
   hooks: ['hook', 'hooks', 'event', 'lifecycle', '钩子', '事件', '生命周期'],
   subagents: [

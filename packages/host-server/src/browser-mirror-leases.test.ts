@@ -25,6 +25,18 @@ describe('applyBrowserLeaseCommand', () => {
     applyBrowserLeaseCommand(held, { type: 'browser/stop', leaseId: 'same', sessionId: 'a' });
     expect(held).toEqual(new Set([browserMirrorLeaseKey('b', 'same')]));
   });
+
+  it('clears all mirror leases for the closed conversation only on browser/close', () => {
+    const held = new Set<string>();
+    applyBrowserLeaseCommand(held, { type: 'browser/start', leaseId: 'lease-a1', sessionId: 'a' });
+    applyBrowserLeaseCommand(held, { type: 'browser/start', leaseId: 'lease-a2', sessionId: 'a' });
+    applyBrowserLeaseCommand(held, { type: 'browser/start', leaseId: 'lease-b', sessionId: 'b' });
+    applyBrowserLeaseCommand(held, { type: 'browser/start', leaseId: 'legacy' });
+    applyBrowserLeaseCommand(held, { type: 'browser/close', sessionId: 'a' });
+    expect(held).toEqual(
+      new Set([browserMirrorLeaseKey('b', 'lease-b'), browserMirrorLeaseKey(undefined, 'legacy')]),
+    );
+  });
 });
 
 describe('createDisconnectedMirrorLeaseReaper', () => {

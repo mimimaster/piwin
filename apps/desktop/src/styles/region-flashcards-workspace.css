@@ -138,7 +138,12 @@
 }
 
 .vault-card.is-set .vault-card-face {
-  border-left: 3px solid var(--iris);
+  border-color: color-mix(in srgb, var(--iris) 38%, var(--line-1));
+  background: color-mix(in srgb, var(--iris) 5%, var(--surface-2));
+}
+
+.vault-card.is-set .vault-card-face:hover {
+  border-color: color-mix(in srgb, var(--iris) 56%, var(--line-2));
 }
 
 .vault-card-head {

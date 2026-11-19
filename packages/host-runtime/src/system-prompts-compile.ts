@@ -1,5 +1,5 @@
 /**
- * Pure system-prompt compilation and status summary helpers for host-runtime.
+ * System-prompt compilation and status summary helpers for host-runtime.
  */
 import { createHash } from 'node:crypto';
 import type {
@@ -10,11 +10,13 @@ import type {
   SystemPromptMode,
 } from '@piwin/contracts';
 import {
+  formatSystemPromptFileStack,
   readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
 } from '@piwin/contracts';
 import { getSessionRecord } from '@piwin/session';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
+import { readSystemPromptFiles } from './system-prompt-files.js';
 
 export type SystemPromptSurfaceSummary = {
   presetId?: string;
@@ -23,6 +25,7 @@ export type SystemPromptSurfaceSummary = {
   sourceKind: ResolvedSystemPromptSourceKind;
   builtinModified: boolean;
   missingPresetId?: string;
+  missingFilePaths?: string[];
 };
 
 export type CompiledSystemPromptOverlay = {
@@ -46,13 +49,14 @@ export async function loadSessionSystemPromptPresetId(
   return record?.systemPromptPresetId;
 }
 
-export function resolveCompiledSystemPromptOverlay(params: {
+export async function resolveCompiledSystemPromptOverlay(params: {
   config: PiwinConfig;
   input: CreateSessionInput;
   location: ResolvedSessionLocation;
   isConversation: boolean;
   sessionPresetId?: string | undefined;
-}): CompiledSystemPromptOverlay {
+  piwinRoot?: string | undefined;
+}): Promise<CompiledSystemPromptOverlay> {
   const { config, input, location, isConversation } = params;
   const isolated = Boolean(input.parentSessionId) || input.sessionKind === 'side-chat';
 
@@ -76,8 +80,33 @@ export function resolveCompiledSystemPromptOverlay(params: {
       });
 
   const activePreset = selection.preset;
-  const isReplace = activePreset?.mode === 'replace';
-  const isAppend = activePreset?.mode === 'append';
+  let compiledPresetContent = '';
+  const missingFilePaths: string[] = [];
+
+  if (activePreset && activePreset.filePaths.length > 0) {
+    const readResult = await readSystemPromptFiles({
+      paths: activePreset.filePaths,
+      piwinRoot: params.piwinRoot,
+      projectPath,
+    });
+    const validContents: string[] = [];
+    for (const item of readResult.files) {
+      if (!item.exists || item.error) {
+        missingFilePaths.push(item.path);
+        continue;
+      }
+      if (item.content.trim().length > 0) {
+        validContents.push(item.content);
+      }
+    }
+    compiledPresetContent = formatSystemPromptFileStack(validContents);
+  }
+
+  // Safety fallback: if a `replace` preset has all referenced files missing or
+  // empty, retain built-in contracts so tools/safety prompts are never wiped out.
+  const hasCompiledContent = compiledPresetContent.length > 0;
+  const isReplace = activePreset?.mode === 'replace' && hasCompiledContent;
+  const isAppend = activePreset?.mode === 'append' && hasCompiledContent;
 
   const revisionSeed = createHash('sha256')
     .update(
@@ -89,7 +118,12 @@ export function resolveCompiledSystemPromptOverlay(params: {
         conversationChat: conversationChat.effectiveContent,
         artifactDecision: artifactDecision.effectiveContent,
         preset: activePreset
-          ? { id: activePreset.id, mode: activePreset.mode, content: activePreset.content }
+          ? {
+              id: activePreset.id,
+              mode: activePreset.mode,
+              filePaths: activePreset.filePaths,
+              content: compiledPresetContent,
+            }
           : null,
         effectiveSelectionId: selection.effectiveSelectionId,
       }),
@@ -108,13 +142,14 @@ export function resolveCompiledSystemPromptOverlay(params: {
         }
       : {}),
     ...(selection.missingPresetId ? { missingPresetId: selection.missingPresetId } : {}),
+    ...(missingFilePaths.length > 0 ? { missingFilePaths } : {}),
   };
 
   return {
     baseAgentPrompt: isReplace ? undefined : agentDefault.effectiveContent,
     baseConversationPrompt: isReplace ? undefined : conversationChat.effectiveContent,
-    ...(isAppend && activePreset ? { presetAppendPrompt: activePreset.content } : {}),
-    ...(isReplace && activePreset ? { systemPromptOverride: activePreset.content } : {}),
+    ...(isAppend ? { presetAppendPrompt: compiledPresetContent } : {}),
+    ...(isReplace ? { systemPromptOverride: compiledPresetContent } : {}),
     summary,
     revisionSeed,
   };

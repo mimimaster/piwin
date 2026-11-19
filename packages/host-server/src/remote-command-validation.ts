@@ -5,10 +5,12 @@ import {
   isAgentCliOpenInput,
   isBackendUserInputRespondCommand,
   isEmbeddedTuiOpenInput,
+  isSupportedSystemPromptFilePath,
   isValidTerminalSize,
   isValidHostEntryName,
   isFlashcardStudyCommandType,
   isSupportedAttachmentMimeType,
+  MAX_SYSTEM_PROMPT_STACK_FILES,
   parseFlashcardStudyCommand,
   QUEUED_TURN_MAX_TEXT_BYTES,
   RUN_INTERVENTION_MAX_TEXT_BYTES,
@@ -654,7 +656,21 @@ export function isSafeRemoteCommand(command: HostCommand): boolean {
       );
     case 'skills/list':
     case 'prompts/list':
+    case 'system-prompts/list-files':
       return command.projectPath === undefined;
+    case 'system-prompts/read-files':
+      return (
+        command.projectPath === undefined &&
+        Array.isArray(command.paths) &&
+        command.paths.length > 0 &&
+        command.paths.length <= MAX_SYSTEM_PROMPT_STACK_FILES &&
+        command.paths.every(
+          (entry) =>
+            typeof entry === 'string' &&
+            entry.length <= 4096 &&
+            isSupportedSystemPromptFilePath(entry),
+        )
+      );
     case 'preview/read-trusted-text':
       // Config-root-relative only. Reject absolute paths, traversal, and
       // media-vault prefixes before the command reaches the runtime.

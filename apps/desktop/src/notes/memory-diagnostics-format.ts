@@ -58,8 +58,8 @@ export function getLiveStatusAnimationCount(
 
 /**
  * Current visual/motion degradation matrix matching `memory-degradation.css`.
- * Core `ui-anim-*` status indicators stay whitelisted under `moderate` and
- * `critical` pressure and pause only while the window is occluded (`parked`).
+ * Core `ui-anim-*` status indicators stay active under `normal` and `moderate`
+ * pressure while visible, and pause under `critical` pressure or `parked`.
  */
 export function describeVisualDegradationPolicy(
   data: Pick<MemoryDiagnosticsPanelData, 'level' | 'parked' | 'frontend'> | null,
@@ -70,15 +70,18 @@ export function describeVisualDegradationPolicy(
   const parked = data?.parked === true;
   const liveCount = getLiveStatusAnimationCount(data);
   const pressureDegraded = level !== 'normal' || parked;
+  const coreMotionStatus = parked
+    ? copy.motionPolicyItems.coreMotion.paused(liveCount)
+    : level === 'critical'
+      ? copy.motionPolicyItems.coreMotion.pausedCritical(liveCount)
+      : copy.motionPolicyItems.coreMotion.active(liveCount);
 
   return [
     {
       id: 'core-motion',
       label: copy.motionPolicyItems.coreMotion.label,
-      status: parked
-        ? copy.motionPolicyItems.coreMotion.paused(liveCount)
-        : copy.motionPolicyItems.coreMotion.active(liveCount),
-      active: !parked,
+      status: coreMotionStatus,
+      active: !parked && level !== 'critical',
     },
     {
       id: 'text-shimmer',

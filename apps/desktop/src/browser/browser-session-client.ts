@@ -4,6 +4,7 @@ import type { HostCommand } from '@piwin/contracts';
 import type { HostCommandRequestClient } from '../host/host-client-request-port';
 import {
   requestBrowserCapture,
+  requestBrowserClose,
   requestBrowserInput,
   requestBrowserNavigate,
   requestBrowserPickAt,
@@ -19,6 +20,7 @@ export type BrowserSessionClient = HostCommandRequestClient &
   Pick<
     HostClient,
     | 'browserCapture'
+    | 'browserClose'
     | 'browserInput'
     | 'browserNavigate'
     | 'browserPickAt'
@@ -60,6 +62,7 @@ export function createBrowserSessionClient(
     subscribeBinary: (listener) => host.subscribeBinary?.(listener) ?? (() => undefined),
     browserStart: (leaseId) => requestBrowserStart(port, leaseId),
     browserStop: (leaseId) => requestBrowserStop(port, leaseId),
+    browserClose: () => requestBrowserClose(port),
     browserNavigate: (url) => requestBrowserNavigate(port, url),
     browserReload: () => requestBrowserReload(port),
     browserRestart: () => requestBrowserRestart(port),

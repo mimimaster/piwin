@@ -182,4 +182,12 @@ export type ChatThreadProps = {
   ) => void | Promise<void>;
   /** Live session plan used only to age historical execution cards. */
   sessionPlan?: SessionPlan | null;
+  /** True when browsing an older history window rather than the live tail. */
+  historyViewActive?: boolean;
+  /** True when Host or resident buffer still holds older turns above the current slice. */
+  canLoadOlder?: boolean;
+  /** True while an older transcript page request is in flight. */
+  historyLoading?: boolean;
+  /** Load an older page of transcript history from the Host. */
+  onLoadOlder?: (() => Promise<void> | void) | undefined;
 };

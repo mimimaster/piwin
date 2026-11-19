@@ -425,20 +425,12 @@ input.project-path-input {
   align-items: center;
   gap: var(--s-5);
   min-height: 44px;
-  padding: var(--s-4) var(--s-5) var(--s-4) var(--s-6);
+  padding: var(--s-4) var(--s-5);
   border-radius: var(--r-card);
   border: 0;
   background: color-mix(in srgb, var(--coral) 8%, var(--surface-3));
-  box-shadow: var(--elev-2);
+  box-shadow: var(--elev-2), inset 0 0 0 1px color-mix(in srgb, var(--coral) 35%, var(--line-1));
   overflow: hidden;
-}
-
-.main-error-banner-inner::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 2px;
-  background: var(--coral);
 }
 
 .main-error-icon-badge {

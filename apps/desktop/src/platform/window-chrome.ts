@@ -8,6 +8,7 @@
  */
 import { readShellRuntime } from '../tool-cards/shell-runtime.js';
 import { isTauriRuntime } from '../host/tauri-pty.js';
+import { syncWindowMaterialMarker } from './wallpaper-document.js';
 
 export const WINDOW_CHROME_VALUES = [
   'macos-overlay',
@@ -104,15 +105,21 @@ export async function applyNativeWindowMaterialToDocument(
   delete root.dataset.nativeWindowMaterial;
   if (chrome === 'macos-overlay') {
     root.dataset.nativeWindowMaterial = 'vibrancy';
+    if (root.dataset.themeId) syncWindowMaterialMarker(root);
     return;
   }
-  if (chrome !== 'windows-caption') return;
+  if (chrome !== 'windows-caption') {
+    if (root.dataset.themeId) syncWindowMaterialMarker(root);
+    return;
+  }
   try {
     if (await isWindowsMicaSupported(navigatorLike)) {
       root.dataset.nativeWindowMaterial = 'mica';
     }
   } catch (error: unknown) {
     console.warn('[window-chrome] Windows version probe failed; keeping the window opaque:', error);
+  } finally {
+    if (root.dataset.themeId) syncWindowMaterialMarker(root);
   }
 }
 

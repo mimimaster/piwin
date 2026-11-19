@@ -339,9 +339,10 @@
 }
 
 .diff-card.accepted {
+  background: color-mix(in srgb, var(--mint) 5%, var(--surface-3));
   box-shadow:
     var(--elev-1),
-    inset 2px 0 0 var(--mint);
+    inset 0 0 0 1px color-mix(in srgb, var(--mint) 32%, var(--line-1));
 }
 
 .diff-head {

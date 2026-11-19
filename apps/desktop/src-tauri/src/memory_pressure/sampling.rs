@@ -80,6 +80,7 @@ pub(crate) fn refresh_webview_pids(
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ProcessRusage {
     pub(crate) footprint_bytes: u64,
+    pub(crate) resident_bytes: u64,
     /// `ri_proc_start_abstime` — mach absolute time at process start.
     pub(crate) start_clock: u64,
 }
@@ -99,6 +100,7 @@ pub(crate) fn process_rusage(pid: i32) -> Option<ProcessRusage> {
     }
     Some(ProcessRusage {
         footprint_bytes: info.ri_phys_footprint,
+        resident_bytes: info.ri_resident_size,
         start_clock: info.ri_proc_start_abstime,
     })
 }
@@ -107,6 +109,7 @@ pub(crate) fn process_rusage(pid: i32) -> Option<ProcessRusage> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ProcessRusage {
     pub(crate) footprint_bytes: u64,
+    pub(crate) resident_bytes: u64,
     pub(crate) start_clock: u64,
 }
 

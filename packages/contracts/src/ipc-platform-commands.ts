@@ -301,6 +301,13 @@ export type PlatformHostCommand =
       promptId: string;
       enabled: boolean;
     }
+  | { id?: string; type: 'system-prompts/list-files'; projectPath?: string }
+  | {
+      id?: string;
+      type: 'system-prompts/read-files';
+      paths: string[];
+      projectPath?: string;
+    }
   | { id?: string; type: 'mcp/get' }
   | { id?: string; type: 'mcp/validate'; document: unknown }
   | { id?: string; type: 'mcp/save'; document: unknown }
@@ -644,6 +651,7 @@ export type PlatformHostCommand =
    * re-assert it after reconnecting.
    */
   | { id?: string; type: 'browser/stop'; sessionId?: string; leaseId?: string; reason?: 'disconnect' }
+  | { id?: string; type: 'browser/close'; sessionId?: string }
   | { id?: string; type: 'browser/restart'; sessionId?: string }
   | { id?: string; type: 'browser/reload'; sessionId?: string }
   | { id?: string; type: 'browser/input'; sessionId?: string; events: BrowserInputEvent[]; target?: BrowserTargetIdentity }

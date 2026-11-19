@@ -1,6 +1,6 @@
 import type { StatusTone } from '@piwin/ui-kit';
 import type { DesktopLocale } from '../i18n/desktop-locale.js';
-import { mainFootprintBytes } from './memory-sample-contract.js';
+import { mainFootprintBytes, mainResidentBytes } from './memory-sample-contract.js';
 import { governorLevelTone, sampleFreshness, type MemoryDiagnosticsPanelData } from './memory-diagnostics-format.js';
 import { memoryDiagnosticsCopy } from './memory-diagnostics-copy.js';
 
@@ -11,6 +11,7 @@ export function createMemoryDiagnosticsReport(
   const copy = memoryDiagnosticsCopy(locale);
   const sample = data?.native?.samples.at(-1);
   const mainBytes = sample === undefined ? undefined : mainFootprintBytes(sample);
+  const residentBytes = sample === undefined ? undefined : mainResidentBytes(sample);
   const freshness = sampleFreshness(sample?.timestampMs, nowMs);
   const condition = data === null ? 'loading' : mainBytes === undefined ? 'unavailable'
     : freshness !== 'fresh' ? 'stale' : data.level;
@@ -24,6 +25,7 @@ export function createMemoryDiagnosticsReport(
   return {
     sample,
     mainBytes,
+    residentBytes,
     aggregateBytes: sample?.aggregateFootprintBytes,
     condition,
     tone,

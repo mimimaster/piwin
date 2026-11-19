@@ -35,11 +35,11 @@ describe('transcript page cache', () => {
   });
 
   it('stops at both item and UTF-8 byte budgets without evicting current messages', () => {
-    const current = Array.from({ length: 150 }, (_, index) => message(`tail-${index}`));
+    const current = Array.from({ length: 70 }, (_, index) => message(`tail-${index}`));
     const older = Array.from({ length: 30 }, (_, index) => message(`older-${index}`));
     const itemBound = prependBoundedTranscriptPage(current, older);
     expect(itemBound.messages).toHaveLength(MAX_TRANSCRIPT_CACHE_MESSAGES);
-    expect(itemBound.messages.slice(-150).map((item) => item.id)).toEqual(
+    expect(itemBound.messages.slice(-70).map((item) => item.id)).toEqual(
       current.map((item) => item.id),
     );
     expect(itemBound.cacheLimitReached).toBe(true);
@@ -86,7 +86,7 @@ describe('transcript page cache', () => {
     expect(bounded.messages.slice(-16).map((item) => item.id)).toEqual(
       messages.slice(-16).map((item) => item.id),
     );
-    expect(bounded.droppedCount).toBe(80);
+    expect(bounded.droppedCount).toBe(240 - MAX_TRANSCRIPT_CACHE_MESSAGES);
     expect(bounded.cacheLimitReached).toBe(true);
   });
 
@@ -100,7 +100,7 @@ describe('transcript page cache', () => {
     }));
     const bounded = retainBoundedSessionTranscript(messages);
     expect(bounded).toHaveLength(MAX_TRANSCRIPT_CACHE_MESSAGES);
-    expect(bounded[0]?.id).toBe('m-40');
+    expect(bounded[0]?.id).toBe(`m-${200 - MAX_TRANSCRIPT_CACHE_MESSAGES}`);
     expect(bounded[bounded.length - 1]?.id).toBe('m-199');
   });
 });

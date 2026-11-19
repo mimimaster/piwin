@@ -18,6 +18,7 @@ import type { BrowserFrameErrorReason, BrowserFrameView } from './browser-frame-
 
 export type BrowserSessionFrame = {
   src: string;
+  bitmap?: ImageBitmap | undefined;
   viewportWidth: number;
   viewportHeight: number;
   /** Real JPEG dimensions; the density ratio is computed from these (spec §4.1.1). */
@@ -104,8 +105,9 @@ export function reduceBrowserHostPush(
     return state;
   }
   if (message.type === 'browser/state') {
+    const stopped = message.lifecycle === 'stopped';
     const generation = message.generation ?? state.generation;
-    const pageId = message.pageId ?? state.pageId;
+    const pageId = stopped ? undefined : (message.pageId ?? state.pageId);
     const documentRevision = message.documentRevision ?? state.documentRevision;
     const identityChanged = browserTargetIdentityChanged(state, { generation, pageId });
     // Draft vs committed (spec §4.2): Host pushes update `committedUrl` only.
@@ -124,17 +126,18 @@ export function reduceBrowserHostPush(
       documentRevision,
       pageStateLost: message.pageStateLost ?? state.pageStateLost ?? false,
       recoveryCount: message.recoveryCount ?? state.recoveryCount ?? 0,
-      tabs: message.tabs ?? (identityChanged ? [] : state.tabs),
-      pendingDialog:
-        message.pendingDialog === undefined
+      tabs: stopped ? [] : (message.tabs ?? (identityChanged ? [] : state.tabs)),
+      pendingDialog: stopped
+        ? null
+        : message.pendingDialog === undefined
           ? identityChanged
             ? null
             : state.pendingDialog
           : message.pendingDialog,
       viewport: message.viewport ?? state.viewport,
-      ...(identityChanged
+      ...(stopped || identityChanged
         ? {
-            frame: { src: '', viewportWidth: 0, viewportHeight: 0 },
+            frame: EMPTY_BROWSER_SESSION_LEASE.frame,
             highlight: null,
             pickPending: false,
           }
@@ -217,6 +220,7 @@ export function reduceBrowserSessionLease(
         frameError: null,
         frame: {
           src: action.view.src,
+          ...(action.view.bitmap === undefined ? {} : { bitmap: action.view.bitmap }),
           viewportWidth: action.view.viewportWidth,
           viewportHeight: action.view.viewportHeight,
           encodedWidth: action.view.encodedWidth,

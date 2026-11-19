@@ -87,6 +87,9 @@ function isProcessSample(value: unknown): value is NativeProcessSample {
   if (sample.footprintBytes !== undefined && !isPositiveByteCount(sample.footprintBytes)) {
     return false;
   }
+  if (sample.residentBytes !== undefined && !isPositiveByteCount(sample.residentBytes)) {
+    return false;
+  }
   return sample.shared === true || sample.shared === false;
 }
 
@@ -137,6 +140,7 @@ export function isMemoryPressureEventDetail(value: unknown): value is MemoryPres
   const detail = value as Record<string, unknown>;
   const checks: Array<[string, (v: unknown) => boolean]> = [
     ['bytes', isFiniteByteCount],
+    ['residentBytes', isFiniteByteCount],
     ['availableBytes', isFiniteByteCount],
     ['availableBytesKind', (v) => v === 'reclaimable-estimate'],
     ['level', (v) => v === 'normal' || v === 'moderate' || v === 'critical'],
@@ -175,6 +179,20 @@ export function mainFootprintBytes(detail: MemoryPressureEventDetail): number | 
   }
   if (isPositiveByteCount(detail.bytes)) {
     return detail.bytes;
+  }
+  return undefined;
+}
+
+/** Main-window resident physical memory (RSS) when sampled, else undefined. */
+export function mainResidentBytes(detail: MemoryPressureEventDetail): number | undefined {
+  if (isProcessSampleArray(detail.processes)) {
+    const main = detail.processes.find((process) => process.role === 'main');
+    if (main && isPositiveByteCount(main.residentBytes)) {
+      return main.residentBytes;
+    }
+  }
+  if (isPositiveByteCount(detail.residentBytes)) {
+    return detail.residentBytes;
   }
   return undefined;
 }

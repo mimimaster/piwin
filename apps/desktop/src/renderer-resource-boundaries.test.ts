@@ -246,15 +246,15 @@ describe('Desktop renderer resource boundaries', () => {
     }
 
     // Core status indicators (`ui-anim-*`, e.g. AgentLocator / RadialBellow)
-    // are whitelisted under moderate & critical pressure so live run feedback
-    // never drops out while visible; they pause only when hidden (parked).
-    for (const pressurePrefix of [
-      "html[data-memory-pressure='moderate']",
-      "html[data-memory-pressure='critical']",
-    ]) {
-      expect(degradation).not.toContain(`${pressurePrefix} [class*='ui-anim-']`);
-      expect(degradation).not.toContain(`${pressurePrefix} .ui-anim-radial-bellow__vane`);
-    }
+    // remain active under moderate pressure while visible, and pause under
+    // critical pressure or occlusion (parked) so WebKit IOSurfacePool can drain.
+    expect(degradation).not.toContain("html[data-memory-pressure='moderate'] [class*='ui-anim-']");
+    expect(degradation).not.toContain(
+      "html[data-memory-pressure='moderate'] .ui-anim-radial-bellow__vane",
+    );
+    expect(
+      ruleDeclarations(degradation, "html[data-memory-pressure='critical'] [class*='ui-anim-']"),
+    ).toContain('animation: none !important');
     expect(ruleDeclarations(degradation, "html[data-memory-parked] [class*='ui-anim-']")).toContain(
       'animation: none !important',
     );

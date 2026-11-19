@@ -317,12 +317,13 @@ export function buildWorkerProviderRegistration(
       model.reasoning === false
         ? undefined
         : buildThinkingLevelMap(model.thinkingLevels, protocol);
-    const compat = resolvePiModelCompat(modelApi, model.id, model.supportsDeveloperRole);
+    const baseUrl = model.baseUrl || providerBaseUrl;
+    const compat = resolvePiModelCompat(modelApi, model.id, model.supportsDeveloperRole, baseUrl);
     return {
       id: model.id,
       name: model.label?.trim() || model.id,
       api: modelApi,
-      baseUrl: model.baseUrl || providerBaseUrl,
+      baseUrl,
       reasoning: model.reasoning ?? true,
       ...(compat ? { compat } : {}),
       ...(thinkingLevelMap ? { thinkingLevelMap } : {}),

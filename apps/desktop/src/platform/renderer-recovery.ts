@@ -95,8 +95,11 @@ export function evaluateRendererRecoveryChecks(
   const checks: RendererRecoveryCheck[] = [];
 
   const runActive = resolved.isRunActive?.() === true;
-  checks.push({ id: 'run-active', ok: !runActive, ...(runActive ? { reason: 'run-active' } : {}) });
-  if (runActive) return checks;
+  checks.push({
+    id: 'run-active',
+    ok: true,
+    ...(runActive ? { reason: 'run-active-safe' } : {}),
+  });
 
   const draftState = resolved.getDraftState?.();
   if (draftState === undefined) {

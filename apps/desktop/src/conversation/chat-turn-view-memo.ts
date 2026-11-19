@@ -53,9 +53,15 @@ function areThreadPropsEqualForTurn(
     keyof ChatThreadProps
   >;
   for (const key of keys) {
-    if (key === 'messages') {
-      // The turn's own rows arrive through `turn`; nothing in a turn reads the
-      // rest of the transcript.
+    if (
+      key === 'messages' ||
+      key === 'historyViewActive' ||
+      key === 'canLoadOlder' ||
+      key === 'historyLoading' ||
+      key === 'onLoadOlder'
+    ) {
+      // The turn's own rows arrive through `turn`; live-tail pagination chrome
+      // lives on ChatThread outside individual turns.
       continue;
     }
     if (key === 'runRecordsById') {
@@ -108,6 +114,9 @@ export function areChatTurnRenderInputsEqual(
     (turn.lastAssistantMessageId === previous.latestAssistantMessageId) !==
     (turn.lastAssistantMessageId === next.latestAssistantMessageId)
   ) {
+    return false;
+  }
+  if (Boolean(previous.compactSettled) !== Boolean(next.compactSettled)) {
     return false;
   }
   if (

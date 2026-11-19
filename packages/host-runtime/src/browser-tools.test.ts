@@ -27,6 +27,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     suspendIdle: async () => ({ suspended: false, reason: 'not-resident' }),
     start: async () => ({ url: 'http://localhost:3000', title: 'Test' }),
     stop: async () => {},
+    shutdown: async () => {},
     navigate: async (url, options) => {
       calls.push({ method: 'navigate', args: [url, options] });
     },

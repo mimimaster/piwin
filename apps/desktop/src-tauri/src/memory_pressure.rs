@@ -133,6 +133,8 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                         Some(rusage) => {
                             let footprint = (rusage.footprint_bytes > 0)
                                 .then_some(rusage.footprint_bytes);
+                            let resident = (rusage.resident_bytes > 0)
+                                .then_some(rusage.resident_bytes);
                             if footprint.is_none() {
                                 payload.errors.push(SampleError {
                                     kind: SampleErrorKind::Footprint,
@@ -154,6 +156,7 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                                 pid: Some(pid),
                                 start_clock: Some(rusage.start_clock.to_string()),
                                 footprint_bytes: footprint,
+                                resident_bytes: resident,
                                 shared: false, // set after the pid census below
                             });
                             if footprint.is_none() {
@@ -173,6 +176,7 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                                 pid: Some(pid),
                                 start_clock: None,
                                 footprint_bytes: None,
+                                resident_bytes: None,
                                 shared: false,
                             });
                         }
@@ -192,6 +196,7 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                             pid: None,
                             start_clock: None,
                             footprint_bytes: None,
+                            resident_bytes: None,
                             shared: false,
                         });
                     }
@@ -281,6 +286,12 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                 .iter()
                 .find(|p| p.role == ProcessWindowRole::Main)
                 .and_then(|p| p.footprint_bytes)
+                .filter(|bytes| *bytes > 0);
+            payload.resident_bytes = payload
+                .processes
+                .iter()
+                .find(|p| p.role == ProcessWindowRole::Main)
+                .and_then(|p| p.resident_bytes)
                 .filter(|bytes| *bytes > 0);
 
             payload.os_pressure = sample_os_pressure();

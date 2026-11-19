@@ -14,6 +14,7 @@ import {
 import type { TranscriptReadingAnchorRestorer } from './transcript-reading-anchor.js';
 
 export type TranscriptMessageScroller = (messageId: string) => boolean;
+export type TranscriptOlderResidentRevealer = () => boolean;
 
 export type TranscriptScrollPort = {
   sessionId: string | null;
@@ -23,6 +24,9 @@ export type TranscriptScrollPort = {
   registerMessageScroller: (scroller: TranscriptMessageScroller) => () => void;
   /** The virtualized list restores a paging anchor, mounting its row if needed. */
   registerReadingAnchorRestorer: (restorer: TranscriptReadingAnchorRestorer) => () => void;
+  /** Bounded live-tail list reveals folded resident turns before Host paging runs. */
+  registerOlderResidentRevealer: (revealer: TranscriptOlderResidentRevealer) => () => void;
+  revealOlderResidentTurns: () => boolean;
   scrollToMessage: TranscriptMessageScroller;
   /** True while the viewport is pinned to the live tail. */
   isFollowingTail: () => boolean;
@@ -64,6 +68,8 @@ export function TranscriptScrollProvider(props: {
   beginDeliberateJump?: () => void;
   /** Owner-held slot for the list's anchor restorer (history paging lives above this provider). */
   readingAnchorRestorerRef?: MutableRefObject<TranscriptReadingAnchorRestorer | null>;
+  /** Owner-held slot for revealing locally folded resident turns before Host paging. */
+  olderResidentRevealerRef?: MutableRefObject<TranscriptOlderResidentRevealer | null>;
   children: ReactNode;
 }): ReactElement {
   const [scrollElement, setScrollElement] = useState(props.scrollElementRef.current);
@@ -74,6 +80,7 @@ export function TranscriptScrollProvider(props: {
     setScrollElement(props.scrollElementRef.current);
   }, [props.scrollElementRef]);
   const messageScrollerRef = useRef<TranscriptMessageScroller | null>(null);
+  const localOlderRevealerRef = useRef<TranscriptOlderResidentRevealer | null>(null);
   const notifyContentGrewRef = useRef(props.notifyContentGrew);
   notifyContentGrewRef.current = props.notifyContentGrew;
   const detachFromTailRef = useRef(props.detachFromTail);
@@ -110,6 +117,28 @@ export function TranscriptScrollProvider(props: {
     },
     [readingAnchorRestorerRef],
   );
+  const olderResidentRevealerRef = props.olderResidentRevealerRef;
+  const registerOlderResidentRevealer = useCallback(
+    (revealer: TranscriptOlderResidentRevealer) => {
+      localOlderRevealerRef.current = revealer;
+      if (olderResidentRevealerRef) {
+        olderResidentRevealerRef.current = revealer;
+      }
+      return () => {
+        if (localOlderRevealerRef.current === revealer) {
+          localOlderRevealerRef.current = null;
+        }
+        if (olderResidentRevealerRef?.current === revealer) {
+          olderResidentRevealerRef.current = null;
+        }
+      };
+    },
+    [olderResidentRevealerRef],
+  );
+  const revealOlderResidentTurns = useCallback((): boolean => {
+    return (olderResidentRevealerRef?.current ?? localOlderRevealerRef.current)?.() ?? false;
+  }, [olderResidentRevealerRef]);
+
   const detachFromTail = useCallback((): void => {
     detachFromTailRef.current?.();
   }, []);
@@ -146,6 +175,8 @@ export function TranscriptScrollProvider(props: {
       scrollElement,
       registerMessageScroller,
       registerReadingAnchorRestorer,
+      registerOlderResidentRevealer,
+      revealOlderResidentTurns,
       scrollToMessage,
       isFollowingTail,
       detachFromTail,
@@ -160,6 +191,8 @@ export function TranscriptScrollProvider(props: {
       scrollElement,
       registerMessageScroller,
       registerReadingAnchorRestorer,
+      registerOlderResidentRevealer,
+      revealOlderResidentTurns,
       scrollToMessage,
       isFollowingTail,
       detachFromTail,

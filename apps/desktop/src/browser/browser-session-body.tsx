@@ -99,7 +99,7 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
   } = session;
   const [pickMode, setPickMode] = useState(false);
 
-  const imgRef = useRef<HTMLImageElement>(null);
+  const imgRef = useRef<HTMLElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imeRef = useRef<HTMLTextAreaElement>(null);
   // The preference is read once per panel mount; the menu that changes it ships
@@ -439,7 +439,8 @@ export function BrowserSessionBody(props: BrowserSessionBodyProps): ReactElement
           containerRef={containerRef}
           imgRef={imgRef}
           imeRef={imeRef}
-          frameSrc={frame.src}
+          frameSrc={frameSrc}
+          {...(frame.bitmap === undefined ? {} : { frameBitmap: frame.bitmap })}
           frameAlt={title || urlInput || copy.frameAlt}
           starting={copy.starting}
           pickMode={pickMode}

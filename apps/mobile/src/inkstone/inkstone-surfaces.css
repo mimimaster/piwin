@@ -759,11 +759,13 @@
 
 .card.plan,
 .card.walk {
-  border-left: 3px solid var(--pine);
+  border-color: color-mix(in srgb, var(--pine) 38%, var(--l2));
+  background: color-mix(in srgb, var(--pine) 7%, var(--s3));
 }
 
 .card.error {
-  border-left: 3px solid var(--crimson);
+  border-color: color-mix(in srgb, var(--crimson) 42%, var(--l2));
+  background: color-mix(in srgb, var(--crimson) 8%, var(--s3));
 }
 
 .card-title {

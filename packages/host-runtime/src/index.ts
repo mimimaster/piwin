@@ -77,6 +77,11 @@ export { installSkill, gitFetchCommands } from '@piwin/skills';
 export type { InstallSkillOptions, InstallSkillResult } from '@piwin/skills';
 
 export {
+  listSystemPromptCandidateFiles,
+  readSystemPromptFiles,
+  resolveSystemPromptFilePath,
+} from './system-prompt-files.js';
+export {
   getPiAgentDir,
   getPiwinPiAgentDir,
   getDefaultPiwinRoot,
@@ -98,6 +103,7 @@ export {
   getPiwinSkillsDir,
   getPiwinExtensionsDir,
   getPiwinPromptsDir,
+  getPiwinSystemPromptsDir,
   getPiwinSessionsDir,
   getPiwinSessionDir,
   getPiwinSessionTranscriptPath,

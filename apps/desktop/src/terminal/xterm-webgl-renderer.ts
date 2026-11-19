@@ -27,7 +27,7 @@ const liveAddons = new Set<WebglAddon>();
 let fontsReadyPending = false;
 
 /** Clears the shared atlas and every live terminal's cached cells together. */
-function clearSharedTextureAtlas(): void {
+export function clearSharedXtermTextureAtlas(): void {
   for (const addon of liveAddons) addon.clearTextureAtlas();
 }
 
@@ -37,7 +37,7 @@ function clearAtlasOnceFontsLoad(): void {
   if (document.fonts.status === 'loaded' || fontsReadyPending) return;
   fontsReadyPending = true;
   void document.fonts.ready
-    .then(clearSharedTextureAtlas)
+    .then(clearSharedXtermTextureAtlas)
     .catch(() => undefined)
     .finally(() => { fontsReadyPending = false; });
 }

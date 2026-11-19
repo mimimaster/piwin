@@ -21,6 +21,49 @@ pub fn path_exists_locally(path: String) -> bool {
     Path::new(trimmed).exists()
 }
 
+/// Open a `.md` or `.txt` system prompt file in the user's default OS editor.
+/// Refuses directories, missing files, and any non-`.md`/`.txt` extension.
+#[tauri::command]
+pub fn open_prompt_file_in_editor(path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() || trimmed.contains('\0') {
+        return Err("invalid path".into());
+    }
+    let target = Path::new(trimmed);
+    let ext = target
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase());
+    match ext.as_deref() {
+        Some("md") | Some("txt") => {}
+        _ => return Err("only .md and .txt files can be opened in editor".into()),
+    }
+    if !target.is_file() {
+        return Err("prompt file does not exist".into());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let mut command = Command::new("open");
+        command.arg(trimmed);
+        return run(command);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let native = trimmed.replace('/', "\\");
+        let _ = Command::new("explorer").arg(&native).status();
+        return Ok(());
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let mut command = Command::new("xdg-open");
+        command.arg(trimmed);
+        return run(command);
+    }
+}
+
 fn reveal_path(path: &str) -> Result<(), String> {
     let trimmed = path.trim();
     if trimmed.is_empty() || trimmed.contains('\0') {

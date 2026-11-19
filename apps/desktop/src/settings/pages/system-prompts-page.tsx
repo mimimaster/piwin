@@ -2,12 +2,16 @@
  * Settings → Agent → System Prompts page.
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import { SegmentedControl, Skeleton } from '@piwin/ui-kit';
+import { Skeleton } from '@piwin/ui-kit';
 import type { BuiltinSystemPromptSlotId } from '@piwin/contracts';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
 import { BuiltinPromptsPanel } from '../system-prompts/BuiltinPromptsPanel';
-import { CustomPresetsPanel, type PresetDraftSeed } from '../system-prompts/CustomPresetsPanel';
+import { CustomPresetsPanel } from '../system-prompts/CustomPresetsPanel';
+import {
+  PromptPreviewModal,
+  type PromptPreviewPayload,
+} from '../system-prompts/PromptPreviewModal';
 import { SystemPromptsScopeCard } from '../system-prompts/SystemPromptsScopeCard';
 import {
   consumeSystemPromptFocus,
@@ -15,7 +19,7 @@ import {
 } from '../system-prompts/system-prompts-focus';
 
 export function SystemPromptsPage(): ReactElement {
-  const { config } = useSettings();
+  const { config, setError, setInfo } = useSettings();
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
 
@@ -23,7 +27,7 @@ export function SystemPromptsPage(): ReactElement {
   const [focusedSlotId, setFocusedSlotId] = useState<BuiltinSystemPromptSlotId | undefined>(
     undefined,
   );
-  const [presetSeed, setPresetSeed] = useState<PresetDraftSeed | null>(null);
+  const [previewPayload, setPreviewPayload] = useState<PromptPreviewPayload | null>(null);
 
   useEffect(() => {
     const focus = consumeSystemPromptFocus();
@@ -35,39 +39,38 @@ export function SystemPromptsPage(): ReactElement {
   }, []);
 
   if (!config) {
-    return <Skeleton label={isZh ? '正在加载系统提示词…' : 'Loading system prompts…'} rows={[48, 120, 140]} />;
+    return (
+      <Skeleton
+        label={isZh ? '正在加载系统提示词…' : 'Loading system prompts…'}
+        rows={[48, 120, 140]}
+      />
+    );
   }
 
   return (
-    <div className="settings-card" data-testid="settings-system-prompts">
-      <SystemPromptsScopeCard />
-
-      <div style={{ margin: '12px 0' }}>
-        <SegmentedControl
-          value={tab}
-          testId="system-prompts-tab-control"
-          onChange={(nextTab) => setTab(nextTab === 'builtins' ? 'builtins' : 'presets')}
-          data={[
-            { value: 'presets', label: isZh ? '自定义预设' : 'Custom Presets' },
-            { value: 'builtins', label: isZh ? '系统内置提示词' : 'Built-in Prompts' },
-          ]}
-        />
-      </div>
+    <div className="settings-card sysprompt-page" data-testid="settings-system-prompts">
+      <SystemPromptsScopeCard
+        tab={tab}
+        onTabChange={setTab}
+        onOpenPreview={setPreviewPayload}
+      />
 
       {tab === 'presets' ? (
-        <CustomPresetsPanel
-          draftSeed={presetSeed}
-          onConsumeSeed={() => setPresetSeed(null)}
-        />
+        <CustomPresetsPanel onOpenPreview={setPreviewPayload} />
       ) : (
         <BuiltinPromptsPanel
           initialSlotId={focusedSlotId}
-          onSaveAsPreset={(seed) => {
-            setPresetSeed(seed);
-            setTab('presets');
-          }}
+          onConsumeInitialSlot={() => setFocusedSlotId(undefined)}
+          onOpenPreview={setPreviewPayload}
         />
       )}
+
+      <PromptPreviewModal
+        payload={previewPayload}
+        onClose={() => setPreviewPayload(null)}
+        onNotice={(message, tone) => setInfo(message, tone)}
+        onError={(message) => setError(message)}
+      />
     </div>
   );
 }

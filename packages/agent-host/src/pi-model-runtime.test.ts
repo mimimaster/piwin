@@ -108,6 +108,52 @@ describe('pi-model-runtime', () => {
     expect(anthropicRegistration.models[0]).not.toHaveProperty('compat');
   });
 
+  it('adds Mistral wire compat for Mistral models and api.mistral.ai', () => {
+    const mistralCompat = {
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      supportsUsageInStreaming: false,
+      maxTokensField: 'max_tokens',
+      supportsStrictMode: false,
+      supportsLongCacheRetention: false,
+    };
+
+    const directMistral = buildPiProviderRegistration({
+      id: 'mistral',
+      protocol: 'openai-compatible',
+      name: 'Mistral',
+      baseUrl: 'https://api.mistral.ai/v1',
+      models: [{ id: 'mistral-large-latest' }, { id: 'custom-ft-model' }],
+    });
+    expect(directMistral.models[0]?.compat).toEqual(mistralCompat);
+    expect(directMistral.models[1]?.compat).toEqual(mistralCompat);
+
+    const gatewayMistral = buildPiProviderRegistration({
+      id: 'local-gateway',
+      protocol: 'openai-compatible',
+      name: 'Local gateway',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      models: [
+        { id: 'devstral-2512' },
+        { id: 'mistralai/codestral-latest' },
+        { id: 'gpt-5.6' },
+      ],
+    });
+    expect(gatewayMistral.models[0]?.compat).toEqual(mistralCompat);
+    expect(gatewayMistral.models[1]?.compat).toEqual(mistralCompat);
+    expect(gatewayMistral.models[2]).not.toHaveProperty('compat');
+
+    const anthropicMistral = buildPiProviderRegistration({
+      id: 'anthropic-mistral',
+      protocol: 'anthropic-compatible',
+      name: 'Anthropic compat',
+      baseUrl: 'https://api.mistral.ai/v1',
+      models: [{ id: 'mistral-large-latest' }],
+    });
+    expect(anthropicMistral.models[0]).not.toHaveProperty('compat');
+  });
+
   describe('system prompt role (ADR 0082)', () => {
     const qwen: ModelProviderConfig = {
       id: 'qwen',

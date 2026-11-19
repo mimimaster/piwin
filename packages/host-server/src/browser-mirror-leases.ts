@@ -18,6 +18,12 @@ export function applyBrowserLeaseCommand(held: Set<string>, command: HostCommand
     held.add(browserMirrorLeaseKey(command.sessionId, command.leaseId));
   } else if (command.type === 'browser/stop') {
     held.delete(browserMirrorLeaseKey(command.sessionId, command.leaseId));
+  } else if (command.type === 'browser/close') {
+    for (const lease of [...held]) {
+      if (browserMirrorLeaseMatchesSession(lease, command.sessionId)) {
+        held.delete(lease);
+      }
+    }
   }
 }
 

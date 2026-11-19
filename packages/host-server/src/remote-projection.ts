@@ -78,7 +78,12 @@ export function projectRemoteResponse(
   if (command.type === 'host/status') {
     return { ...response, data: projectRemoteStatusData(response.data, context) };
   }
-  if (command.type === 'host/list-dir' || command.type === 'host/create-entry') {
+  if (
+    command.type === 'host/list-dir' ||
+    command.type === 'host/create-entry' ||
+    command.type === 'system-prompts/list-files' ||
+    command.type === 'system-prompts/read-files'
+  ) {
     return response;
   }
   if (command.type === 'activity/summary') {

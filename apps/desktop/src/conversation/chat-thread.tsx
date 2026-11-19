@@ -1,8 +1,29 @@
 /**
  * Scrollable assistant/user message list with edit/retry actions.
  */
-import { useEffect, useMemo, useRef, useState, type ReactElement, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+  type RefObject,
+} from 'react';
 import { ChatThreadResourceBoundary } from './chat-thread-resource-boundary.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
+import {
+  resolveFullFidelityTailCount,
+  resolveLiveStaticTurnTailCap,
+} from './settled-turn-diet.js';
+import {
+  alignTranscriptReadingAnchor,
+  captureTranscriptReadingAnchor,
+  type TranscriptReadingAnchor,
+} from './transcript-reading-anchor.js';
+import { useTranscriptScrollPort } from './transcript-scroll-port.js';
 
 import type { ChatMessageUi } from './chat-reducer';
 
@@ -240,6 +261,127 @@ function ChatThreadContent(props: ChatThreadProps & {
     return null;
   }, [chatMessages]);
 
+  const scrollPort = useTranscriptScrollPort();
+  const pressureLevel = useSyncExternalStore(
+    globalMemoryGovernor.subscribe,
+    globalMemoryGovernor.getLevel,
+    globalMemoryGovernor.getLevel,
+  );
+  const lastTurnId = turnGroups.at(-1)?.id ?? null;
+  const tailStateSnapshot = {
+    sessionId: props.sessionId ?? null,
+    lastUserMessageId: props.lastUserMessageId,
+    lastTurnId,
+    historyViewActive: Boolean(props.historyViewActive),
+  };
+  const [prevTailState, setPrevTailState] = useState(tailStateSnapshot);
+  const [extraRevealedTurns, setExtraRevealedTurns] = useState(0);
+  const switchedSession = prevTailState.sessionId !== tailStateSnapshot.sessionId;
+  const returnedToLive = prevTailState.historyViewActive && !tailStateSnapshot.historyViewActive;
+  const newTailPrompt =
+    prevTailState.lastUserMessageId !== tailStateSnapshot.lastUserMessageId &&
+    prevTailState.lastTurnId !== tailStateSnapshot.lastTurnId &&
+    tailStateSnapshot.lastUserMessageId !== null;
+  if (
+    switchedSession ||
+    prevTailState.historyViewActive !== tailStateSnapshot.historyViewActive ||
+    newTailPrompt
+  ) {
+    setPrevTailState(tailStateSnapshot);
+    if (switchedSession || returnedToLive || newTailPrompt) {
+      setExtraRevealedTurns(0);
+    }
+  }
+
+  const tailCap = resolveLiveStaticTurnTailCap(pressureLevel);
+  const rawTailStart =
+    props.historyViewActive || turnGroups.length <= tailCap + extraRevealedTurns
+      ? 0
+      : Math.max(0, turnGroups.length - (tailCap + extraRevealedTurns));
+  const editTurnIndex = props.editingMessageId
+    ? turnGroups.findIndex((turn) =>
+        turn.items.some((item) => item.message.id === props.editingMessageId),
+      )
+    : -1;
+  const tailStartIndex =
+    editTurnIndex >= 0 && editTurnIndex < rawTailStart ? editTurnIndex : rawTailStart;
+  const hiddenResidentTurnCount = tailStartIndex;
+  const visibleTurnGroups = useMemo(
+    () => (tailStartIndex > 0 ? turnGroups.slice(tailStartIndex) : turnGroups),
+    [tailStartIndex, turnGroups],
+  );
+  const turnIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (let index = 0; index < turnGroups.length; index += 1) {
+      const turn = turnGroups[index];
+      if (turn) map.set(turn.id, index);
+    }
+    return map;
+  }, [turnGroups]);
+  const fullFidelityTailCount = resolveFullFidelityTailCount(pressureLevel);
+
+  const pendingPrependAnchorRef = useRef<TranscriptReadingAnchor | null>(null);
+  const hiddenResidentRef = useRef(hiddenResidentTurnCount);
+  hiddenResidentRef.current = hiddenResidentTurnCount;
+  const historyViewActiveRef = useRef(Boolean(props.historyViewActive));
+  historyViewActiveRef.current = Boolean(props.historyViewActive);
+
+  const revealOlderTurns = useCallback(
+    (count: number): void => {
+      scrollPort?.detachFromTail();
+      const container = scrollPort?.scrollElementRef.current ?? null;
+      if (container && pendingPrependAnchorRef.current === null) {
+        pendingPrependAnchorRef.current = captureTranscriptReadingAnchor(container);
+      }
+      setExtraRevealedTurns((current) => current + count);
+    },
+    [scrollPort],
+  );
+
+  useLayoutEffect(() => {
+    const anchor = pendingPrependAnchorRef.current;
+    const container = scrollPort?.scrollElementRef.current ?? null;
+    if (!anchor || !container) {
+      return;
+    }
+    pendingPrependAnchorRef.current = null;
+    alignTranscriptReadingAnchor(container, anchor, {
+      ...(scrollPort ? { beforeScroll: scrollPort.beginProgrammaticScroll } : {}),
+    });
+  }, [scrollPort, visibleTurnGroups]);
+
+  useEffect(() => {
+    if (!scrollPort) {
+      return;
+    }
+    return scrollPort.registerOlderResidentRevealer(() => {
+      if (historyViewActiveRef.current || hiddenResidentRef.current <= 0) {
+        return false;
+      }
+      revealOlderTurns(5);
+      return true;
+    });
+  }, [revealOlderTurns, scrollPort]);
+
+  const ensureResidentMessageMounted = useCallback(
+    (messageId: string): boolean => {
+      if (props.historyViewActive) {
+        return false;
+      }
+      const turnIndex = turnGroups.findIndex((turn) =>
+        turn.items.some((item) => item.message.id === messageId),
+      );
+      if (turnIndex < 0 || turnIndex >= tailStartIndex) {
+        return false;
+      }
+      const neededExtra = turnGroups.length - tailCap - turnIndex;
+      scrollPort?.detachFromTail();
+      setExtraRevealedTurns((current) => Math.max(current, neededExtra));
+      return true;
+    },
+    [props.historyViewActive, scrollPort, tailCap, tailStartIndex, turnGroups],
+  );
+
   const threadRef = props.presentationRef;
 
   return (
@@ -254,31 +396,70 @@ function ChatThreadContent(props: ChatThreadProps & {
           <DocCardSequenceView sequence={docCardSequence} request={props.docCardRequest} />
         </div>
       ) : null}
+      {!props.historyViewActive && (hiddenResidentTurnCount > 0 || props.canLoadOlder === true) ? (
+        <div className="transcript-bounded-tail-bar" data-testid="transcript-bounded-tail-bar">
+          <button
+            type="button"
+            className="transcript-bounded-tail-button"
+            data-testid="transcript-bounded-tail-button"
+            disabled={hiddenResidentTurnCount === 0 && props.historyLoading === true}
+            onClick={() => {
+              if (hiddenResidentTurnCount > 0) {
+                revealOlderTurns(5);
+                return;
+              }
+              revealOlderTurns(10);
+              void props.onLoadOlder?.();
+            }}
+          >
+            {hiddenResidentTurnCount > 0
+              ? (props.locale ?? 'zh-CN') === 'zh-CN'
+                ? `展开更早对话（已收起 ${hiddenResidentTurnCount} 轮）`
+                : `Show earlier turns (${hiddenResidentTurnCount} folded)`
+              : props.historyLoading
+                ? (props.locale ?? 'zh-CN') === 'zh-CN'
+                  ? '正在加载更早对话…'
+                  : 'Loading earlier history…'
+                : (props.locale ?? 'zh-CN') === 'zh-CN'
+                  ? '加载更早历史对话'
+                  : 'Load earlier history'}
+          </button>
+        </div>
+      ) : null}
       <TranscriptTurnList
-        turns={turnGroups}
+        turns={visibleTurnGroups}
         pinnedMessageId={props.editingMessageId}
         streaming={props.streaming === true}
-        renderTurn={(turn) => (
-          <ChatTurnView
-            turn={turn}
-            props={props}
-            workflows={workflowTurns.byTurn.get(turn.id) ?? EMPTY_WORKFLOWS}
-            workflowError={turn.id === currentResponseTurnId ? workflowObservation.error : null}
-            conversationSession={conversationSession}
-            currentResponseTurnId={currentResponseTurnId}
-            compactionActivityTurnId={compactionActivityTurnId}
-            latestAssistantMessageId={latestAssistantMessageId}
-            precedingUser={precedingUser}
-            streamingCaretMessageId={streamingCaretMessageId}
-            exploreRolesByMessageId={exploreRolesByMessageId}
-            exploreFoldedMessageIds={exploreFoldedMessageIds}
-            workDisclosureOpenByTurnId={workDisclosureOpenByTurnId}
-            setWorkDisclosureOpenByTurnId={setWorkDisclosureOpenByTurnId}
-            segmentState={segmentState}
-            enteringIds={enteringIds}
-            changedFilePathsByTurnId={changedFilePathsByTurnId}
-          />
-        )}
+        staticFlow={!props.historyViewActive && visibleTurnGroups.length <= 24}
+        onEnsureMessageMounted={ensureResidentMessageMounted}
+        renderTurn={(turn) => {
+          const turnIndex = turnIndexById.get(turn.id) ?? turnGroups.length - 1;
+          const compactSettled =
+            turn.id !== currentResponseTurnId &&
+            turnGroups.length - 1 - turnIndex >= fullFidelityTailCount;
+          return (
+            <ChatTurnView
+              turn={turn}
+              props={props}
+              compactSettled={compactSettled}
+              workflows={workflowTurns.byTurn.get(turn.id) ?? EMPTY_WORKFLOWS}
+              workflowError={turn.id === currentResponseTurnId ? workflowObservation.error : null}
+              conversationSession={conversationSession}
+              currentResponseTurnId={currentResponseTurnId}
+              compactionActivityTurnId={compactionActivityTurnId}
+              latestAssistantMessageId={latestAssistantMessageId}
+              precedingUser={precedingUser}
+              streamingCaretMessageId={streamingCaretMessageId}
+              exploreRolesByMessageId={exploreRolesByMessageId}
+              exploreFoldedMessageIds={exploreFoldedMessageIds}
+              workDisclosureOpenByTurnId={workDisclosureOpenByTurnId}
+              setWorkDisclosureOpenByTurnId={setWorkDisclosureOpenByTurnId}
+              segmentState={segmentState}
+              enteringIds={enteringIds}
+              changedFilePathsByTurnId={changedFilePathsByTurnId}
+            />
+          );
+        }}
       />
       {currentResponseTurnId === null &&
       (pendingRunStatusFooter || props.compactionActivity) ? (

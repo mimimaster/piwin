@@ -39,9 +39,12 @@ export type PiModelCompat = {
   supportsStore?: boolean;
   supportsDeveloperRole?: boolean;
   supportsReasoningEffort?: boolean;
+  supportsUsageInStreaming?: boolean;
   maxTokensField?: 'max_tokens' | 'max_completion_tokens';
   requiresReasoningContentOnAssistantMessages?: boolean;
   thinkingFormat?: 'deepseek';
+  supportsStrictMode?: boolean;
+  supportsLongCacheRetention?: boolean;
 };
 
 /**
@@ -63,6 +66,17 @@ export type PiModelCompat = {
  */
 const DEEPSEEK_MODEL_ID_PREFIX = 'deepseek';
 const GROK_MODEL_ID_PREFIX = 'grok';
+const MISTRAL_MODEL_ID_PREFIXES = [
+  'mistral',
+  'mixtral',
+  'codestral',
+  'devstral',
+  'magistral',
+  'pixtral',
+  'ministral',
+  'open-mistral',
+  'open-mixtral',
+] as const;
 
 const DEEPSEEK_OPENAI_COMPAT: PiModelCompat = {
   supportsStore: false,
@@ -78,10 +92,34 @@ const GROK_OPENAI_COMPAT: PiModelCompat = {
   supportsReasoningEffort: true,
 };
 
+/**
+ * Mistral's `/v1/chat/completions` endpoint rejects unknown OpenAI fields
+ * (`store`, `max_completion_tokens`, `reasoning_effort`, `stream_options`,
+ * `prompt_cache_retention`, `strict`, and `developer` role) with HTTP 422.
+ */
+const MISTRAL_OPENAI_COMPAT: PiModelCompat = {
+  supportsStore: false,
+  supportsDeveloperRole: false,
+  supportsReasoningEffort: false,
+  supportsUsageInStreaming: false,
+  maxTokensField: 'max_tokens',
+  supportsStrictMode: false,
+  supportsLongCacheRetention: false,
+};
+
 function openaiCompatModelName(modelId: string): string {
   const id = modelId.trim().toLowerCase();
   const slash = id.lastIndexOf('/');
   return slash >= 0 ? id.slice(slash + 1) : id;
+}
+
+function isMistralBaseUrl(baseUrl: string | undefined): boolean {
+  if (!baseUrl) return false;
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === 'api.mistral.ai';
+  } catch {
+    return baseUrl.toLowerCase().includes('api.mistral.ai');
+  }
 }
 
 /**
@@ -94,8 +132,9 @@ export function resolvePiModelCompat(
   api: PiProviderApi,
   modelId: string,
   supportsDeveloperRole?: boolean,
+  baseUrl?: string,
 ): PiModelCompat | undefined {
-  const base = modelIdCompat(api, modelId);
+  const base = modelIdCompat(api, modelId, baseUrl);
   const isOpenAiWire = api === 'openai-completions' || api === 'openai-responses';
   if (supportsDeveloperRole === undefined || !isOpenAiWire) {
     return base;
@@ -103,7 +142,11 @@ export function resolvePiModelCompat(
   return { ...base, supportsDeveloperRole };
 }
 
-function modelIdCompat(api: PiProviderApi, modelId: string): PiModelCompat | undefined {
+function modelIdCompat(
+  api: PiProviderApi,
+  modelId: string,
+  baseUrl?: string,
+): PiModelCompat | undefined {
   if (api !== 'openai-completions') {
     return undefined;
   }
@@ -113,6 +156,12 @@ function modelIdCompat(api: PiProviderApi, modelId: string): PiModelCompat | und
   }
   if (modelName.startsWith(GROK_MODEL_ID_PREFIX)) {
     return { ...GROK_OPENAI_COMPAT };
+  }
+  if (
+    isMistralBaseUrl(baseUrl) ||
+    MISTRAL_MODEL_ID_PREFIXES.some((prefix) => modelName.startsWith(prefix))
+  ) {
+    return { ...MISTRAL_OPENAI_COMPAT };
   }
   return undefined;
 }
@@ -253,17 +302,19 @@ export function buildPiProviderRegistration(
         model.reasoning === false
           ? undefined
           : buildThinkingLevelMap(model.thinkingLevels, endpoint.protocol);
+      const baseUrl = endpoint.baseUrl || providerBaseUrl;
       const compat = resolvePiModelCompat(
         modelApi,
         model.id,
         resolveSupportsDeveloperRole(provider, model),
+        baseUrl,
       );
       const registration: PiModelRegistration = {
         id: model.id,
         name: model.label?.trim() || model.id,
         api: modelApi,
         // A cloud row may leave it blank; Pi still requires one to register.
-        baseUrl: endpoint.baseUrl || providerBaseUrl,
+        baseUrl,
         // Omit → true: preserve legacy "all models reasoning-capable" registration.
         reasoning: model.reasoning ?? true,
         ...(compat ? { compat } : {}),

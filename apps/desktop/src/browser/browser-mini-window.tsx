@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { BrowserMiniCard, type BrowserMiniCardLabels } from '@piwin/ui-kit';
 import { useSharedBrowserSession } from './browser-session-provider';
+import { BrowserFrameCanvas } from './browser-frame-canvas.js';
 import {
   viewportFromCoverTopDisplay,
   wheelDeltaFromCoverDisplay,
@@ -29,6 +30,7 @@ function miniLabels(locale: DesktopLocale): BrowserMiniCardLabels {
     return {
       expand: '展开到右侧浏览器面板',
       dismiss: '收起小窗',
+      close: '关闭浏览器',
       reload: '刷新页面',
       resetPosition: '吸回右上角',
       agentOperating: 'AI 操作中',
@@ -42,9 +44,10 @@ function miniLabels(locale: DesktopLocale): BrowserMiniCardLabels {
     };
   }
   return {
-    expand: 'Open in the Browser panel',
-    dismiss: 'Hide preview',
-    reload: 'Reload page',
+      expand: 'Open in the Browser panel',
+      dismiss: 'Hide preview',
+      close: 'Close browser',
+      reload: 'Reload page',
     resetPosition: 'Dock top-right',
     agentOperating: 'Agent driving',
     sharedBrowser: 'Shared browser',
@@ -120,6 +123,7 @@ export type BrowserMiniWindowProps = {
   placement: 'docked' | 'floating';
   onExpand: () => void;
   onDismiss: () => void;
+  onClose?: () => void;
   /** The card left the docked slot; the workbench must host it absolutely. */
   onStartFloating: () => void;
   onSnapBack: () => void;
@@ -154,6 +158,7 @@ export function BrowserMiniWindow(props: BrowserMiniWindowProps): ReactElement |
   }, [props.placementKey, props.onStartFloating, props]);
 
   const frameSrc = session?.frame.src ?? '';
+  const frameBitmap = session?.frame.bitmap;
   const url = session?.committedUrl ?? '';
   const hasActivity = hasBrowserMiniActivity({
     url,
@@ -317,7 +322,7 @@ export function BrowserMiniWindow(props: BrowserMiniWindowProps): ReactElement |
         testId="browser-mini"
         title={title}
         {...(url.length > 0 ? { urlText: url } : {})}
-        {...(frameSrc.length > 0 ? { frameSrc } : {})}
+        {...(frameBitmap === undefined && frameSrc.length > 0 ? { frameSrc } : {})}
         frameAlt={title}
         placementMode={props.placement}
         {...(floatingPoint === null ? {} : { floatingPosition: floatingPoint })}
@@ -337,6 +342,7 @@ export function BrowserMiniWindow(props: BrowserMiniWindowProps): ReactElement |
         labels={miniLabels(props.locale)}
         onExpand={props.onExpand}
         onDismiss={props.onDismiss}
+        {...(props.onClose ? { onClose: props.onClose } : {})}
         onReload={props.onReload}
         onViewportActivate={handleViewportActivate}
         onViewportWheel={handleViewportWheel}
@@ -345,7 +351,15 @@ export function BrowserMiniWindow(props: BrowserMiniWindowProps): ReactElement |
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
         onKeyboardNudge={handleKeyboardNudge}
-      />
+      >
+        {frameBitmap === undefined ? null : (
+          <BrowserFrameCanvas
+            bitmap={frameBitmap}
+            className="piwin-browser-mini-frame"
+            testId="browser-mini-frame"
+          />
+        )}
+      </BrowserMiniCard>
     </div>
   );
 }

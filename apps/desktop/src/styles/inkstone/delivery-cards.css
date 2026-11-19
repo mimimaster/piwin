@@ -307,9 +307,9 @@ html[data-theme-id='piwin-inkstone-ink'] .walkthrough-card {
 /* S5.16: Cards, subagents, citations, error card */
 html[data-theme-id='piwin-inkstone-paper'] .card.line.az,
 html[data-theme-id='piwin-inkstone-ink'] .card.line.az {
-  border-left: 3px solid var(--azure);
-  background: var(--s3);
-  box-shadow: var(--sh1);
+  border: 0;
+  background: color-mix(in srgb, var(--azure) 8%, var(--s3));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--azure) 32%, var(--l2)), var(--sh1);
   border-radius: 8px;
   padding: 8px var(--card-x);
 }

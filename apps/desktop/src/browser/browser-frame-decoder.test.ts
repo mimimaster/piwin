@@ -371,4 +371,106 @@ describe('createBrowserFrameDecoder', () => {
     expect(ready).toHaveLength(0);
     handle.dispose();
   });
+
+  it('closes superseded ImageBitmaps cleanly after grace retire without allocating blob URLs', async () => {
+    const bitmaps: Array<{ close: () => void; closed: boolean }> = [];
+    const ready: BrowserFrameView[] = [];
+    const objectUrls: string[] = [];
+    const scheduled = new Map<number, () => void>();
+    let seq = 0;
+    const handle = createBrowserFrameDecoder({
+      onReady: (view) => ready.push(view),
+      onError: () => undefined,
+      schedule: (cb) => {
+        seq += 1;
+        scheduled.set(seq, cb);
+        return seq;
+      },
+      cancel: (id) => {
+        scheduled.delete(id);
+      },
+      createObjectUrl: () => {
+        objectUrls.push('should-not-happen');
+        return 'blob:unexpected';
+      },
+      decodeBitmap: async () => {
+        const entry = {
+          width: 1280,
+          height: 800,
+          closed: false,
+          close() {
+            entry.closed = true;
+          },
+        };
+        bitmaps.push(entry);
+        return entry as unknown as ImageBitmap;
+      },
+    });
+
+    handle.ingestPush(push({ frameId: '1' }));
+    await Promise.resolve();
+    expect(objectUrls).toHaveLength(0);
+    expect(ready).toHaveLength(1);
+    expect(bitmaps[0]?.closed).toBe(false);
+    expect(handle.getCurrentBlob()).toBeInstanceOf(Blob);
+
+    handle.ingestPush(push({ frameId: '2' }));
+    await Promise.resolve();
+    expect(ready).toHaveLength(2);
+    // Deferred one short tick so React commits frame 2 before frame 1 detaches.
+    expect(bitmaps[0]?.closed).toBe(false);
+    expect(bitmaps[1]?.closed).toBe(false);
+    for (const cb of [...scheduled.values()]) cb();
+    scheduled.clear();
+    expect(bitmaps[0]?.closed).toBe(true);
+    expect(bitmaps[1]?.closed).toBe(false);
+
+    handle.dispose();
+    expect(bitmaps[1]?.closed).toBe(true);
+  });
+
+  it('throttles subsequent bitmap decodes when minFrameIntervalMs is active', async () => {
+    let clock = 1_000;
+    const ready: BrowserFrameView[] = [];
+    const scheduled = new Map<number, () => void>();
+    let seq = 0;
+    const handle = createBrowserFrameDecoder({
+      onReady: (view) => ready.push(view),
+      onError: () => undefined,
+      minFrameIntervalMs: () => 500,
+      now: () => clock,
+      schedule: (cb) => {
+        seq += 1;
+        scheduled.set(seq, cb);
+        return seq;
+      },
+      cancel: (id) => {
+        scheduled.delete(id);
+      },
+      decodeBitmap: async () =>
+        ({
+          width: 640,
+          height: 480,
+          close() {},
+        }) as unknown as ImageBitmap,
+    });
+
+    handle.ingestPush(push({ frameId: '1' }));
+    await Promise.resolve();
+    expect(ready.map((frame) => frame.frameId)).toEqual(['1']);
+
+    clock = 1_100;
+    handle.ingestPush(push({ frameId: '2' }));
+    handle.ingestPush(push({ frameId: '3' }));
+    await Promise.resolve();
+    expect(ready.map((frame) => frame.frameId)).toEqual(['1']);
+    expect(scheduled.size).toBe(1);
+
+    clock = 1_600;
+    for (const cb of [...scheduled.values()]) cb();
+    scheduled.clear();
+    await Promise.resolve();
+    expect(ready.map((frame) => frame.frameId)).toEqual(['1', '3']);
+    handle.dispose();
+  });
 });

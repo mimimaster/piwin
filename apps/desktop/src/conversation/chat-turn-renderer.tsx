@@ -49,6 +49,7 @@ import {
   narrationOnlyMessage,
   withoutNarration,
 } from './chat-turn-narration-split.js';
+import { SettledTurnDietProvider } from './settled-turn-diet.js';
 import type { ExploreFlowRole } from './explore-flow.js';
 import {
   buildChatTurnRowProps,
@@ -77,6 +78,8 @@ export type ChatTurnRenderInput = {
   workflows: readonly BackendWorkflowSnapshot[];
   /** Workflow observation error, shown on the current response turn only. */
   workflowError: string | null;
+  /** True when the settled turn is aged past the full-fidelity tail window. */
+  compactSettled?: boolean;
   props: ChatThreadProps;
   conversationSession: boolean;
   currentResponseTurnId: string | null;
@@ -170,9 +173,11 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
   // a failure shows up in it as it happens. It folds into 已工作 once, when
   // the turn settles — i.e. when the conclusion is out.
   const workDisclosureDefaultOpen =
-    props.workDetailsExpanded === 'always' ||
-    props.toolDensity === 'detailed' ||
-    workDisclosureProjection?.live === true;
+    input.compactSettled === true
+      ? false
+      : props.workDetailsExpanded === 'always' ||
+        props.toolDensity === 'detailed' ||
+        workDisclosureProjection?.live === true;
   const workDisclosureOpen = resolveWorkDisclosureOpen(
     workDisclosureOpenByTurnId[workDisclosureKey],
     workDisclosureProjection,
@@ -648,25 +653,27 @@ export function renderChatTurn(input: ChatTurnRenderInput): ReactElement {
       }
 
       return (
-        <ChatTurnSection
-          key={turn.id}
-          turnId={turn.id}
-          isCurrentResponse={turn.id === currentResponseTurnId}
-          userMessages={userMessages}
-          assistantMessages={assistantMessages}
-          turnMessages={turnMessages}
-          userItems={renderedUserItems}
-          assistantItems={renderedAssistantItems}
-          assistantPending={currentTurnStreaming && props.activeRunId !== null}
-          liveState={
-            currentTurnStreaming ? (props.permissionPrompt ? 'waiting' : 'running') : workflowActive ? 'running' : null
-          }
-          editingMessageId={props.editingMessageId}
-          locale={props.locale}
-          isConversationSession={conversationSession}
-          model={turnModel}
-          backendAgentId={props.composerCard.activeAgentId}
-          contextUsage={props.contextUsage}
-        />
+        <SettledTurnDietProvider compactSettled={input.compactSettled === true}>
+          <ChatTurnSection
+            key={turn.id}
+            turnId={turn.id}
+            isCurrentResponse={turn.id === currentResponseTurnId}
+            userMessages={userMessages}
+            assistantMessages={assistantMessages}
+            turnMessages={turnMessages}
+            userItems={renderedUserItems}
+            assistantItems={renderedAssistantItems}
+            assistantPending={currentTurnStreaming && props.activeRunId !== null}
+            liveState={
+              currentTurnStreaming ? (props.permissionPrompt ? 'waiting' : 'running') : workflowActive ? 'running' : null
+            }
+            editingMessageId={props.editingMessageId}
+            locale={props.locale}
+            isConversationSession={conversationSession}
+            model={turnModel}
+            backendAgentId={props.composerCard.activeAgentId}
+            contextUsage={props.contextUsage}
+          />
+        </SettledTurnDietProvider>
       );
 }

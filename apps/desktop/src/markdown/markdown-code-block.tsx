@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { Button } from '@piwin/ui-kit';
 import { CollapsibleContentBlock } from '../conversation/collapsible-content-block.js';
+import { useSettledTurnDiet } from '../conversation/settled-turn-diet.js';
 import { computeDiffLineNumbers } from '../tool-cards/diff-line-numbers.js';
 import { parseUnifiedDiff } from '../tool-cards/diff-view.js';
 import { downloadTextFile } from '../artifact/artifact-source-export.js';
@@ -120,6 +121,7 @@ function CodeBodyWithLineNumbers({
   language,
   defaultCollapsed = true,
   highlightEnabled = true,
+  compactSettled = false,
   startLine = 1,
 }: {
   source: string;
@@ -130,6 +132,8 @@ function CodeBodyWithLineNumbers({
   defaultCollapsed?: boolean;
   /** Streaming blocks stay plain until completion to avoid retaining token trees per delta. */
   highlightEnabled?: boolean;
+  /** Historical settled turns keep collapsed previews in lightweight plain text. */
+  compactSettled?: boolean;
 }): ReactElement {
   const normalizedLanguage = normalizeLanguage(language);
   const isDiff = normalizedLanguage === 'diff';
@@ -165,7 +169,7 @@ function CodeBodyWithLineNumbers({
           source={previewSource}
           language={language}
           isDiff={isDiff}
-          highlightEnabled={highlightEnabled}
+          highlightEnabled={highlightEnabled && !compactSettled}
           startLine={startLine}
         />
       )}
@@ -202,17 +206,25 @@ export function SourceCodeBlock(props: {
   blockedReason?: string;
   incompatible?: boolean;
 }): ReactElement {
+  const { compactSettled } = useSettledTurnDiet();
   const reference = parseCodeReferenceFence(props.language);
   const language = reference?.language ?? props.language;
-  // A block the reader watched being written stays open once it closes.
-  // Folding it to the preview the moment its fence ends pulls a screenful of
-  // code out from under the reader while the reply is still streaming below.
-  // A block that mounts already complete (history) starts folded as before.
+  // A block the reader watched being written stays open until the turn ages
+  // past the full-fidelity tail window (compactSettled), preventing unbounded
+  // Shiki token trees across long multi-hour sessions.
   const writtenLiveRef = useRef(props.streaming === true);
   if (props.streaming === true) {
     writtenLiveRef.current = true;
   }
-  const keepOpen = props.streaming === true || writtenLiveRef.current;
+  const keepOpen = props.streaming === true || (writtenLiveRef.current && !compactSettled);
+  const effectiveDefaultCollapsed =
+    props.defaultCollapsed !== undefined && props.streaming !== true
+      ? props.defaultCollapsed
+      : keepOpen
+        ? false
+        : compactSettled
+          ? true
+          : undefined;
   return (
     <div
       className="md-code-block"
@@ -260,12 +272,11 @@ export function SourceCodeBlock(props: {
         source={props.source}
         language={language}
         highlightEnabled={!props.streaming}
+        compactSettled={compactSettled}
         {...(reference ? { startLine: reference.startLine } : {})}
-        {...(props.defaultCollapsed !== undefined && props.streaming !== true
-          ? { defaultCollapsed: props.defaultCollapsed }
-          : keepOpen
-            ? { defaultCollapsed: false }
-            : {})}
+        {...(effectiveDefaultCollapsed !== undefined
+          ? { defaultCollapsed: effectiveDefaultCollapsed }
+          : {})}
       />
       {props.blockedReason ? (
         <div className="artifact-blocked muted" data-testid="artifact-blocked" role="status">

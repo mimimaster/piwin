@@ -67,5 +67,5 @@
 }
 
 /* Current conversation in the list (also useful on phones after returning).
-   The wash + 2px rail live in inkstone-conversation.css so the docked list and
+   The wash + 1px rim live in inkstone-conversation.css so the docked list and
    the phone list cannot drift apart. */

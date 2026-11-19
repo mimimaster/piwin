@@ -217,11 +217,11 @@ export function VisionDelegationSettings(): ReactElement {
           description={
             readBuiltinSystemPromptValue(config, 'delegate.vision').isOverridden
               ? isChinese
-                ? '当前已自定义覆写，可在「系统提示词」页面查看或恢复默认。'
-                : 'Customized override active. Inspect or reset in System Prompts.'
+                ? '当前已配置自定义视觉提示词，可在「系统提示词」页面弹窗只读查看。'
+                : 'Custom prompt active. Inspect read-only in System Prompts.'
               : isChinese
-                ? '当前使用内置默认视觉识别契约，可在「系统提示词」页面查看或调整。'
-                : 'Using built-in default vision prompt. Inspect or customize in System Prompts.'
+                ? '当前使用内置默认视觉识别契约，可在「系统提示词」页面弹窗只读查看。'
+                : 'Using built-in default vision prompt. View read-only in System Prompts.'
           }
         >
           <Button
@@ -233,7 +233,7 @@ export function VisionDelegationSettings(): ReactElement {
             }}
             data-testid="vision-delegation-open-system-prompt"
           >
-            {isChinese ? '查看 / 编辑' : 'Inspect / Edit'}
+            {isChinese ? '查看提示词' : 'View prompt'}
           </Button>
         </FieldRow>
 

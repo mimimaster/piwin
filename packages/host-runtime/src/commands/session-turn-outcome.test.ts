@@ -403,6 +403,59 @@ describe('applyAgentPromptOutcome', () => {
       { agentStopReason: 'aborted' },
     );
   });
+
+  it('marks subscription re-auth only for provider-authentication, not 403 http or quota failures', async () => {
+    const noteSubscriptionAuthFailure = vi.fn();
+    const session = createSilentSessionHandle();
+    const { context } = createPromptContext(session);
+    context.sessionModels.set(session.id, {
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+      source: 'subscription',
+    });
+    context.noteSubscriptionAuthFailure = noteSubscriptionAuthFailure;
+
+    await applyAgentPromptOutcome({
+      context,
+      sessionId: session.id,
+      runId: 'run-refusal',
+      outcome: failedAgentPromptOutcome({
+        code: 'provider-http-error',
+        origin: 'provider',
+        message: 'OpenAI API error (403): 403 "I\'m sorry, I can\'t help with that request."',
+        retriable: false,
+        httpStatus: 403,
+      }),
+    });
+    await applyAgentPromptOutcome({
+      context,
+      sessionId: session.id,
+      runId: 'run-quota',
+      outcome: failedAgentPromptOutcome({
+        code: 'provider-quota',
+        origin: 'provider',
+        message: '403 You have either run out of available resources',
+        retriable: false,
+        httpStatus: 403,
+      }),
+    });
+    expect(noteSubscriptionAuthFailure).not.toHaveBeenCalled();
+
+    await applyAgentPromptOutcome({
+      context,
+      sessionId: session.id,
+      runId: 'run-auth',
+      outcome: failedAgentPromptOutcome({
+        code: 'provider-authentication',
+        origin: 'provider',
+        message: '401 unauthorized',
+        retriable: false,
+        httpStatus: 401,
+      }),
+    });
+    expect(noteSubscriptionAuthFailure).toHaveBeenCalledTimes(1);
+    expect(noteSubscriptionAuthFailure).toHaveBeenCalledWith('xai');
+  });
 });
 
 describe('cancel vs failure event order', () => {

@@ -24,7 +24,9 @@ describe('conversation browser client', () => {
     await requestBrowserNewTab(client, 'https://tab.example');
     await requestBrowserDialog(client, 'dismiss');
     await client.browserStop('mirror-a');
-    expect(request).toHaveBeenCalledTimes(12);
+    await client.browserClose();
+    expect(request).toHaveBeenCalledTimes(13);
+    expect(request).toHaveBeenLastCalledWith({ type: 'browser/close', sessionId: 'session-a' });
     for (const call of request.mock.calls)
       expect(call[0]).toMatchObject({ sessionId: 'session-a' });
   });

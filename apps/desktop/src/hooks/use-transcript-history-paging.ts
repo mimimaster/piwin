@@ -36,6 +36,8 @@ type PagingOptions = {
   onReturnToLive?: () => void;
   /** Set by the virtualized list; restores an anchor whose row may be unmounted. */
   readingAnchorRestorerRef?: MutableRefObject<TranscriptReadingAnchorRestorer | null>;
+  /** Set by the bounded live tail list to reveal locally folded turns first. */
+  olderResidentRevealerRef?: MutableRefObject<(() => boolean) | null>;
 };
 
 /** Page in response to scroll intent; never walk the whole history on mount. */
@@ -135,6 +137,15 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
         options.onReturnToLive();
         return;
       }
+      if (
+        direction === 'older' &&
+        options.historyViewActive !== true &&
+        !options.historyLoading &&
+        !inFlightRef.current &&
+        options.olderResidentRevealerRef?.current?.() === true
+      ) {
+        return;
+      }
       const canLoad = direction === 'older' ? options.canLoadOlder : options.canLoadNewer;
       const load = direction === 'older' ? options.onLoadOlder : options.onLoadNewer;
       if (!container || !canLoad || !load || options.historyLoading || inFlightRef.current) return;
@@ -160,6 +171,7 @@ export function useTranscriptHistoryPaging(options: PagingOptions) {
       options.onLoadOlder,
       options.onLoadNewer,
       options.onReturnToLive,
+      options.olderResidentRevealerRef,
       options.historyLoading,
       pageKey,
       recordReading,

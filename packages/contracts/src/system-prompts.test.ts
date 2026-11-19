@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyBuiltinSystemPromptOverride,
   BUILTIN_SYSTEM_PROMPTS,
   CONVERSATION_CHAT_SYSTEM_PROMPT,
   createDefaultArtifactConfig,
@@ -8,6 +7,10 @@ import {
   DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
   DEFAULT_REPLY_WRITER_SYSTEM_PROMPT,
   DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
+  formatSystemPromptFileStack,
+  isSupportedSystemPromptFilePath,
+  MAX_SYSTEM_PROMPT_STACK_FILES,
+  normalizeSystemPromptFileStack,
   readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
   slugifySystemPromptPresetId,
@@ -34,49 +37,75 @@ describe('system-prompts contracts', () => {
     expect(slugifySystemPromptPresetId('严格审查官', ['preset', 'preset-1'])).toBe('preset-2');
   });
 
-  it('reads, overrides, and resets built-in slots across existing and new config domains', () => {
-    let config = makeConfig();
+  it('validates .md and .txt file paths and normalizes file stacks', () => {
+    expect(isSupportedSystemPromptFilePath('/tmp/persona.md')).toBe(true);
+    expect(isSupportedSystemPromptFilePath('rules/style.MD')).toBe(true);
+    expect(isSupportedSystemPromptFilePath('~/system-prompts/base.txt')).toBe(true);
+    expect(isSupportedSystemPromptFilePath('NOTES.TXT')).toBe(true);
+
+    expect(isSupportedSystemPromptFilePath('')).toBe(false);
+    expect(isSupportedSystemPromptFilePath('.md')).toBe(false);
+    expect(isSupportedSystemPromptFilePath('dir/.txt')).toBe(false);
+    expect(isSupportedSystemPromptFilePath('/tmp/config.json')).toBe(false);
+    expect(isSupportedSystemPromptFilePath('/tmp/.env')).toBe(false);
+    expect(isSupportedSystemPromptFilePath('/tmp/readme')).toBe(false);
+    expect(isSupportedSystemPromptFilePath('/tmp/a.md\0.txt')).toBe(false);
+
+    const normalized = normalizeSystemPromptFileStack([
+      '  /a/one.md  ',
+      '/a/invalid.json',
+      '/a/two.txt',
+      '/a/one.md',
+      '   ',
+    ]);
+    expect(normalized).toEqual(['/a/one.md', '/a/two.txt']);
+
+    const many = Array.from({ length: 30 }, (_, idx) => `/tmp/file-${idx}.md`);
+    expect(normalizeSystemPromptFileStack(many)).toHaveLength(MAX_SYSTEM_PROMPT_STACK_FILES);
+  });
+
+  it('formats ordered file contents by skipping blanks and joining with double newlines', () => {
+    expect(formatSystemPromptFileStack(['  # Role\nBe sharp.  ', '   ', 'Always verify.'])).toBe(
+      '# Role\nBe sharp.\n\nAlways verify.',
+    );
+    expect(formatSystemPromptFileStack(['  ', ''])).toBe('');
+  });
+
+  it('reads built-in slots safely in read-only mode', () => {
+    const config = makeConfig({
+      replyWriter: { enabled: true, language: 'zh-CN', systemPrompt: 'Custom writer' },
+      visionDelegation: { enabled: true, systemPrompt: 'Custom vision' },
+      artifact: {
+        ...createDefaultArtifactConfig(),
+        decisionPrompt: { mode: 'custom', customPrompt: 'Always Markdown' },
+      },
+    });
     expect(BUILTIN_SYSTEM_PROMPTS.length).toBeGreaterThanOrEqual(8);
-    expect(readBuiltinSystemPromptValue(config, 'agent.default').isOverridden).toBe(false);
+    expect(readBuiltinSystemPromptValue(config, 'agent.default')).toMatchObject({
+      isOverridden: false,
+      effectiveContent: DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
+    });
     expect(readBuiltinSystemPromptValue(config, 'conversation.chat').effectiveContent).toBe(
       CONVERSATION_CHAT_SYSTEM_PROMPT,
     );
-
-    config = applyBuiltinSystemPromptOverride(config, 'agent.default', 'Custom Agent Rules');
-    expect(readBuiltinSystemPromptValue(config, 'agent.default')).toMatchObject({
+    expect(readBuiltinSystemPromptValue(config, 'delegate.reply-writer')).toMatchObject({
       isOverridden: true,
-      effectiveContent: 'Custom Agent Rules',
+      effectiveContent: 'Custom writer',
     });
-
-    config = applyBuiltinSystemPromptOverride(config, 'delegate.reply-writer', 'Rewrite concisely');
-    expect(config.replyWriter?.systemPrompt).toBe('Rewrite concisely');
-    expect(readBuiltinSystemPromptValue(config, 'delegate.reply-writer').isOverridden).toBe(true);
-
-    config = applyBuiltinSystemPromptOverride(config, 'delegate.vision', 'Vision concise');
-    expect(config.visionDelegation?.systemPrompt).toBe('Vision concise');
-
-    config = applyBuiltinSystemPromptOverride(config, 'artifact.decision', 'Always Markdown');
-    expect(config.artifact.decisionPrompt).toEqual({
-      mode: 'custom',
-      customPrompt: 'Always Markdown',
+    expect(readBuiltinSystemPromptValue(config, 'delegate.vision')).toMatchObject({
+      isOverridden: true,
+      effectiveContent: 'Custom vision',
     });
-
-    // Resetting clears overrides and restores defaults.
-    config = applyBuiltinSystemPromptOverride(config, 'agent.default', null);
-    config = applyBuiltinSystemPromptOverride(config, 'delegate.reply-writer', null);
-    config = applyBuiltinSystemPromptOverride(config, 'delegate.vision', null);
-    config = applyBuiltinSystemPromptOverride(config, 'artifact.decision', '');
-
-    expect(readBuiltinSystemPromptValue(config, 'agent.default').effectiveContent).toBe(
-      DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
-    );
-    expect(readBuiltinSystemPromptValue(config, 'delegate.reply-writer').effectiveContent).toBe(
+    expect(readBuiltinSystemPromptValue(config, 'artifact.decision')).toMatchObject({
+      isOverridden: true,
+      effectiveContent: 'Always Markdown',
+    });
+    expect(readBuiltinSystemPromptValue(makeConfig(), 'delegate.reply-writer').effectiveContent).toBe(
       DEFAULT_REPLY_WRITER_SYSTEM_PROMPT,
     );
-    expect(readBuiltinSystemPromptValue(config, 'delegate.vision').effectiveContent).toBe(
+    expect(readBuiltinSystemPromptValue(makeConfig(), 'delegate.vision').effectiveContent).toBe(
       DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
     );
-    expect(config.artifact.decisionPrompt.mode).toBe('default');
   });
 
   it('resolves session > project > global > builtin precedence with graceful fallback', () => {
@@ -87,21 +116,21 @@ describe('system-prompts contracts', () => {
             id: 'global-p',
             name: 'Global',
             mode: 'append',
-            content: 'Global rule',
+            filePaths: ['/tmp/global.md'],
             updatedAt: '2026-11-17T00:00:00.000Z',
           },
           {
             id: 'proj-p',
             name: 'Project',
             mode: 'replace',
-            content: 'Project persona',
+            filePaths: ['/tmp/project.txt'],
             updatedAt: '2026-11-17T00:00:00.000Z',
           },
           {
             id: 'sess-p',
             name: 'Session',
             mode: 'append',
-            content: 'Session rule',
+            filePaths: ['/tmp/session.md', '/tmp/session-extra.txt'],
             updatedAt: '2026-11-17T00:00:00.000Z',
           },
         ],

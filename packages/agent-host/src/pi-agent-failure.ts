@@ -15,6 +15,10 @@ import {
 import { readNumber, readString, readUpstreamErrorMessage } from './pi-event-read.js';
 
 const PROTOCOL_MISSING_FINISH = /stream ended without finish_reason/i;
+const FORBIDDEN_QUOTA_MESSAGE =
+  /\bquota\b|billing|insufficient (?:quota|credit|funds|balance)|out of (?:available resources|credits)|used all available credits|spending limit/i;
+const FORBIDDEN_AUTH_MESSAGE =
+  /\bunauthenticated\b|\bunauthorized\b|bad[-_ ]credentials|invalid[-_ ]?(?:api[-_ ]?key|token|auth(?:entication)?|credentials?|grant)|token (?:is |has )?(?:invalid|expired|revoked)|token could not be validated|expired[-_ ]?(?:api[-_ ]?key|token|credentials?)|authentication (?:failed|error|required)|api[-_ ]?key (?:is )?(?:invalid|expired|revoked|missing|not valid)/i;
 const CONNECTION_ERROR_MESSAGE = /^connection error\b/i;
 const CONNECTION_TRANSPORT_HINT =
   /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|EPIPE|EHOSTUNREACH|fetch failed|network\s*error|socket hang up/i;
@@ -58,7 +62,7 @@ export function agentFailureFromPiFacts(input: {
       ...(nativeName ? { nativeName } : {}),
     });
   }
-  const fromStatus = failureFromHttpStatus(httpStatus);
+  const fromStatus = failureFromHttpStatus(httpStatus, rawMessage);
   if (fromStatus) {
     return sanitizeAgentFailure({
       ...fromStatus,
@@ -150,12 +154,23 @@ export function enrichConnectionFailureMessage(
 
 function failureFromHttpStatus(
   httpStatus: number | undefined,
+  rawMessage: string,
 ): Pick<AgentFailure, 'code' | 'origin' | 'retriable'> | undefined {
   if (httpStatus === undefined) {
     return undefined;
   }
-  if (httpStatus === 401 || httpStatus === 403) {
+  if (httpStatus === 401) {
     return { code: 'provider-authentication', origin: 'provider', retriable: false };
+  }
+  if (httpStatus === 403) {
+    if (FORBIDDEN_QUOTA_MESSAGE.test(rawMessage)) {
+      return { code: 'provider-quota', origin: 'provider', retriable: false };
+    }
+    if (FORBIDDEN_AUTH_MESSAGE.test(rawMessage)) {
+      return { code: 'provider-authentication', origin: 'provider', retriable: false };
+    }
+    // Non-credential 403s (e.g. safety/content refusals, WAF, region blocks) must not trigger OAuth re-auth.
+    return { code: 'provider-http-error', origin: 'provider', retriable: false };
   }
   if (httpStatus === 429) {
     return { code: 'provider-rate-limit', origin: 'provider', retriable: true };

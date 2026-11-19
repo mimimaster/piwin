@@ -24,6 +24,7 @@ import {
   DEFAULT_FONT_SERIF,
   type CustomFontPreferences,
 } from './font-manager.js';
+import { syncWindowMaterialMarker } from '../platform/wallpaper-document.js';
 
 const INKSTONE_THEME_IDS = new Set([
   'piwin-inkstone-paper',
@@ -402,18 +403,9 @@ export function applyAppearanceToDocument(
   root.style.colorScheme = theme.mode;
   // The native window material (styles/window-material*.css) is tuned for the
   // Inkstone faces over a native material (macOS vibrancy, Windows 11 Mica)
-  // only; everything else stays opaque. The marker is written by
-  // window-chrome.ts `applyNativeWindowMaterialToDocument`.
-  // An uploaded wallpaper (platform/wallpaper-document.ts) switches the same
-  // translucent region styling on without a native material.
-  if (
-    (root.dataset.nativeWindowMaterial !== undefined || root.dataset.wallpaper === 'on') &&
-    INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)
-  ) {
-    root.dataset.windowMaterial = 'on';
-  } else {
-    delete root.dataset.windowMaterial;
-  }
+  // only; memory pressure / occlusion parking temporarily forces opaque solid
+  // surfaces via syncWindowMaterialMarker.
+  syncWindowMaterialMarker(root);
   if (INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
     for (const name of INKSTONE_STYLESHEET_SLAB_VARS) {
       root.style.removeProperty(name);

@@ -47,6 +47,10 @@ export type TranscriptTurnListProps = {
   pinnedMessageId: string | null;
   renderTurn: (turn: TranscriptTurn) => ReactElement;
   streaming?: boolean;
+  /** Render in ordinary static document flow (bounded tail), avoiding tall virtual canvases. */
+  staticFlow?: boolean | undefined;
+  /** Reveal an earlier resident turn on demand before scrolling to its message node. */
+  onEnsureMessageMounted?: ((messageId: string) => boolean) | undefined;
 };
 
 /**
@@ -171,14 +175,56 @@ function useVirtualizedReadingAnchor(
 
 export function TranscriptTurnList(props: TranscriptTurnListProps): ReactElement {
   const scrollPort = useTranscriptScrollPort();
-  const virtualize = shouldVirtualizeTranscript(props.turns.length);
+  const virtualize =
+    props.staticFlow === true ? false : shouldVirtualizeTranscript(props.turns.length);
+  const previousTailKeyRef = useRef<string | null>(null);
+  const ensureMountedRef = useRef(props.onEnsureMessageMounted);
+  ensureMountedRef.current = props.onEnsureMessageMounted;
 
   useEffect(() => {
     if (!scrollPort || virtualize) {
       return;
     }
-    return scrollPort.registerMessageScroller((messageId) => scrollTranscriptToMessage(messageId));
+    let jumpFrameId: number | null = null;
+    const unregister = scrollPort.registerMessageScroller((messageId) => {
+      if (scrollTranscriptToMessage(messageId)) {
+        return true;
+      }
+      if (ensureMountedRef.current?.(messageId) !== true) {
+        return false;
+      }
+      if (jumpFrameId !== null) {
+        window.cancelAnimationFrame(jumpFrameId);
+      }
+      jumpFrameId = window.requestAnimationFrame(() => {
+        jumpFrameId = null;
+        scrollTranscriptToMessage(messageId);
+      });
+      return true;
+    });
+    return () => {
+      unregister();
+      if (jumpFrameId !== null) {
+        window.cancelAnimationFrame(jumpFrameId);
+      }
+    };
   }, [scrollPort, virtualize]);
+
+  const tailKey =
+    props.turns.length === 0
+      ? ''
+      : buildTranscriptStreamingMeasureKey(props.turns.slice(-1), true);
+  useLayoutEffect(() => {
+    const previousTailKey = previousTailKeyRef.current;
+    previousTailKeyRef.current = tailKey;
+    if (!scrollPort || virtualize) {
+      return;
+    }
+    // Skip notifyContentGrew when only older turns were prepended above the reading line.
+    if (props.streaming === true || tailKey !== previousTailKey) {
+      scrollPort.notifyContentGrew();
+    }
+  }, [scrollPort, virtualize, tailKey, props.streaming]);
 
   if (!scrollPort || !virtualize) {
     return (

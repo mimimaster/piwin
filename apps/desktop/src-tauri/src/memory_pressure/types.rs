@@ -52,6 +52,8 @@ pub(crate) struct ProcessSample {
     pub(crate) start_clock: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) footprint_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) resident_bytes: Option<u64>,
     /// True when more than one live window maps to the same WebContent pid.
     pub(crate) shared: bool,
 }
@@ -118,6 +120,9 @@ pub(crate) struct MemoryPressurePayload {
     /// Main-window WebContent `ri_phys_footprint`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) bytes: Option<u64>,
+    /// Main-window WebContent `ri_resident_size` (RSS).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) resident_bytes: Option<u64>,
     /// System-wide reclaimable memory estimate. Fallback only: emitted iff
     /// `osPressure` is absent (non-macOS or failed sysctl).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -158,6 +163,7 @@ impl MemoryPressurePayload {
         Self {
             level: None,
             bytes: None,
+            resident_bytes: None,
             available_bytes: None,
             sample_id,
             timestamp_ms,
@@ -237,6 +243,7 @@ mod tests {
             pid: Some(4242),
             start_clock: Some("18446744073709551615".to_string()),
             footprint_bytes: Some(1_024),
+            resident_bytes: Some(512),
             shared: false,
         };
         let value = serde_json::to_value(&sample).expect("serialize");
@@ -248,6 +255,7 @@ mod tests {
                 "pid": 4242,
                 "startClock": "18446744073709551615",
                 "footprintBytes": 1024,
+                "residentBytes": 512,
                 "shared": false
             })
         );
@@ -261,6 +269,7 @@ mod tests {
             pid: None,
             start_clock: None,
             footprint_bytes: None,
+            resident_bytes: None,
             shared: false,
         };
         assert_eq!(

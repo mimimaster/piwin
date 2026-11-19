@@ -734,6 +734,34 @@ export async function handleMockWorkspaceCommands(
       case 'browser/stop':
         if (command.sessionId === undefined) host.mockBrowserUrl = null;
         return { id, type: 'response', command: 'browser/stop', success: true, data: null };
+      case 'browser/close': {
+        if (command.sessionId === undefined) host.mockBrowserUrl = null;
+        else host.mockBrowserUrls.delete(command.sessionId);
+        host.emitPush({
+          type: 'browser/controller',
+          ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }),
+          owner: 'idle',
+          reason: 'browser-close',
+          ts: Date.now(),
+        });
+        host.emitPush({
+          type: 'browser/state',
+          ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId }),
+          lifecycle: 'stopped',
+          mirror: 'off',
+          generation: 1,
+          tabs: [],
+          pendingDialog: null,
+          ts: Date.now(),
+        });
+        return {
+          id,
+          type: 'response',
+          command: 'browser/close',
+          success: true,
+          data: { closed: true },
+        };
+      }
       case 'browser/restart': {
         const url = (command.sessionId === undefined ? host.mockBrowserUrl : host.mockBrowserUrls.get(command.sessionId)) ?? 'about:blank';
         host.emitPush({

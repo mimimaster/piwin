@@ -216,6 +216,36 @@
 
 /* Dynamic-height turn virtualization. The wrapper preserves the full scroll
    range while only overscanned turn sections stay mounted. */
+.transcript-bounded-tail-bar {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 var(--s-2);
+}
+
+.transcript-bounded-tail-button {
+  appearance: none;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-meta, 12px);
+  line-height: 1.4;
+  padding: 5px 14px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: background-color var(--t-2) var(--ease-out), color var(--t-2) var(--ease-out);
+}
+
+.transcript-bounded-tail-button:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.transcript-bounded-tail-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .transcript-turn-window {
   position: relative;
   width: 100%;

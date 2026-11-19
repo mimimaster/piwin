@@ -14,10 +14,11 @@ describe('Inkstone user-card surface', () => {
     );
   });
 
-  it('paints the ink-face agent-mode prompt as a void glass with a neutral edge stroke', () => {
+  it('paints the ink-face agent-mode prompt as a void glass with a uniform neutral rim', () => {
     expect(userCard).toMatch(
-      /\[data-theme-id='piwin-inkstone-ink'\] \.bubble\.role-user:not\(\.is-conversation-bubble\) \{[\s\S]*?--ink-prompt-fill: color-mix\(in srgb, var\(--wm-solid-void, var\(--void\)\) 50%, transparent\);[\s\S]*?var\(--ink-prompt-fill\);[\s\S]*?inset 2px 0 0 rgba\(235, 229, 218, 0\.22\)/,
+      /\[data-theme-id='piwin-inkstone-ink'\] \.bubble\.role-user:not\(\.is-conversation-bubble\) \{[\s\S]*?--ink-prompt-fill: color-mix\(in srgb, var\(--wm-solid-void, var\(--void\)\) 50%, transparent\);[\s\S]*?var\(--ink-prompt-fill\);[\s\S]*?inset 0 0 0 1px rgba\(235, 229, 218, 0\.1\)/,
     );
+    expect(userCard).not.toMatch(/inset \d+px 0 0/);
     expect(userCard).not.toMatch(/\.bubble\.role-user[^{]*\{[^}]*--zhu/);
     expect(userCard).not.toContain("[data-slab='paper']\n  .bubble.role-user");
     expect(userCard).toMatch(

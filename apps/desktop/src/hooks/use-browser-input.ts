@@ -35,7 +35,7 @@ export type BrowserInputHost = {
 
 export type UseBrowserInputOptions = {
   hostClient: BrowserInputHost;
-  imgRef: { current: HTMLImageElement | null };
+  imgRef: { readonly current: HTMLElement | null };
   viewportWidth: number;
   viewportHeight: number;
   interactEnabled: boolean;
@@ -53,11 +53,11 @@ function mouseButton(button: number): 'left' | 'middle' | 'right' {
 }
 
 export function useBrowserInput(options: UseBrowserInputOptions): {
-  onPointerDown: (event: ReactPointerEvent<HTMLImageElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLImageElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLImageElement>) => void;
-  onPointerCancel: (event: ReactPointerEvent<HTMLImageElement>) => void;
-  onClick: (event: ReactMouseEvent<HTMLImageElement>) => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
+  onPointerCancel: (event: ReactPointerEvent<HTMLElement>) => void;
+  onClick: (event: ReactMouseEvent<HTMLElement>) => void;
   onWheel: (event: { preventDefault: () => void; deltaX: number; deltaY: number; clientX: number; clientY: number }) => void;
   sendKeyEvents: (events: BrowserInputEvent[]) => void;
   releaseHeldButtons: () => void;
@@ -119,7 +119,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
   }, [releaseHeldButtons]);
 
   const onPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLImageElement>): void => {
+    (event: ReactPointerEvent<HTMLElement>): void => {
       pointerHandledClickRef.current = true;
       if (options.pickMode) return;
       if (!options.interactEnabled) return;
@@ -145,7 +145,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
   );
 
   const onPointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLImageElement>): void => {
+    (event: ReactPointerEvent<HTMLElement>): void => {
       if (options.pickMode || !options.interactEnabled) return;
       const point = toViewport(event);
       if (!point) return;
@@ -159,7 +159,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
   );
 
   const onPointerUp = useCallback(
-    (event: ReactPointerEvent<HTMLImageElement>): void => {
+    (event: ReactPointerEvent<HTMLElement>): void => {
       const point = toViewport(event) ?? lastPointRef.current;
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -196,7 +196,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
   );
 
   const onPointerCancel = useCallback(
-    (event: ReactPointerEvent<HTMLImageElement>): void => {
+    (event: ReactPointerEvent<HTMLElement>): void => {
       pointerHandledClickRef.current = false;
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -233,7 +233,7 @@ export function useBrowserInput(options: UseBrowserInputOptions): {
   );
 
   const onClick = useCallback(
-    (event: ReactMouseEvent<HTMLImageElement>): void => {
+    (event: ReactMouseEvent<HTMLElement>): void => {
       if (pointerHandledClickRef.current) {
         pointerHandledClickRef.current = false;
         return;

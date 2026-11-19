@@ -280,10 +280,9 @@
   align-items: center;
   margin-bottom: var(--s-4);
   padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-chip) var(--r-control) var(--r-control) var(--r-chip);
-  background: var(--hover);
-  border: 0;
-  border-left: 3px solid var(--iris-lift);
+  border-radius: var(--r-control);
+  background: var(--iris-wash);
+  border: 1px solid color-mix(in srgb, var(--iris) 28%, var(--line-1));
   font-size: var(--fs-chrome);
   line-height: 1.4;
   color: var(--text-3);

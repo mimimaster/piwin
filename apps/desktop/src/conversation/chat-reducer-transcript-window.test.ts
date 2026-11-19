@@ -189,7 +189,7 @@ describe('chatUiReducer transcript window', () => {
     state = chatUiReducer(state, {
       type: 'session/load-messages',
       sessionId: 'paged-session',
-      messages: Array.from({ length: 160 }, (_, index) => ({
+      messages: Array.from({ length: 80 }, (_, index) => ({
         id: `m-${index}`,
         role: 'assistant' as const,
         text: `message ${index}`,
@@ -198,10 +198,10 @@ describe('chatUiReducer transcript window', () => {
       })),
       transcriptPage: {
         revision: 'a'.repeat(64),
-        totalCount: 200,
+        totalCount: 120,
         startIndex: 40,
-        endIndex: 200,
-        messageBytes: 16_000,
+        endIndex: 120,
+        messageBytes: 8_000,
         olderCursor: 'older-1',
       },
     });
@@ -210,7 +210,7 @@ describe('chatUiReducer transcript window', () => {
       type: 'transcript/append',
       sessionId: 'paged-session',
       message: {
-        id: 'm-160',
+        id: 'm-80',
         role: 'assistant',
         text: 'new live-session message',
         createdAt: '2026-08-09T00:03:00.000Z',
@@ -218,9 +218,9 @@ describe('chatUiReducer transcript window', () => {
       },
     });
 
-    expect(state.messages).toHaveLength(160);
+    expect(state.messages).toHaveLength(80);
     expect(state.messages[0]?.id).toBe('m-1');
-    expect(state.messages.at(-1)?.id).toBe('m-160');
+    expect(state.messages.at(-1)?.id).toBe('m-80');
     expect(state.transcriptWindow?.cacheLimitReached).toBe(true);
     expect(state.transcriptWindow?.olderCursor).toBeUndefined();
   });

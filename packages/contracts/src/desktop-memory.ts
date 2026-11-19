@@ -22,6 +22,8 @@ export type DesktopMemoryProcessSample = {
   startClock?: string;
   /** Resident memory footprint in bytes; absent when unfetchable. */
   footprintBytes?: number;
+  /** Physical resident memory size (RSS) in bytes; absent when unfetchable. */
+  residentBytes?: number;
   /** True when >1 live window maps the same WebContent pid. */
   shared: boolean;
 };
@@ -68,6 +70,8 @@ export type DesktopMemorySampleQuality = 'full' | 'partial' | 'unavailable';
 export type DesktopMemoryPressureSample = {
   /** Legacy main-window footprint in bytes. */
   bytes?: number;
+  /** Main-window physical resident memory (RSS) in bytes, when sampled. */
+  residentBytes?: number;
   /** Estimated reclaimable memory in bytes, when the OS reports it. */
   availableBytes?: number;
   /** Interpretation of `availableBytes` (`reclaimable-estimate`). */
