@@ -108,13 +108,15 @@ describe('pi-model-runtime', () => {
     expect(anthropicRegistration.models[0]).not.toHaveProperty('compat');
   });
 
-  it('adds Mistral wire compat for Mistral models and api.mistral.ai', () => {
+  it('adds Mistral wire compat for Mistral models and api.mistral.ai (even for hosted deepseek-* ids)', () => {
     const mistralCompat = {
       supportsStore: false,
       supportsDeveloperRole: false,
       supportsReasoningEffort: false,
       supportsUsageInStreaming: false,
       maxTokensField: 'max_tokens',
+      requiresToolResultName: true,
+      requiresAssistantAfterToolResult: true,
       supportsStrictMode: false,
       supportsLongCacheRetention: false,
     };
@@ -124,10 +126,15 @@ describe('pi-model-runtime', () => {
       protocol: 'openai-compatible',
       name: 'Mistral',
       baseUrl: 'https://api.mistral.ai/v1',
-      models: [{ id: 'mistral-large-latest' }, { id: 'custom-ft-model' }],
+      models: [
+        { id: 'mistral-large-latest' },
+        { id: 'deepseek-v4-1-flash-1017' },
+        { id: 'zai-glm-5-3-flash' },
+      ],
     });
     expect(directMistral.models[0]?.compat).toEqual(mistralCompat);
     expect(directMistral.models[1]?.compat).toEqual(mistralCompat);
+    expect(directMistral.models[2]?.compat).toEqual(mistralCompat);
 
     const gatewayMistral = buildPiProviderRegistration({
       id: 'local-gateway',

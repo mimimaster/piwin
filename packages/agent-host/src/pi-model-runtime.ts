@@ -41,6 +41,8 @@ export type PiModelCompat = {
   supportsReasoningEffort?: boolean;
   supportsUsageInStreaming?: boolean;
   maxTokensField?: 'max_tokens' | 'max_completion_tokens';
+  requiresToolResultName?: boolean;
+  requiresAssistantAfterToolResult?: boolean;
   requiresReasoningContentOnAssistantMessages?: boolean;
   thinkingFormat?: 'deepseek';
   supportsStrictMode?: boolean;
@@ -103,6 +105,8 @@ const MISTRAL_OPENAI_COMPAT: PiModelCompat = {
   supportsReasoningEffort: false,
   supportsUsageInStreaming: false,
   maxTokensField: 'max_tokens',
+  requiresToolResultName: true,
+  requiresAssistantAfterToolResult: true,
   supportsStrictMode: false,
   supportsLongCacheRetention: false,
 };
@@ -150,6 +154,11 @@ function modelIdCompat(
   if (api !== 'openai-completions') {
     return undefined;
   }
+  // Endpoint wire schema beats hosted model family: Mistral hosts `deepseek-*`
+  // models on `api.mistral.ai/v1`, which rejects DeepSeek's `thinking` field.
+  if (isMistralBaseUrl(baseUrl)) {
+    return { ...MISTRAL_OPENAI_COMPAT };
+  }
   const modelName = openaiCompatModelName(modelId);
   if (modelName.startsWith(DEEPSEEK_MODEL_ID_PREFIX)) {
     return { ...DEEPSEEK_OPENAI_COMPAT };
@@ -157,10 +166,7 @@ function modelIdCompat(
   if (modelName.startsWith(GROK_MODEL_ID_PREFIX)) {
     return { ...GROK_OPENAI_COMPAT };
   }
-  if (
-    isMistralBaseUrl(baseUrl) ||
-    MISTRAL_MODEL_ID_PREFIXES.some((prefix) => modelName.startsWith(prefix))
-  ) {
+  if (MISTRAL_MODEL_ID_PREFIXES.some((prefix) => modelName.startsWith(prefix))) {
     return { ...MISTRAL_OPENAI_COMPAT };
   }
   return undefined;
