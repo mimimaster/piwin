@@ -21,22 +21,36 @@ import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
 import { promptFileDisplayName, promptFileExtensionLabel } from './prompt-file-actions';
 import type { PromptPreviewLayer, PromptPreviewPayload } from './PromptPreviewModal';
+import {
+  formatProjectOptionLabel,
+  SYSTEM_PROMPT_BROWSE_PROJECT_VALUE,
+  type SystemPromptProjectOption,
+} from './system-prompt-projects';
 import type { SystemPromptsTab } from './system-prompts-focus';
 
 function sourceLabel(
   kind: ReturnType<typeof resolveActiveSystemPromptSelection>['sourceKind'],
   presetName: string | undefined,
   isZh: boolean,
+  projectDisplayLabel?: string,
+  isCurrentProject = true,
 ): string {
+  const projectPrefix = isCurrentProject
+    ? isZh
+      ? '当前项目'
+      : 'Project'
+    : isZh
+      ? `项目「${projectDisplayLabel ?? ''}」`
+      : `Project ${projectDisplayLabel ?? ''}`;
   switch (kind) {
     case 'session-preset':
       return isZh ? `当前会话 · ${presetName ?? ''}` : `Session · ${presetName ?? ''}`;
     case 'session-builtin':
       return isZh ? '当前会话 · 系统默认' : 'Session · Built-in';
     case 'project-preset':
-      return isZh ? `当前项目 · ${presetName ?? ''}` : `Project · ${presetName ?? ''}`;
+      return `${projectPrefix} · ${presetName ?? ''}`;
     case 'project-builtin':
-      return isZh ? '当前项目 · 系统默认' : 'Project · Built-in';
+      return isZh ? `${projectPrefix} · 系统默认` : `${projectPrefix} · Built-in`;
     case 'global-preset':
       return isZh ? `全局默认 · ${presetName ?? ''}` : `Global · ${presetName ?? ''}`;
     case 'builtin':
@@ -46,8 +60,14 @@ function sourceLabel(
 
 export function SystemPromptsScopeCard(props: {
   tab: SystemPromptsTab;
+  projectOptions: readonly SystemPromptProjectOption[];
+  selectedProjectPath: string | null;
+  canBrowseProjectDir: boolean;
   onTabChange: (tab: SystemPromptsTab) => void;
   onOpenPreview: (payload: PromptPreviewPayload) => void;
+  onSelectProjectPath: (projectPath: string) => void;
+  onBrowseProjectDir: () => void;
+  onUpdateProjectPreset: (projectPath: string, nextPresetId: string) => void;
 }): ReactElement {
   const { config, projectPath, activeSessionId, request, hostClient, saveConfig, setError, setInfo } =
     useSettings();
@@ -82,25 +102,45 @@ export function SystemPromptsScopeCard(props: {
   const systemPrompts = config?.systemPrompts ?? createDefaultSystemPromptsConfig();
   const presets = systemPrompts.presets;
   const globalSelection = systemPrompts.defaultPresetId ?? SYSTEM_PROMPT_BUILTIN_ID;
-  const projectSelection =
-    projectPath ? (systemPrompts.projectPresetIds?.[projectPath] ?? SYSTEM_PROMPT_INHERIT_ID) : SYSTEM_PROMPT_INHERIT_ID;
+  const selectedProject = props.projectOptions.find(
+    (item) => item.path === props.selectedProjectPath,
+  );
+  const targetProjectPath = selectedProject?.path ?? null;
+  const projectSelection = targetProjectPath
+    ? (systemPrompts.projectPresetIds?.[targetProjectPath] ?? SYSTEM_PROMPT_INHERIT_ID)
+    : SYSTEM_PROMPT_INHERIT_ID;
 
   const effective = useMemo(() => {
+    const isViewingCurrentProject = !targetProjectPath || targetProjectPath === projectPath;
     const resolved = resolveActiveSystemPromptSelection({
       config,
-      projectPath,
-      sessionPresetId: activeSessionId ? sessionPresetId : undefined,
+      projectPath: targetProjectPath,
+      sessionPresetId: isViewingCurrentProject && activeSessionId ? sessionPresetId : undefined,
     });
     const baseText = readBuiltinSystemPromptValue(
       config,
-      projectPath ? 'agent.default' : 'conversation.chat',
+      targetProjectPath ? 'agent.default' : 'conversation.chat',
     ).effectiveContent;
     return {
       resolved,
       baseText,
-      sourceText: sourceLabel(resolved.sourceKind, resolved.preset?.name, isZh),
+      sourceText: sourceLabel(
+        resolved.sourceKind,
+        resolved.preset?.name,
+        isZh,
+        selectedProject?.displayLabel,
+        isViewingCurrentProject,
+      ),
     };
-  }, [activeSessionId, config, isZh, projectPath, sessionPresetId]);
+  }, [
+    activeSessionId,
+    config,
+    isZh,
+    projectPath,
+    selectedProject?.displayLabel,
+    sessionPresetId,
+    targetProjectPath,
+  ]);
 
   async function handleOpenEffectivePreview(): Promise<void> {
     const preset = effective.resolved.preset;
@@ -128,7 +168,7 @@ export function SystemPromptsScopeCard(props: {
         const response = await hostClient.request({
           type: 'system-prompts/read-files',
           paths: preset.filePaths,
-          ...(!isRemote && projectPath ? { projectPath } : {}),
+          ...(!isRemote && targetProjectPath ? { projectPath: targetProjectPath } : {}),
         });
         if (response.success) {
           const data = response.data as SystemPromptFilesReadData | undefined;
@@ -218,28 +258,6 @@ export function SystemPromptsScopeCard(props: {
     }
   }
 
-  async function updateProjectDefault(nextId: string): Promise<void> {
-    if (!config || !projectPath) return;
-    const nextProjects = { ...(systemPrompts.projectPresetIds ?? {}) };
-    if (nextId === SYSTEM_PROMPT_INHERIT_ID) {
-      delete nextProjects[projectPath];
-    } else {
-      nextProjects[projectPath] = nextId;
-    }
-    const { projectPresetIds: _prev, ...rest } = systemPrompts;
-    const nextConfig: PiwinConfig = {
-      ...config,
-      systemPrompts:
-        Object.keys(nextProjects).length > 0
-          ? { ...rest, projectPresetIds: nextProjects }
-          : rest,
-    };
-    const ok = await saveConfig(nextConfig, { quiet: true });
-    if (ok) {
-      setInfo(isZh ? '已更新项目方案。' : 'Project prompt updated.', 'success');
-    }
-  }
-
   async function updateSessionPreset(nextId: string): Promise<void> {
     if (!activeSessionId || !hostClient?.request) return;
     setSavingSession(true);
@@ -299,15 +317,51 @@ export function SystemPromptsScopeCard(props: {
           </select>
         </label>
 
-        {projectPath ? (
-          <label className="sysprompt-scope-pill" title={projectPath}>
+        {selectedProject ? (
+          <div
+            className="sysprompt-scope-pill sysprompt-scope-pill-project"
+            title={selectedProject.path}
+            data-testid="system-prompts-project-scope"
+          >
             <span className="sysprompt-scope-key">{isZh ? '项目' : 'Project'}</span>
+            <select
+              className="sysprompt-scope-select sysprompt-scope-project-target"
+              value={selectedProject.path}
+              data-testid="system-prompts-project-target-select"
+              aria-label={isZh ? '选择生效项目' : 'Target project'}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                if (value === SYSTEM_PROMPT_BROWSE_PROJECT_VALUE) {
+                  props.onBrowseProjectDir();
+                  return;
+                }
+                props.onSelectProjectPath(value);
+              }}
+            >
+              {props.projectOptions.map((option) => (
+                <option key={option.path} value={option.path}>
+                  {formatProjectOptionLabel(option, isZh)}
+                </option>
+              ))}
+              {props.canBrowseProjectDir ? (
+                <option value={SYSTEM_PROMPT_BROWSE_PROJECT_VALUE}>
+                  {isZh ? '选择其他项目目录…' : 'Choose another folder…'}
+                </option>
+              ) : null}
+            </select>
+            <span className="sysprompt-scope-divider" aria-hidden="true" />
             <select
               className="sysprompt-scope-select"
               value={projectSelection}
               data-testid="system-prompts-project-select"
-              aria-label={isZh ? '当前项目' : 'Current project'}
-              onChange={(event) => void updateProjectDefault(event.currentTarget.value)}
+              aria-label={
+                isZh
+                  ? `项目「${selectedProject.displayLabel}」的系统提示词`
+                  : `System prompt for ${selectedProject.displayLabel}`
+              }
+              onChange={(event) =>
+                props.onUpdateProjectPreset(selectedProject.path, event.currentTarget.value)
+              }
             >
               <option value={SYSTEM_PROMPT_INHERIT_ID}>
                 {isZh ? '跟随全局' : 'Inherit'}
@@ -321,7 +375,22 @@ export function SystemPromptsScopeCard(props: {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
+        ) : props.canBrowseProjectDir ? (
+          <div
+            className="sysprompt-scope-pill sysprompt-scope-pill-project"
+            data-testid="system-prompts-project-scope"
+          >
+            <span className="sysprompt-scope-key">{isZh ? '项目' : 'Project'}</span>
+            <button
+              type="button"
+              className="sysprompt-scope-action"
+              onClick={props.onBrowseProjectDir}
+              data-testid="system-prompts-project-browse-btn"
+            >
+              {isZh ? '选择项目…' : 'Choose project…'}
+            </button>
+          </div>
         ) : null}
 
         {activeSessionId && hostClient?.request ? (

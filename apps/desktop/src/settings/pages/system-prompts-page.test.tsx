@@ -2,7 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { HostCommand, HostResponse, PiwinConfig } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  PiwinConfig,
+  ProjectRecord,
+  SystemPromptPreset,
+} from '@piwin/contracts';
 import { createDefaultWebConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../../theme/appearance-tokens';
@@ -56,13 +62,73 @@ const FILE_BODIES: Record<string, string> = {
   '/repo/demo/rules.txt': 'Always verify changed files with tests.',
 };
 
+function makeProject(path: string, displayName?: string): ProjectRecord {
+  return {
+    path,
+    trust: 'trusted',
+    ...(displayName ? { displayName } : {}),
+    lastOpenedAt: '2026-11-20T00:00:00.000Z',
+    createdAt: '2026-11-20T00:00:00.000Z',
+  };
+}
+
+function makePreset(id: string, name: string, filePaths: string[]): SystemPromptPreset {
+  return {
+    id,
+    name,
+    mode: 'append',
+    filePaths,
+    updatedAt: '2026-11-20T00:00:00.000Z',
+  };
+}
+
+type TestHarnessOptions = {
+  projectPath?: string | null;
+  recentProjects?: ProjectRecord[];
+  activeSessionId?: string | null;
+  sessionPresetId?: string;
+};
+
 function TestHarness(props: {
   initialConfig?: PiwinConfig;
   onConfigSaved?: (next: PiwinConfig) => void;
+  options?: TestHarnessOptions;
 }): ReactElement {
   const [config, setConfig] = useState<PiwinConfig>(props.initialConfig ?? baseConfig());
+  const resolvedProjectPath =
+    props.options && 'projectPath' in props.options
+      ? (props.options.projectPath ?? null)
+      : '/repo/demo';
+  const activeSessionId = props.options?.activeSessionId ?? null;
+  const recentProjects = props.options?.recentProjects ?? [];
 
   const hostRequest = vi.fn(async (command: HostCommand): Promise<HostResponse> => {
+    if (command.type === 'project/list') {
+      return {
+        type: 'response',
+        command: 'project/list',
+        success: true,
+        data: {
+          projects: recentProjects,
+        },
+      };
+    }
+    if (command.type === 'host/list-dir') {
+      const targetPath = command.path?.trim() || '/Users/demo';
+      return {
+        type: 'response',
+        command: 'host/list-dir',
+        success: true,
+        data: {
+          path: targetPath,
+          homePath: '/Users/demo',
+          entries: [
+            { name: 'repo-alpha', path: '/Users/demo/repo-alpha', kind: 'directory' },
+          ],
+          locations: [],
+        },
+      };
+    }
     if (command.type === 'system-prompts/list-files') {
       return {
         type: 'response',
@@ -102,7 +168,32 @@ function TestHarness(props: {
   });
 
   const value = {
-    request: vi.fn(async () => ({ type: 'response', command: 'noop', success: true, data: {} })),
+    request: vi.fn(async (command: { type: string }) => {
+      if (command.type === 'session/list' && activeSessionId) {
+        return {
+          type: 'response',
+          command: 'session/list',
+          success: true,
+          data: {
+            sessions: [
+              {
+                id: activeSessionId,
+                title: 'Active session',
+                scope: resolvedProjectPath
+                  ? { kind: 'project', projectPath: resolvedProjectPath }
+                  : { kind: 'general' },
+                createdAt: '2026-11-20T00:00:00.000Z',
+                updatedAt: '2026-11-20T00:00:00.000Z',
+                ...(props.options?.sessionPresetId
+                  ? { systemPromptPresetId: props.options.sessionPresetId }
+                  : {}),
+              },
+            ],
+          },
+        };
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    }),
     hostClient: {
       subscribe: () => () => {},
       request: hostRequest,
@@ -124,10 +215,10 @@ function TestHarness(props: {
     saveWeb: vi.fn(async () => true),
     preferences: { assistantTextSize: 'default', codeTextSize: 'default', codeWrap: false },
     onPreferencesChange: vi.fn(),
-    projectPath: '/repo/demo',
+    projectPath: resolvedProjectPath,
     projectTrusted: true,
     hostStatus: null,
-    activeSessionId: null,
+    activeSessionId,
     onOpenSubagentSession: undefined,
     selectSection: vi.fn(),
     requestSkills: vi.fn(),
@@ -177,6 +268,12 @@ function setReactInputValue(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+function setReactSelectValue(select: HTMLSelectElement, value: string): void {
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  descriptor?.set?.call(select, value);
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
 describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
   let root: Root | null = null;
   let container: HTMLElement | null = null;
@@ -199,6 +296,7 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
   async function renderHarness(
     initialConfig?: PiwinConfig,
     onConfigSaved?: (next: PiwinConfig) => void,
+    options?: TestHarnessOptions,
   ): Promise<HTMLElement> {
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -208,6 +306,7 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
         <TestHarness
           {...(initialConfig ? { initialConfig } : {})}
           {...(onConfigSaved ? { onConfigSaved } : {})}
+          {...(options ? { options } : {})}
         />,
       );
     });
@@ -325,5 +424,150 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
     expect(previewBody).not.toBeNull();
     expect(previewBody!.textContent?.length).toBeGreaterThan(20);
     expect(document.body.querySelectorAll('textarea')).toHaveLength(0);
+  });
+
+  it('switches target project in the scope bar, persists projectPresetIds, and isolates effective preview from active session', async () => {
+    const onConfigSaved = vi.fn();
+    const initialConfig: PiwinConfig = {
+      ...baseConfig(),
+      systemPrompts: {
+        presets: [
+          makePreset('reviewer', '审查员', ['/Users/demo/.piwin/system-prompts/persona.md']),
+          makePreset('concise', '精简模式', ['/repo/demo/rules.txt']),
+        ],
+      },
+    };
+    const host = await renderHarness(initialConfig, onConfigSaved, {
+      projectPath: '/repo/demo',
+      recentProjects: [makeProject('/repo/demo'), makeProject('/repo/other')],
+      activeSessionId: 'sess-1',
+      sessionPresetId: 'concise',
+    });
+
+    const targetSelect = host.querySelector<HTMLSelectElement>(
+      '[data-testid="system-prompts-project-target-select"]',
+    );
+    expect(targetSelect).not.toBeNull();
+    const optionTexts = Array.from(targetSelect!.options).map((opt) => opt.textContent);
+    expect(optionTexts).toContain('demo（当前）');
+    expect(optionTexts).toContain('other');
+    expect(targetSelect!.value).toBe('/repo/demo');
+
+    await act(async () => {
+      setReactSelectValue(targetSelect!, '/repo/other');
+    });
+    await flushAsync();
+
+    const presetSelect = host.querySelector<HTMLSelectElement>(
+      '[data-testid="system-prompts-project-select"]',
+    );
+    expect(presetSelect).not.toBeNull();
+    await act(async () => {
+      setReactSelectValue(presetSelect!, 'reviewer');
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(1);
+    const savedConfig = onConfigSaved.mock.calls[0]?.[0] as PiwinConfig;
+    expect(savedConfig.systemPrompts?.projectPresetIds).toEqual({
+      '/repo/other': 'reviewer',
+    });
+
+    const effectiveBtn = host.querySelector<HTMLButtonElement>(
+      '[data-testid="system-prompts-effective-preview-btn"]',
+    );
+    expect(effectiveBtn).not.toBeNull();
+    await act(async () => {
+      effectiveBtn!.click();
+    });
+    await flushAsync();
+
+    const modal = document.body.querySelector('[data-testid="system-prompts-preview-modal"]');
+    expect(modal).not.toBeNull();
+    expect(modal!.textContent).toContain('项目「other」 · 审查员');
+    expect(modal!.textContent).toContain('Act as a careful reviewer.');
+    expect(modal!.textContent).not.toContain('Always verify changed files with tests.');
+  });
+
+  it('binds, focuses, and unbinds projects directly inside CustomPresetsPanel', async () => {
+    const onConfigSaved = vi.fn();
+    const initialConfig: PiwinConfig = {
+      ...baseConfig(),
+      systemPrompts: {
+        presets: [
+          makePreset('reviewer', '审查员', ['/Users/demo/.piwin/system-prompts/persona.md']),
+        ],
+        projectPresetIds: {
+          '/repo/demo': 'reviewer',
+        },
+      },
+    };
+    const host = await renderHarness(initialConfig, onConfigSaved, {
+      projectPath: '/repo/demo',
+      recentProjects: [makeProject('/repo/demo'), makeProject('/repo/other')],
+    });
+
+    const bindingsStrip = host.querySelector('[data-testid="system-prompts-preset-projects"]');
+    expect(bindingsStrip).not.toBeNull();
+    expect(bindingsStrip!.querySelectorAll('[data-testid="sysprompt-bound-project-chip"]')).toHaveLength(1);
+
+    const addSelect = host.querySelector<HTMLSelectElement>(
+      '[data-testid="system-prompts-preset-add-project"]',
+    );
+    expect(addSelect).not.toBeNull();
+    await act(async () => {
+      setReactSelectValue(addSelect!, '/repo/other');
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(1);
+    const afterBind = onConfigSaved.mock.calls[0]?.[0] as PiwinConfig;
+    expect(afterBind.systemPrompts?.projectPresetIds).toEqual({
+      '/repo/demo': 'reviewer',
+      '/repo/other': 'reviewer',
+    });
+
+    const chips = host.querySelectorAll('[data-testid="sysprompt-bound-project-chip"]');
+    expect(chips).toHaveLength(2);
+    const targetSelect = host.querySelector<HTMLSelectElement>(
+      '[data-testid="system-prompts-project-target-select"]',
+    );
+    expect(targetSelect?.value).toBe('/repo/other');
+
+    const unbindSecond = host.querySelector<HTMLButtonElement>(
+      '[data-testid="sysprompt-unbind-project-1"]',
+    );
+    expect(unbindSecond).not.toBeNull();
+    await act(async () => {
+      unbindSecond!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(2);
+    const afterUnbind = onConfigSaved.mock.calls[1]?.[0] as PiwinConfig;
+    expect(afterUnbind.systemPrompts?.projectPresetIds).toEqual({
+      '/repo/demo': 'reviewer',
+    });
+  });
+
+  it('shows a project browse button when no workspace is open and opens the directory picker dialog', async () => {
+    const host = await renderHarness(undefined, undefined, {
+      projectPath: null,
+      recentProjects: [],
+    });
+
+    const browseBtn = host.querySelector<HTMLButtonElement>(
+      '[data-testid="system-prompts-project-browse-btn"]',
+    );
+    expect(browseBtn).not.toBeNull();
+    await act(async () => {
+      browseBtn!.click();
+    });
+    await flushAsync();
+
+    const pickerDialog = document.body.querySelector(
+      '[data-testid="system-prompts-project-picker-dialog"]',
+    );
+    expect(pickerDialog).not.toBeNull();
   });
 });

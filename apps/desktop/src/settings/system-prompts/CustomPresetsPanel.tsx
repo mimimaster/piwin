@@ -25,9 +25,11 @@ import {
 } from '@piwin/contracts';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
+import { PresetProjectBindingsBar } from './PresetProjectBindingsBar';
 import { PromptFileStackEditor } from './PromptFileStackEditor';
 import { promptFileDisplayName, promptFileExtensionLabel } from './prompt-file-actions';
 import type { PromptPreviewLayer, PromptPreviewPayload } from './PromptPreviewModal';
+import type { SystemPromptProjectOption } from './system-prompt-projects';
 
 function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
@@ -35,7 +37,14 @@ function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
 }
 
 export function CustomPresetsPanel(props: {
+  projectOptions: readonly SystemPromptProjectOption[];
+  selectedProjectPath: string | null;
+  canBrowseProjectDir: boolean;
   onOpenPreview: (payload: PromptPreviewPayload) => void;
+  onFocusProject: (projectPath: string) => void;
+  onBindProjectToPreset: (projectPath: string, preset: SystemPromptPreset) => void;
+  onUnbindProject: (projectPath: string) => void;
+  onBrowseProjectForPreset: (preset: SystemPromptPreset) => void;
 }): ReactElement {
   const { config, projectPath, hostClient, saveConfig, setError, setInfo } = useSettings();
   const { locale } = useDesktopLocale();
@@ -45,6 +54,7 @@ export function CustomPresetsPanel(props: {
   const presets = systemPrompts.presets;
   const isRemote = hostClient?.getTransport?.() === 'remote';
   const hostRequest = hostClient?.request;
+  const effectiveProjectPath = props.selectedProjectPath ?? projectPath;
 
   const [selectedId, setSelectedId] = useState<string>('__new__');
   const [name, setName] = useState('');
@@ -58,6 +68,12 @@ export function CustomPresetsPanel(props: {
     () => new Map(),
   );
   const initializedRef = useRef(false);
+  const lastSyncedPresetRef = useRef<{
+    id: string;
+    name: string;
+    mode: SystemPromptMode;
+    filePaths: readonly string[];
+  } | null>(null);
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -68,16 +84,40 @@ export function CustomPresetsPanel(props: {
         setName(first.name);
         setMode(first.mode);
         setFilePaths(first.filePaths);
+        lastSyncedPresetRef.current = {
+          id: first.id,
+          name: first.name,
+          mode: first.mode,
+          filePaths: first.filePaths,
+        };
       }
       return;
     }
-    if (selectedId !== '__new__') {
-      const existing = presets.find((item) => item.id === selectedId);
-      if (existing) {
-        setName(existing.name);
-        setMode(existing.mode);
-        setFilePaths(existing.filePaths);
-      }
+    if (selectedId === '__new__') {
+      lastSyncedPresetRef.current = null;
+      return;
+    }
+    const existing = presets.find((item) => item.id === selectedId);
+    if (!existing) {
+      return;
+    }
+    const last = lastSyncedPresetRef.current;
+    const presetChanged =
+      !last ||
+      last.id !== existing.id ||
+      last.name !== existing.name ||
+      last.mode !== existing.mode ||
+      !sameStringArray(last.filePaths, existing.filePaths);
+    if (presetChanged) {
+      setName(existing.name);
+      setMode(existing.mode);
+      setFilePaths(existing.filePaths);
+      lastSyncedPresetRef.current = {
+        id: existing.id,
+        name: existing.name,
+        mode: existing.mode,
+        filePaths: existing.filePaths,
+      };
     }
   }, [presets, selectedId]);
 
@@ -87,7 +127,7 @@ export function CustomPresetsPanel(props: {
     try {
       const response = await hostRequest({
         type: 'system-prompts/list-files',
-        ...(!isRemote && projectPath ? { projectPath } : {}),
+        ...(!isRemote && effectiveProjectPath ? { projectPath: effectiveProjectPath } : {}),
       });
       if (!response.success) return;
       const data = response.data as SystemPromptFilesListData | undefined;
@@ -100,7 +140,7 @@ export function CustomPresetsPanel(props: {
     } finally {
       setLoadingCandidates(false);
     }
-  }, [hostRequest, isRemote, projectPath]);
+  }, [effectiveProjectPath, hostRequest, isRemote]);
 
   useEffect(() => {
     void refreshCandidates();
@@ -117,7 +157,7 @@ export function CustomPresetsPanel(props: {
         const response = await hostRequest({
           type: 'system-prompts/read-files',
           paths: [...paths],
-          ...(!isRemote && projectPath ? { projectPath } : {}),
+          ...(!isRemote && effectiveProjectPath ? { projectPath: effectiveProjectPath } : {}),
         });
         if (!response.success) return readItemsByPath;
         const data = response.data as SystemPromptFilesReadData | undefined;
@@ -131,14 +171,14 @@ export function CustomPresetsPanel(props: {
         return readItemsByPath;
       }
     },
-    [hostRequest, isRemote, projectPath, readItemsByPath],
+    [effectiveProjectPath, hostRequest, isRemote, readItemsByPath],
   );
 
   useEffect(() => {
     void refreshStackContents(filePaths);
     // Re-read whenever the file stack changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filePaths, hostRequest, isRemote, projectPath]);
+  }, [effectiveProjectPath, filePaths, hostRequest, isRemote]);
 
   const activePreset =
     selectedId === '__new__' ? undefined : presets.find((item) => item.id === selectedId);
@@ -151,6 +191,7 @@ export function CustomPresetsPanel(props: {
   const canSave = name.trim().length > 0 && normalizedPaths.length > 0 && isDirty && !saving;
 
   function startNewPreset(): void {
+    lastSyncedPresetRef.current = null;
     setSelectedId('__new__');
     setName('');
     setMode('append');
@@ -164,6 +205,12 @@ export function CustomPresetsPanel(props: {
     }
     const found = presets.find((item) => item.id === id);
     if (!found) return;
+    lastSyncedPresetRef.current = {
+      id: found.id,
+      name: found.name,
+      mode: found.mode,
+      filePaths: found.filePaths,
+    };
     setSelectedId(found.id);
     setName(found.name);
     setMode(found.mode);
@@ -271,6 +318,12 @@ export function CustomPresetsPanel(props: {
       };
       const ok = await saveConfig(nextConfig, { quiet: true });
       if (ok) {
+        lastSyncedPresetRef.current = {
+          id: nextPreset.id,
+          name: nextPreset.name,
+          mode: nextPreset.mode,
+          filePaths: nextPreset.filePaths,
+        };
         setSelectedId(targetId);
         setInfo(isZh ? `已保存「${trimmedName}」。` : `Saved "${trimmedName}".`, 'success');
       }
@@ -308,6 +361,12 @@ export function CustomPresetsPanel(props: {
       if (ok) {
         const fallback = nextPresets[0];
         if (fallback) {
+          lastSyncedPresetRef.current = {
+            id: fallback.id,
+            name: fallback.name,
+            mode: fallback.mode,
+            filePaths: fallback.filePaths,
+          };
           setSelectedId(fallback.id);
           setName(fallback.name);
           setMode(fallback.mode);
@@ -496,11 +555,26 @@ export function CustomPresetsPanel(props: {
         </div>
       </div>
 
+      {activePreset ? (
+        <PresetProjectBindingsBar
+          preset={activePreset}
+          presets={presets}
+          projectOptions={props.projectOptions}
+          selectedProjectPath={props.selectedProjectPath}
+          canBrowseProjectDir={props.canBrowseProjectDir}
+          disabled={saving}
+          onBindProject={(targetPath) => props.onBindProjectToPreset(targetPath, activePreset)}
+          onUnbindProject={(targetPath) => props.onUnbindProject(targetPath)}
+          onFocusProject={props.onFocusProject}
+          onBrowseProjectDir={() => props.onBrowseProjectForPreset(activePreset)}
+        />
+      ) : null}
+
       <PromptFileStackEditor
         filePaths={filePaths}
         candidates={candidates}
         {...(systemPromptsDir ? { systemPromptsDir } : {})}
-        projectPath={projectPath}
+        projectPath={effectiveProjectPath}
         readItemsByPath={readItemsByPath}
         loadingCandidates={loadingCandidates}
         disabled={saving}

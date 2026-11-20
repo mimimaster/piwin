@@ -77,6 +77,34 @@
   cursor: pointer;
 }
 
+.sysprompt-scope-project-target {
+  max-width: 152px;
+  color: var(--t2, var(--text-2, inherit));
+}
+
+.sysprompt-scope-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--l1, var(--line-1, rgba(128, 128, 128, 0.14)));
+  flex-shrink: 0;
+}
+
+.sysprompt-scope-action {
+  border: 0;
+  background: transparent;
+  color: var(--t2, var(--text-2, inherit));
+  font-size: 12px;
+  font-weight: 500;
+  height: 100%;
+  padding: 0 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sysprompt-scope-action:hover {
+  color: var(--t1, var(--text-1, inherit));
+}
+
 /* ── Unified Preset Workbench ─────────────────────────────────────────────── */
 
 .sysprompt-workbench,
@@ -191,6 +219,112 @@
   gap: 6px;
   margin-left: auto;
   flex-wrap: wrap;
+}
+
+/* ── Project Bindings Strip ───────────────────────────────────────────────── */
+
+.sysprompt-project-bindings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sysprompt-project-bindings-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--t3, var(--text-3, inherit));
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sysprompt-project-bindings-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sysprompt-project-bindings-empty {
+  font-size: 11.5px;
+  color: var(--t3, var(--text-3, inherit));
+}
+
+.sysprompt-project-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  border-radius: var(--r-control, 7px);
+  border: 1px solid var(--l2, var(--line-1, rgba(128, 128, 128, 0.2)));
+  background: var(--s2, var(--surface-2, rgba(128, 128, 128, 0.06)));
+  overflow: hidden;
+}
+
+.sysprompt-project-chip.is-focused {
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+.sysprompt-project-chip-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  padding: 0 7px;
+  border: 0;
+  background: transparent;
+  color: var(--t1, var(--text-1, inherit));
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sysprompt-project-chip-main:hover {
+  background: var(--s3, var(--surface-3, rgba(128, 128, 128, 0.1)));
+}
+
+.sysprompt-project-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid var(--l1, var(--line-1, rgba(128, 128, 128, 0.14)));
+  background: transparent;
+  color: var(--t3, var(--text-3, inherit));
+  cursor: pointer;
+}
+
+.sysprompt-project-chip-remove:hover:not(:disabled) {
+  color: var(--danger, #d14343);
+  background: var(--danger-wash, rgba(209, 67, 67, 0.12));
+}
+
+.sysprompt-project-chip-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sysprompt-project-add-select {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-control, 7px);
+  border: 1px dashed var(--l3, var(--line-2, rgba(128, 128, 128, 0.3)));
+  background: transparent;
+  color: var(--t3, var(--text-3, inherit));
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sysprompt-project-add-select:hover:not(:disabled) {
+  color: var(--t1, var(--text-1, inherit));
+  border-color: var(--zhu, var(--iris, var(--accent, #b03a24)));
+}
+
+.sysprompt-project-add-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── `@` Input Bar & Stack Rail ───────────────────────────────────────────── */
@@ -762,6 +896,10 @@
   user-select: text;
 }
 
+.sysprompt-scope-action:focus-visible,
+.sysprompt-project-chip-main:focus-visible,
+.sysprompt-project-chip-remove:focus-visible,
+.sysprompt-project-add-select:focus-visible,
 .sysprompt-preset-pill:focus-visible,
 .sysprompt-new-pill:focus-visible,
 .sysprompt-at-trigger-chip:focus-visible,
