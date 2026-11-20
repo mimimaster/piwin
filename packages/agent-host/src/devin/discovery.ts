@@ -4,7 +4,7 @@ import {
   DEVIN_API,
   DEVIN_HOST,
   DEVIN_PROVIDER_ID,
-  buildUserJwtRequest,
+  buildMetadataRequest,
   fields,
 } from './protocol.js';
 
@@ -55,7 +55,7 @@ export async function discoverDevinModels(
       'connect-protocol-version': '1',
       accept: '*/*',
     },
-    body: new Uint8Array(buildUserJwtRequest(apiKey)),
+    body: new Uint8Array(buildMetadataRequest(apiKey)),
     signal: combined,
   });
   if (!response.ok) {
@@ -91,8 +91,21 @@ function normalizeConfigs(configs: Buffer[]): Model<Api>[] {
     const values = new Map(fields(config).map((field) => [field.number, field]));
     const id = stringValue(values.get(22)?.value).trim();
     if (!id || numberValue(values.get(4)?.value) !== 0) continue;
+    const modelInfo = readModelInfo(values.get(23)?.value);
+    const familyLabel = readFamilyLabel(values.get(30)?.value);
+    if (
+      isInternalRouterFamily(id) ||
+      isInternalRouterFamily(modelInfo.familyId) ||
+      isInternalRouterFamily(familyLabel)
+    ) {
+      continue;
+    }
     const name = stringValue(values.get(1)?.value).trim() || id;
     const contextWindow = numberValue(values.get(18)?.value) || DEFAULT_CONTEXT_WINDOW;
+    const maxTokens =
+      modelInfo.maxOutputTokens > 0
+        ? modelInfo.maxOutputTokens
+        : Math.min(contextWindow, DEFAULT_MAX_TOKENS);
     models.set(id, {
       id,
       name,
@@ -103,10 +116,44 @@ function normalizeConfigs(configs: Buffer[]): Model<Api>[] {
       input: numberValue(values.get(5)?.value) ? ['text', 'image'] : ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow,
-      maxTokens: Math.min(contextWindow, DEFAULT_MAX_TOKENS),
+      maxTokens,
     });
   }
   return [...models.values()].sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function readModelInfo(value: Buffer | bigint | undefined): {
+  maxOutputTokens: number;
+  familyId: string;
+} {
+  if (!Buffer.isBuffer(value)) {
+    return { maxOutputTokens: 0, familyId: '' };
+  }
+  let maxOutputTokens = 0;
+  let familyId = '';
+  for (const field of fields(value)) {
+    if (field.number === 13 && field.wire === 0) {
+      maxOutputTokens = numberValue(field.value);
+    } else if (field.number === 23 && field.wire === 2) {
+      familyId = stringValue(field.value).trim();
+    }
+  }
+  return { maxOutputTokens, familyId };
+}
+
+function readFamilyLabel(value: Buffer | bigint | undefined): string {
+  if (!Buffer.isBuffer(value)) return '';
+  for (const field of fields(value)) {
+    if (field.number === 1 && field.wire === 2) {
+      return stringValue(field.value).trim();
+    }
+  }
+  return '';
+}
+
+function isInternalRouterFamily(name: string): boolean {
+  const lower = name.trim().toLowerCase();
+  return lower === 'adaptive' || lower === 'fusion';
 }
 
 function stringValue(value: Buffer | bigint | undefined): string {

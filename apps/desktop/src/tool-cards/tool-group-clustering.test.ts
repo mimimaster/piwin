@@ -135,19 +135,26 @@ describe('clusterToolCalls', () => {
     expect(clustered.every((item) => item.kind === 'single')).toBe(true);
   });
 
-  it('detects running and error states in batch summary', () => {
+  it('detects running and non-shell error states in batch summary while ignoring failed shell calls', () => {
     const tools = [
-      makeTool('run_command', { status: 'done', presentation: { kind: 'shell', title: 'done cmd', durationMs: 300 } }),
-      makeTool('run_command', { status: 'error', presentation: { kind: 'shell', title: 'err cmd', durationMs: 200 } }),
+      makeTool('read_file', { status: 'done', presentation: { kind: 'filesystem', title: 'done read', durationMs: 300 } }),
+      makeTool('read_file', { status: 'error', presentation: { kind: 'filesystem', title: 'err read', durationMs: 200 } }),
+      makeTool('bash', { status: 'error', presentation: { kind: 'shell', title: 'err bash', durationMs: 100 } }),
       makeTool('run_command', { status: 'running', presentation: { kind: 'shell', title: 'running cmd' } }),
     ];
     const summary = computeBatchSummary('command', tools);
-    expect(summary.totalCount).toBe(3);
+    expect(summary.totalCount).toBe(4);
     expect(summary.hasRunning).toBe(true);
     expect(summary.activeTool?.status).toBe('running');
     expect(summary.hasError).toBe(true);
     expect(summary.errorCount).toBe(1);
-    expect(summary.totalDurationMs).toBe(500);
+    expect(summary.totalDurationMs).toBe(600);
+
+    const shellErrorOnly = computeBatchSummary('read', [
+      makeTool('bash', { status: 'error', presentation: { kind: 'shell', title: 'rg' } }),
+    ]);
+    expect(shellErrorOnly.hasError).toBe(false);
+    expect(shellErrorOnly.errorCount).toBe(0);
   });
 
   it('does not count cancelled tools as batch errors', () => {

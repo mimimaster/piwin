@@ -357,8 +357,8 @@ describe('Deck ramp projection', () => {
   it('projects Inkstone paper with a void darker than the panel surface', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_INKSTONE_PAPER);
 
-    expect(read('--void')).toBe('#e6e1d7');
-    expect(read('--surface-1')).toBe('#f0ece4');
+    expect(read('--void')).toBe('#e4e3df');
+    expect(read('--surface-1')).toBe('#efeeeb');
     expect(read('--void')).not.toBe(read('--surface-1'));
     expect(PIWIN_APPEARANCE_INKSTONE_PAPER.deck?.void).not.toBe(
       PIWIN_APPEARANCE_INKSTONE_PAPER.deck?.surface1,
@@ -566,14 +566,14 @@ describe('buildAppearanceTheme', () => {
   it('matches authored light preset by preset id', () => {
     const modernSettings: AppearanceThemeSettings = {
       preset: 'modern',
-      background: '#E2E5E9',
-      foreground: '#111827',
-      accent: '#111827',
+      background: '#E5E6E8',
+      foreground: '#16181D',
+      accent: '#16181D',
     };
     const theme = buildAppearanceTheme('light', modernSettings);
     expect(theme.id).toBe('piwin-inkstone-paper-modern');
     expect(theme.deck).toBeDefined();
-    expect(theme.deck?.void).toBe('#e2e5e9');
+    expect(theme.deck?.void).toBe('#e5e6e8');
 
     document.documentElement.removeAttribute('style');
     applyAppearanceToDocument(theme);
@@ -585,9 +585,9 @@ describe('buildAppearanceTheme', () => {
   it('matches authored light preset by tokens even if preset name is default', () => {
     const modernTokensSettings: AppearanceThemeSettings = {
       preset: 'default',
-      background: '#E2E5E9',
-      foreground: '#111827',
-      accent: '#111827',
+      background: '#E5E6E8',
+      foreground: '#16181D',
+      accent: '#16181D',
     };
     const theme = buildAppearanceTheme('light', modernTokensSettings);
     expect(theme.id).toBe('piwin-inkstone-paper-modern');

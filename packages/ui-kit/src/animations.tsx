@@ -60,6 +60,12 @@ export type AsteriskBreathProps = {
   testId?: string;
 };
 
+export type LiteRingProps = {
+  size?: AnimationSize;
+  label?: string;
+  testId?: string;
+};
+
 const SIZE_CLASS: Record<AnimationSize, string> = {
   sm: 'ui-anim--sm',
   md: 'ui-anim--md',
@@ -253,6 +259,21 @@ export function AsteriskBreath(props: AsteriskBreathProps): ReactElement {
         </g>
         <circle className="ui-anim-asterisk__core" cx="24" cy="24" r="2.5" />
       </svg>
+    </span>
+  );
+}
+
+/** 轻量动态环 — single-layer CSS rotating thin arc for low-memory fallback motion. */
+export function LiteRing(props: LiteRingProps): ReactElement {
+  const size = props.size ?? 'md';
+  return (
+    <span
+      className={`ui-anim-lite-ring ${SIZE_CLASS[size]}`}
+      role="img"
+      aria-label={props.label ?? 'loading'}
+      data-testid={props.testId ?? 'lite-ring'}
+    >
+      <span className="ui-anim-lite-ring__arc" />
     </span>
   );
 }

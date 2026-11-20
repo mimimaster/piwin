@@ -127,14 +127,18 @@ Evidence and reproduction sources are stored locally under
 
 ## Whitelisted live status animations
 
-Core status indicators using `ui-anim-*` (such as `AgentLocatorMark` /
-`RadialBellow` in `RunStatusFooter`) are whitelisted under `moderate` (768 MiB)
-and `critical` (1536 MiB) memory pressure so active-run feedback stays alive
-while the window is visible, pausing only under `data-memory-parked` when the
-window is hidden. `RadialBellow` places its radial vane rotation and offset on
-static `.ui-anim-radial-bellow__slot` wrappers while `@keyframes
-ui-anim-radial-bellow` animates only `scale` and `opacity`, keeping animations
-compositor-friendly and preventing vanes from collapsing at center when paused.
-The Memory panel reports the live mounted count (`liveStatusAnimations` in
-`desktopMetrics.resourceCounts`) alongside the current visual degradation policy
-matrix without fabricating per-element WebKit graphics byte counts.
+Core status indicators stay alive while the window is visible across all pressure tiers:
+under `normal` and `moderate` (768 MiB) pressure, full indicators such as
+`RadialBellow`, `AsteriskBreath`, and `BreathMatrix` run normally; under `critical`
+(1536 MiB) pressure, heavy multi-layer/SVG primitives pause while `AgentLocatorMark`
+and `SkillActivityChip` automatically downgrade to the single-layer pure-CSS
+`LiteRing` (or keep `BreathDot` if selected) so active runs keep clear, low-memory
+motion without multi-layer compositor overhead. Occlusion parking
+(`data-memory-parked`) pauses all `ui-anim-*` animations when the window is hidden.
+`RadialBellow` places its radial vane rotation and offset on static
+`.ui-anim-radial-bellow__slot` wrappers while `@keyframes ui-anim-radial-bellow`
+animates only `scale` and `opacity`, and paused states apply a compact resting
+vane scale so ticks stay cleanly separated. The Memory panel reports the live
+mounted count (`liveStatusAnimations` in `desktopMetrics.resourceCounts`) alongside
+the current visual degradation policy matrix without fabricating per-element
+WebKit graphics byte counts.

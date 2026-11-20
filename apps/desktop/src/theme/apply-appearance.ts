@@ -403,8 +403,8 @@ export function applyAppearanceToDocument(
   root.style.colorScheme = theme.mode;
   // The native window material (styles/window-material*.css) is tuned for the
   // Inkstone faces over a native material (macOS vibrancy, Windows 11 Mica)
-  // only; memory pressure / occlusion parking temporarily forces opaque solid
-  // surfaces via syncWindowMaterialMarker.
+  // or an uploaded wallpaper; syncWindowMaterialMarker keeps `data-window-material`
+  // aligned with the active theme and material/wallpaper flags.
   syncWindowMaterialMarker(root);
   if (INKSTONE_DOCUMENT_THEME_IDS.has(theme.id)) {
     for (const name of INKSTONE_STYLESHEET_SLAB_VARS) {

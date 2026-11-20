@@ -103,7 +103,7 @@ describe('AppearanceLightPresets', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     const updated = onChange.mock.calls[0]?.[0] as DesktopPreferences;
     expect(updated.lightTheme.preset).toBe('modern');
-    expect(updated.lightTheme.background).toBe('#E2E5E9');
+    expect(updated.lightTheme.background).toBe('#E5E6E8');
 
     expect(onThemeApplied).toHaveBeenCalledTimes(1);
     const appliedTheme = onThemeApplied.mock.calls[0]?.[0];

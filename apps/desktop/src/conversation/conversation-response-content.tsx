@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { RadialBellow } from '@piwin/ui-kit';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type {
   FlashcardReviewCard,
@@ -7,6 +6,7 @@ import type {
   ModelRef,
   ThemeManifest,
 } from '@piwin/contracts';
+import { AgentLocatorMark } from '../agents/agent-locator.js';
 import { pickArtifactFenceSecurity } from '../artifact/artifact-fence-security';
 import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model';
 import type { ChatMessageUi, RunRecordUi, ToolCardUi } from './chat-reducer';
@@ -301,7 +301,9 @@ export function ConversationResponseContent(props: {
             data-tool-status="running"
           >
             <span className="turn-summary-active-animation" aria-hidden="true">
-              <RadialBellow
+              <AgentLocatorMark
+                animation="radial-bellow"
+                locale={locale}
                 size="sm"
                 label={composingLabel}
                 testId="conversation-tool-args-radial-bellow"

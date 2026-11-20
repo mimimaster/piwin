@@ -633,3 +633,126 @@ describe('tool card retention cap', () => {
     expect(state.messages[0]?.tools).toHaveLength(MAX_TOOL_CARDS_PER_MESSAGE);
   });
 });
+
+describe('memory bounds on subagent streams, envelope dedup, and run records', () => {
+  it('evicts completed subagentStreams beyond MAX_SUBAGENT_CHILDREN', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+    for (let index = 0; index < MAX_SUBAGENT_CHILDREN + 5; index += 1) {
+      const childId = `child-${index}`;
+      state = chatUiReducer(state, {
+        type: 'subagent/stream',
+        parentSessionId: 'parent-1',
+        childSessionId: childId,
+        event: { type: 'message/start', messageId: `m-${index}`, role: 'assistant' },
+      });
+      state = chatUiReducer(state, {
+        type: 'subagent/stream',
+        parentSessionId: 'parent-1',
+        childSessionId: childId,
+        event: { type: 'message/end', messageId: `m-${index}` },
+      });
+    }
+    expect(Object.keys(state.subagentStreams)).toHaveLength(MAX_SUBAGENT_CHILDREN);
+    expect(state.subagentStreams['child-0']).toBeUndefined();
+    expect(state.subagentStreams[`child-${MAX_SUBAGENT_CHILDREN + 4}`]).toBeDefined();
+  });
+
+  it('drops intra-batch duplicates/stale sequences and caps eventId & run sequence state', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/start', messageId: 'a1', role: 'assistant', runId: 'r1' },
+      envelope: { eventId: 'e-start', runId: 'r1', sequence: 1 },
+    });
+
+    state = chatUiReducer(state, {
+      type: 'event/batch',
+      sessionId: 's1',
+      events: [
+        { type: 'message/text_delta', messageId: 'a1', delta: 'ok ', runId: 'r1' },
+        { type: 'message/text_delta', messageId: 'a1', delta: 'DUP ', runId: 'r1' },
+        { type: 'message/text_delta', messageId: 'a1', delta: 'STALE_SEQ ', runId: 'r1' },
+        { type: 'message/text_delta', messageId: 'a1', delta: 'done', runId: 'r1' },
+      ],
+      envelopes: [
+        { eventId: 'e-2', runId: 'r1', sequence: 2 },
+        { eventId: 'e-2', runId: 'r1', sequence: 3 },
+        { eventId: 'e-3', runId: 'r1', sequence: 2 },
+        { eventId: 'e-4', runId: 'r1', sequence: 4 },
+      ],
+    });
+    expect(state.messages[0]?.text).toBe('ok done');
+    expect(state.lastAcceptedSequenceByRun.r1).toBe(4);
+
+    // Overflow both the 2,048 eventId cap and the 64 run-sequence cap in batches.
+    const events = Array.from({ length: 2_200 }, (_, i) => ({
+      type: 'message/text_delta' as const,
+      messageId: 'a1',
+      delta: '',
+      runId: `run-${i % 80}`,
+    }));
+    const envelopes = Array.from({ length: 2_200 }, (_, i) => ({
+      eventId: `ev-${i}`,
+      runId: `run-${i % 80}`,
+      sequence: i + 10,
+    }));
+    state = chatUiReducer(state, {
+      type: 'event/batch',
+      sessionId: 's1',
+      events,
+      envelopes,
+    });
+    expect(state.receivedEventIds.size).toBeLessThanOrEqual(2_048);
+    expect(Object.keys(state.lastAcceptedSequenceByRun).length).toBeLessThanOrEqual(64);
+  });
+
+  it('caps runRecordsById and run phaseHistory', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    for (let index = 0; index < 75; index += 1) {
+      const runId = `run-${index}`;
+      state = chatUiReducer(state, {
+        type: 'run/accepted',
+        runId,
+      });
+      state = chatUiReducer(state, {
+        type: 'run/updated',
+        run: {
+          runId,
+          rootRunId: runId,
+          sessionId: 's1',
+          kind: 'session-turn',
+          status: 'completed',
+          revision: 1,
+          startedAt: '2026-08-09T00:00:00.000Z',
+        },
+      });
+    }
+    expect(Object.keys(state.runRecordsById)).toHaveLength(64);
+    expect(state.runRecordsById['run-0']).toBeUndefined();
+    expect(state.runRecordsById['run-74']).toBeDefined();
+
+    for (let step = 0; step < 45; step += 1) {
+      state = chatUiReducer(state, {
+        type: 'run/updated',
+        run: {
+          runId: 'run-75',
+          rootRunId: 'run-75',
+          sessionId: 's1',
+          kind: 'session-turn',
+          status: 'running',
+          phase: 'streaming',
+          phaseDetail: `step-${step}`,
+          revision: step + 2,
+          startedAt: '2026-08-09T00:00:00.000Z',
+        },
+      });
+    }
+    expect(state.runRecordsById['run-75']?.phaseHistory).toHaveLength(32);
+    expect(state.runRecordsById['run-75']?.phaseHistory[0]?.detail).toBe('step-13');
+    expect(state.runRecordsById['run-75']?.phaseHistory.at(-1)?.detail).toBe('step-44');
+  });
+});

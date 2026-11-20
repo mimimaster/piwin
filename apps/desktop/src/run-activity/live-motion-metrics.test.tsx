@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import { AgentLocator, SkillActivityChip } from '../agents/agent-locator.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
 import { desktopMetrics } from './diagnostic-metrics.js';
 import {
   getLiveMotionStats,
@@ -44,6 +45,7 @@ describe('live-motion-metrics', () => {
     act(() => root.unmount());
     container.remove();
     resetLiveMotionMetrics();
+    globalMemoryGovernor.reset();
     window.matchMedia = previousMatchMedia;
   });
 
@@ -58,6 +60,7 @@ describe('live-motion-metrics', () => {
         'asterisk-breath': 0,
         'breath-dot': 1,
         'breath-matrix': 0,
+        'lite-ring': 0,
       },
     });
     expect(desktopMetrics.collectObservability().resourceCounts.liveStatusAnimations).toBe(2);
@@ -97,5 +100,43 @@ describe('live-motion-metrics', () => {
     });
 
     expect(getLiveMotionStats().total).toBe(0);
+  });
+
+  it('tracks lite-ring downgrade under critical pressure and restores primitives on normal', () => {
+    act(() => {
+      globalMemoryGovernor.setLevel('critical');
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} />
+          <SkillActivityChip skill={{ skillId: 's1', name: 's1' }} loading locale="en" />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(getLiveMotionStats()).toEqual({
+      total: 2,
+      byKind: {
+        'radial-bellow': 0,
+        'asterisk-breath': 0,
+        'breath-dot': 0,
+        'breath-matrix': 0,
+        'lite-ring': 2,
+      },
+    });
+
+    act(() => {
+      globalMemoryGovernor.setLevel('normal');
+    });
+
+    expect(getLiveMotionStats()).toEqual({
+      total: 2,
+      byKind: {
+        'radial-bellow': 1,
+        'asterisk-breath': 0,
+        'breath-dot': 0,
+        'breath-matrix': 1,
+        'lite-ring': 0,
+      },
+    });
   });
 });

@@ -143,8 +143,9 @@ describe('buildTurnWorkSegments', () => {
         tools: [
           editTool('e1', 'src/a.ts'),
           readTool('r1'),
-          tool('f1', { status: 'error' }),
-          tool('cancelled', { status: 'error', presentation: { kind: 'shell', title: 'bash', error: { category: 'cancelled', message: 'stopped' } } }),
+          tool('f1', { toolName: 'read', status: 'error', presentation: { kind: 'filesystem', title: 'read' } }),
+          tool('failed-bash', { status: 'error', presentation: { kind: 'shell', title: 'bash', command: 'rg missing' } }),
+          tool('cancelled', { status: 'error', presentation: { kind: 'filesystem', title: 'read', error: { category: 'cancelled', message: 'stopped' } } }),
         ],
       }),
       assistant('answer', { text: 'Done.' }),
@@ -211,16 +212,23 @@ describe('buildTurnWorkSegments', () => {
 describe('resolveSegmentDefaultOpen', () => {
   const segment = buildTurnWorkSegments(turnOf([assistant('a', { text: 'x' })]), 0, 0)[0];
   const failing = buildTurnWorkSegments(
-    turnOf([assistant('f', { text: 'x', tools: [tool('t', { status: 'error' })] })]),
+    turnOf([assistant('f', { text: 'x', tools: [tool('t', { toolName: 'read', status: 'error', presentation: { kind: 'filesystem', title: 'read' } })] })]),
+    0,
+    0,
+  )[0];
+  const failingShell = buildTurnWorkSegments(
+    turnOf([assistant('fb', { text: 'x', tools: [tool('tb', { status: 'error' })] })]),
     0,
     0,
   )[0];
 
-  it('opens the newest and failing segments, everything in expand-all', () => {
-    if (!segment || !failing) throw new Error('fixture');
+  it('opens the newest and non-shell failing segments, everything in expand-all, while keeping failed bash segments closed', () => {
+    if (!segment || !failing || !failingShell) throw new Error('fixture');
     expect(resolveSegmentDefaultOpen(segment, { isLast: false, expandAll: false })).toBe(false);
     expect(resolveSegmentDefaultOpen(segment, { isLast: true, expandAll: false })).toBe(true);
     expect(resolveSegmentDefaultOpen(failing, { isLast: false, expandAll: false })).toBe(true);
+    expect(resolveSegmentDefaultOpen(failingShell, { isLast: false, expandAll: false })).toBe(false);
+    expect(failingShell.summary.failureCount).toBe(0);
     expect(resolveSegmentDefaultOpen(segment, { isLast: false, expandAll: true })).toBe(true);
   });
 

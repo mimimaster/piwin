@@ -70,10 +70,12 @@ export function createTranscriptTurnSummaryReader(
         ...(row.run_id === null ? {} : { runId: row.run_id }),
         ...timing,
         tools: tools.map((tool) => ({
+          ...(tool.toolName !== undefined ? { toolName: tool.toolName } : {}),
           status: tool.status,
           ...(tool.presentation
             ? {
                 presentation: {
+                  ...(tool.presentation.kind !== undefined ? { kind: tool.presentation.kind } : {}),
                   ...(tool.presentation.changedPaths
                     ? { changedPaths: tool.presentation.changedPaths }
                     : {}),

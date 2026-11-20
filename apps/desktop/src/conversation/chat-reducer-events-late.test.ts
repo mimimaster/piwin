@@ -981,4 +981,100 @@ describe('chatUiReducer events (late stream)', () => {
       firstAttachment && firstAttachment.kind === 'media' ? firstAttachment.path : '',
     ).toContain('a.png');
   });
+
+  it('clears settled shell output on tool/end when slimSettledShellOutput is enabled while keeping structured metadata and non-shell output', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/start', messageId: 'm1', role: 'assistant', runId: 'run-1' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/start',
+        toolCallId: 'sh-1',
+        toolName: 'bash',
+        runId: 'run-1',
+        responseMessageId: 'm1',
+        presentation: { kind: 'shell', title: 'bash', command: 'pnpm test' },
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/update',
+        toolCallId: 'sh-1',
+        runId: 'run-1',
+        responseMessageId: 'm1',
+        delta: 'streaming line\n',
+      },
+    });
+    expect(state.messages[0]?.tools[0]?.output).toContain('streaming line');
+
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      slimSettledShellOutput: true,
+      event: {
+        type: 'tool/end',
+        toolCallId: 'sh-1',
+        isError: true,
+        runId: 'run-1',
+        responseMessageId: 'm1',
+        presentation: {
+          kind: 'shell',
+          title: 'bash',
+          command: 'pnpm test',
+          exitCode: 1,
+          error: { category: 'execution', message: 'exit 1' },
+          output: { text: 'full large output', truncated: false },
+        },
+      },
+    });
+
+    const settledShell = state.messages[0]?.tools[0];
+    expect(settledShell?.status).toBe('error');
+    expect(settledShell?.output).toBe('');
+    expect(settledShell?.outputRetainedBytes).toBe(0);
+    expect(settledShell?.presentation?.command).toBe('pnpm test');
+    expect(settledShell?.presentation?.exitCode).toBe(1);
+    expect(settledShell?.presentation?.error?.message).toBe('exit 1');
+    expect(settledShell?.presentation?.output).toBeUndefined();
+
+    // Non-shell tool output stays intact even when slimSettledShellOutput is enabled.
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/start',
+        toolCallId: 'rd-1',
+        toolName: 'read_file',
+        runId: 'run-1',
+        responseMessageId: 'm1',
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      slimSettledShellOutput: true,
+      event: {
+        type: 'tool/end',
+        toolCallId: 'rd-1',
+        isError: false,
+        runId: 'run-1',
+        responseMessageId: 'm1',
+        presentation: {
+          kind: 'filesystem',
+          title: 'read_file',
+          output: { text: 'file content', truncated: false },
+        },
+      },
+    });
+    expect(state.messages[0]?.tools[1]?.output).toBe('file content');
+  });
 });

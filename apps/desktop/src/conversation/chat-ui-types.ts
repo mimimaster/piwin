@@ -722,12 +722,14 @@ export type ChatUiAction =
       sessionId: string;
       event: AgentEvent;
       envelope?: AgentEventEnvelope;
+      slimSettledShellOutput?: boolean;
     }
   | {
       type: 'event/batch';
       sessionId: string;
       events: AgentEvent[];
       envelopes?: Array<AgentEventEnvelope | undefined>;
+      slimSettledShellOutput?: boolean;
     }
   | { type: 'compaction/dismiss' }
   | { type: 'error'; message: string }

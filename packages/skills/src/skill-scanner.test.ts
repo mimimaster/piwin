@@ -291,4 +291,64 @@ describe('scanSkills product origin', () => {
       await rm(rootDir, { recursive: true, force: true });
     }
   });
+
+  it('excludes mapped skills listed in excludedIds without affecting user/project/bundled skills', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const repoSkillsRoot = resolve(here, '..', '..', '..', 'skills');
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-excluded-'));
+    const mappedDir = join(rootDir, 'external-skills');
+    const projectDir = join(rootDir, 'project');
+    try {
+      const userSkillDir = join(rootDir, 'skills', 'keep-user');
+      await mkdir(userSkillDir, { recursive: true });
+      await writeFile(
+        join(userSkillDir, 'SKILL.md'),
+        '---\nname: keep-user\ndescription: User skill\n---\n',
+        'utf8',
+      );
+      const projectSkillDir = join(projectDir, '.pi', 'skills', 'keep-project');
+      await mkdir(projectSkillDir, { recursive: true });
+      await writeFile(
+        join(projectSkillDir, 'SKILL.md'),
+        '---\nname: keep-project\ndescription: Project skill\n---\n',
+        'utf8',
+      );
+
+      await mkdir(join(mappedDir, 'aws-cdk'), { recursive: true });
+      await writeFile(
+        join(mappedDir, 'aws-cdk', 'SKILL.md'),
+        '---\nname: aws-cdk\ndescription: >-\n  AWS CDK helper\n---\n',
+        'utf8',
+      );
+      await mkdir(join(mappedDir, 'amazon-bedrock'), { recursive: true });
+      await writeFile(
+        join(mappedDir, 'amazon-bedrock', 'SKILL.md'),
+        '---\nname: amazon-bedrock\ndescription: >-\n  AWS Bedrock helper\n---\n',
+        'utf8',
+      );
+
+      const skills = await scanSkills({
+        piwinRoot: rootDir,
+        projectPath: projectDir,
+        bundledRoot: repoSkillsRoot,
+        skillsConfig: {
+          extraPaths: [mappedDir],
+          disabledIds: [],
+          excludedIds: ['aws-cdk', 'keep-user', 'keep-project', 'find-skill'],
+        },
+      });
+
+      expect(skills.some((s) => s.id === 'aws-cdk')).toBe(false);
+      const bedrock = skills.find((s) => s.id === 'amazon-bedrock');
+      expect(bedrock?.source).toBe('mapped');
+      expect(bedrock?.mappedFrom).toBe(mappedDir);
+      expect(bedrock?.description).toBe('AWS Bedrock helper');
+      expect(skills.find((s) => s.id === 'keep-user')?.source).toBe('user');
+      expect(skills.find((s) => s.id === 'keep-project')?.source).toBe('project');
+      expect(skills.find((s) => s.id === 'find-skill')?.source).toBe('bundled');
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
 });

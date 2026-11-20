@@ -95,6 +95,7 @@ pub fn run() {
             memory_pressure::purge_webview_memory,
             memory_pressure::ack_memory_sample,
             memory_pressure::memory_observability_snapshot,
+            memory_pressure::recycle_webview_process,
             webview_inspection::webview_inspection,
             attention_notifications::attention_capabilities,
             attention_notifications::attention_authorization_status,

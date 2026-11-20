@@ -20,4 +20,25 @@ describe('public provider identity', () => {
       models: [{ id: 'remote-free', enabled: false, contextWindow: 54321 }],
     });
   });
+
+  it('seeds new extension catalog models as disabled when all existing models are disabled', () => {
+    const config: PiwinConfig = { hostMode: 'sdk', providers: [],
+      media: { maxPasteBytes: 1000, allowedMimeTypes: [] },
+      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1000 },
+    };
+    config.providers = [{ id: 'opencode-zen', name: 'OpenCode Zen',
+      protocol: 'openai-compatible', source: 'extension', baseUrl: 'extension://opencode-zen',
+      models: [{ id: 'remote-free', enabled: false }],
+    }];
+    const next = projectPublicModelProviders(config, [{ kind: 'model', providerId: 'opencode-zen',
+      entryPath: '/exact/revision', displayName: 'OpenCode Zen', bundled: true,
+    }], () => [
+      { id: 'remote-free', name: 'Remote Free' },
+      { id: 'brand-new-free', name: 'Brand New Free' },
+    ]);
+    expect(next.providers[0]?.models.map((model) => ({ id: model.id, enabled: model.enabled }))).toEqual([
+      { id: 'remote-free', enabled: false },
+      { id: 'brand-new-free', enabled: false },
+    ]);
+  });
 });

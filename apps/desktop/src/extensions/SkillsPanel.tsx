@@ -12,7 +12,6 @@ import {
   canUninstallSkill,
   groupSkillsBySource,
   resourceSourceLabel,
-  WELL_KNOWN_SKILL_PATH_PRESETS,
 } from '@piwin/contracts';
 import { catalogDescription } from '../tool-cards/catalog-display-copy.js';
 import { isRemoteCommandGapError } from '../host/remote-command-gap.js';
@@ -26,10 +25,14 @@ import {
   TextInput,
 } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
-import { PageTitle } from '../settings/page-title';
 import { CapabilityDiscoveryHint } from '../settings/capability-discovery-hint';
 import { skillInstalledEffectMessage } from '../settings/settings-effect-copy.js';
-import { nextSkillsConfigForMapping } from './skill-path-mapping.js';
+import { ExternalSkillMappingSection } from './ExternalSkillMappingSection.js';
+import { MappedSkillsGroup } from './MappedSkillsGroup.js';
+import {
+  nextSkillsConfigForExcludedIds,
+  nextSkillsConfigForMapping,
+} from './skill-path-mapping.js';
 import { notifySkillsChanged } from './skills-changed.js';
 
 export type SkillsPanelProps = {
@@ -71,6 +74,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
   const [installing, setInstalling] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [mappedPaths, setMappedPaths] = useState<string[]>([]);
+  const [excludedIds, setExcludedIds] = useState<string[]>([]);
   const [mappingBusy, setMappingBusy] = useState(false);
 
   // Keyed on what the queries read; a fresh `props` object per parent render
@@ -98,12 +102,14 @@ export function SkillsPanel(props: SkillsPanelProps) {
   const loadMappedPaths = useCallback(async () => {
     if (readOnly) {
       setMappedPaths([]);
+      setExcludedIds([]);
       return;
     }
     const response = await request({ type: 'config/get' });
     if (!response.success) return;
     const data = response.data as { config: PiwinConfig };
     setMappedPaths(data.config.skills?.extraPaths ?? []);
+    setExcludedIds(data.config.skills?.excludedIds ?? []);
   }, [request, readOnly]);
 
   useEffect(() => {
@@ -270,6 +276,62 @@ export function SkillsPanel(props: SkillsPanelProps) {
     }
   }
 
+  async function handleSetExcluded(
+    skillIds: readonly string[],
+    excluded: boolean,
+    singleLabel?: string,
+  ) {
+    if (skillIds.length === 0) return;
+    setMappingBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const getResp = await props.request({ type: 'config/get' });
+      if (!getResp.success) {
+        setError(getResp.error);
+        return;
+      }
+      const { config } = getResp.data as { config: PiwinConfig };
+      const nextSkills = nextSkillsConfigForExcludedIds(config.skills, skillIds, excluded);
+      if (nextSkills) {
+        const setResp = await props.request({
+          type: 'config/set',
+          config: { ...config, skills: nextSkills },
+        });
+        if (!setResp.success) {
+          setError(setResp.error);
+          return;
+        }
+      }
+      if (excluded) {
+        setInfo(
+          skillIds.length === 1
+            ? isChinese
+              ? `已从映射中移除：${singleLabel ?? skillIds[0]}`
+              : `Removed mapped skill: ${singleLabel ?? skillIds[0]}`
+            : isChinese
+              ? `已从映射中移除 ${skillIds.length} 个技能`
+              : `Removed ${skillIds.length} mapped skills`,
+        );
+      } else {
+        setInfo(
+          skillIds.length === 1
+            ? isChinese
+              ? `已恢复映射技能：${singleLabel ?? skillIds[0]}`
+              : `Restored mapped skill: ${singleLabel ?? skillIds[0]}`
+            : isChinese
+              ? `已恢复全部 ${skillIds.length} 个映射技能`
+              : `Restored ${skillIds.length} mapped skills`,
+        );
+      }
+      notifySkillsChanged();
+      await loadMappedPaths();
+      await loadSkills();
+    } finally {
+      setMappingBusy(false);
+    }
+  }
+
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
       <div
@@ -315,61 +377,82 @@ export function SkillsPanel(props: SkillsPanelProps) {
                 </div>
               ) : (
                 <div data-testid="skills-list">
-                  {grouped.map((group) => (
-                    <section
-                      key={group.source}
-                      className="ext-list-group"
-                      data-testid={`skills-group-${group.source}`}
-                    >
-                      <h3 className="muted ext-list-group-title">
-                        {resourceSourceLabel(group.source, sourceLocale)}
-                      </h3>
-                      <ul className="ext-list">
-                        {group.skills.map((skill) => (
-                          <li key={skill.id} className="ext-list-item">
-                            <div className="ext-list-main">
-                              <div className="ext-list-title">
-                                <strong>{skill.name}</strong>
-                                <span className="pill muted">
-                                  {resourceSourceLabel(skill.source, sourceLocale)}
-                                </span>
-                                {canToggleSkill(skill.source) && skill.enabled ? (
-                                  <span className="pill ok">{isChinese ? '已启用' : 'on'}</span>
-                                ) : null}
+                  {grouped.map((group) =>
+                    group.source === 'mapped' ? (
+                      <MappedSkillsGroup
+                        key={group.source}
+                        skills={group.skills}
+                        mappedPaths={mappedPaths}
+                        filterActive={filter.trim().length > 0}
+                        isChinese={isChinese}
+                        readOnly={props.readOnly ?? false}
+                        busy={mappingBusy}
+                        onToggleSkill={(skill) => void handleToggle(skill)}
+                        onExcludeSkills={(targetSkills) =>
+                          void handleSetExcluded(
+                            targetSkills.map((entry) => entry.id),
+                            true,
+                            targetSkills.length === 1 ? targetSkills[0]?.name : undefined,
+                          )
+                        }
+                        onUnmapPath={(path) => void handleSetMapping(path, false)}
+                      />
+                    ) : (
+                      <section
+                        key={group.source}
+                        className="ext-list-group"
+                        data-testid={`skills-group-${group.source}`}
+                      >
+                        <h3 className="muted ext-list-group-title">
+                          {resourceSourceLabel(group.source, sourceLocale)}
+                        </h3>
+                        <ul className="ext-list">
+                          {group.skills.map((skill) => (
+                            <li key={skill.id} className="ext-list-item">
+                              <div className="ext-list-main">
+                                <div className="ext-list-title">
+                                  <strong>{skill.name}</strong>
+                                  <span className="pill muted">
+                                    {resourceSourceLabel(skill.source, sourceLocale)}
+                                  </span>
+                                  {canToggleSkill(skill.source) && skill.enabled ? (
+                                    <span className="pill ok">{isChinese ? '已启用' : 'on'}</span>
+                                  ) : null}
+                                </div>
+                                <div className="muted ext-desc">
+                                  {catalogDescription(skill.id, skill.description, sourceLocale)}
+                                </div>
                               </div>
-                              <div className="muted ext-desc">
-                                {catalogDescription(skill.id, skill.description, sourceLocale)}
-                              </div>
-                            </div>
-                            {canUninstallSkill(skill.source) || canToggleSkill(skill.source) ? (
-                              <div className="ext-list-actions">
-                                {canUninstallSkill(skill.source) ? (
-                                  <Button
-                                    size="compact"
-                                    variant="ghost"
-                                    disabled={props.readOnly}
-                                    onClick={() => void handleUninstall(skill)}
-                                    data-testid={`skill-uninstall-${skill.id}`}
-                                  >
-                                    {isChinese ? '删除' : 'Remove'}
-                                  </Button>
-                                ) : null}
-                                {canToggleSkill(skill.source) ? (
-                                  <Switch
-                                    checked={skill.enabled}
-                                    disabled={props.readOnly}
-                                    onCheckedChange={() => void handleToggle(skill)}
-                                    aria-label={isChinese ? `启用 ${skill.name}` : `Enable ${skill.name}`}
-                                    testId={`skill-toggle-${skill.id}`}
-                                  />
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  ))}
+                              {canUninstallSkill(skill.source) || canToggleSkill(skill.source) ? (
+                                <div className="ext-list-actions">
+                                  {canUninstallSkill(skill.source) ? (
+                                    <Button
+                                      size="compact"
+                                      variant="ghost"
+                                      disabled={props.readOnly}
+                                      onClick={() => void handleUninstall(skill)}
+                                      data-testid={`skill-uninstall-${skill.id}`}
+                                    >
+                                      {isChinese ? '删除' : 'Remove'}
+                                    </Button>
+                                  ) : null}
+                                  {canToggleSkill(skill.source) ? (
+                                    <Switch
+                                      checked={skill.enabled}
+                                      disabled={props.readOnly}
+                                      onCheckedChange={() => void handleToggle(skill)}
+                                      aria-label={isChinese ? `启用 ${skill.name}` : `Enable ${skill.name}`}
+                                      testId={`skill-toggle-${skill.id}`}
+                                    />
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ),
+                  )}
                 </div>
               )}
 
@@ -381,43 +464,16 @@ export function SkillsPanel(props: SkillsPanelProps) {
               ) : null}
             </div>
 
-            <div
-              className="settings-section"
-              style={{ paddingTop: 24, borderTop: '1px solid var(--line-soft)' }}
-            >
-              <PageTitle
-                title={isChinese ? '映射外部路径' : 'Map External Paths'}
-                description={
-                  isChinese
-                    ? '从 Cursor 或 Claude 映射已有的技能根目录。'
-                    : 'Map skill roots from Cursor or Claude.'
-                }
-              />
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {WELL_KNOWN_SKILL_PATH_PRESETS.map((preset) => {
-                  const mapped = mappedPaths.includes(preset.path);
-                  return (
-                    <Button
-                      key={preset.id}
-                      size="compact"
-                      variant={mapped ? 'ghost' : 'secondary'}
-                      disabled={mappingBusy || props.readOnly}
-                      onClick={() => void handleSetMapping(preset.path, !mapped)}
-                      title={preset.path}
-                      data-testid={`skill-map-${preset.id}`}
-                    >
-                      {mapped
-                        ? isChinese
-                          ? `✓ ${preset.label}（点击取消）`
-                          : `✓ ${preset.label} (click to unmap)`
-                        : isChinese
-                          ? `映射 ${preset.label}`
-                          : `Map ${preset.label}`}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
+            <ExternalSkillMappingSection
+              mappedPaths={mappedPaths}
+              excludedIds={excludedIds}
+              isChinese={isChinese}
+              readOnly={props.readOnly ?? false}
+              busy={mappingBusy}
+              onSetMapping={(path, mapped) => void handleSetMapping(path, mapped)}
+              onRestoreExcluded={(skillId) => void handleSetExcluded([skillId], false, skillId)}
+              onRestoreAllExcluded={() => void handleSetExcluded(excludedIds, false)}
+            />
 
             <div
               className="settings-section"

@@ -14,6 +14,8 @@ import {
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   isChannelProvider,
   isExtensionProvider,
+  isModelEnabled,
+  isProviderEnabled,
   isSubscriptionProvider,
   isThinkingLevel,
   isClaudeCodeOauthProviderId,
@@ -127,19 +129,43 @@ export function upsertSubscriptionProvider(
   return { ...config, providers };
 }
 
+/**
+ * When a provider is disabled or all of its existing models are disabled, newly
+ * synced catalog models must inherit `enabled: false` instead of silently turning on.
+ */
+export function shouldSeedNewCatalogModelsDisabled(
+  existing: ModelProviderConfig | undefined,
+): boolean {
+  if (existing === undefined) {
+    return false;
+  }
+  if (!isProviderEnabled(existing)) {
+    return true;
+  }
+  return existing.models.length > 0 && existing.models.every((model) => !isModelEnabled(model));
+}
+
 export function ensureSubscriptionProviders(
   config: PiwinConfig,
   accounts: readonly SubscriptionAccount[],
   catalogFor: (providerId: string) => readonly SubscriptionCatalogSeedModel[],
 ): PiwinConfig {
-  const usable = new Set<string>();
+  const retained = new Set<string>();
   let next = config;
   for (const account of accounts) {
     // Accounts are already limited to built-in ids plus enabled extension claims.
+    // Keep persisted settings (disabled models, removedModelIds) during transient
+    // `needs-reauth` / `logging-in` states; only drop when logged out or colliding.
+    if (
+      account.surface === 'v1' &&
+      account.collidingChannelId === undefined &&
+      account.state !== 'logged-out'
+    ) {
+      retained.add(account.providerId);
+    }
     if (!isSubscriptionAccountUsable(account)) {
       continue;
     }
-    usable.add(account.providerId);
     next = upsertSubscriptionProvider(
       next,
       account.providerId,
@@ -147,7 +173,7 @@ export function ensureSubscriptionProviders(
       account.extension?.displayName,
     );
   }
-  return dropUnusableSubscriptionProviders(next, usable);
+  return dropUnusableSubscriptionProviders(next, retained);
 }
 
 function dropUnusableSubscriptionProviders(
@@ -182,6 +208,7 @@ function mergeSubscriptionProvider(
 ): ModelProviderConfig {
   const previousById = new Map((existing?.models ?? []).map((model) => [model.id, model]));
   const removed = new Set(existing?.removedModelIds ?? []);
+  const seedNewDisabled = shouldSeedNewCatalogModelsDisabled(existing);
   const models: ModelConfigEntry[] = [];
   const searchSurface = subscriptionChatBaseUrl(providerId);
   for (const catalogModel of catalog) {
@@ -191,11 +218,12 @@ function mergeSubscriptionProvider(
     }
     const fresh = catalogModelToConfigEntry(catalogModel);
     const previous = previousById.get(catalogModel.id);
-    models.push(
-      previous
-        ? mergeSubscriptionCatalogModel(fresh, previous)
-        : withDiscoveredNativeSearch(fresh, searchSurface),
-    );
+    if (previous) {
+      models.push(mergeSubscriptionCatalogModel(fresh, previous));
+    } else {
+      const discovered = withDiscoveredNativeSearch(fresh, searchSurface);
+      models.push(seedNewDisabled ? { ...discovered, enabled: false } : discovered);
+    }
     previousById.delete(catalogModel.id);
   }
   for (const leftover of previousById.values()) {

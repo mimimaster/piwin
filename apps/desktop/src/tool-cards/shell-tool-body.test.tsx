@@ -221,4 +221,15 @@ describe('ShellToolBody', () => {
     expect(container.textContent).not.toContain('无输出');
     expect(container.querySelector('.shell-trail-foot')).toBeNull();
   });
+
+  it('omits generic failure stamp when a failed shell has no exitCode or timeout/cancelled/permission category', () => {
+    render({
+      status: 'error',
+      exitCode: undefined,
+      output: 'something went wrong',
+      error: { category: 'execution', message: 'command failed' },
+    });
+    expect(container.querySelector('[data-testid="tool-call-shell-stamp"]')).toBeNull();
+    expect(container.textContent).not.toContain('失败');
+  });
 });

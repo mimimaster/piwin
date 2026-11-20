@@ -138,6 +138,43 @@ describe('requestRendererRecovery', () => {
     expect(result.allowed).toBe(true);
     expect(relaunch).toHaveBeenCalledTimes(1);
   });
+
+  it('invokes native recycle_webview_process inside desktop Tauri and falls back to reload on error', async () => {
+    const reload = vi.fn();
+    const invoke = vi.fn().mockRejectedValueOnce(new Error('ipc failed')).mockResolvedValueOnce(undefined);
+    vi.doMock('@tauri-apps/api/core', () => ({ invoke }));
+    vi.stubGlobal('window', {
+      __TAURI_INTERNALS__: {},
+      navigator: { userAgent: 'Macintosh', maxTouchPoints: 0 },
+      location: { reload },
+    });
+    try {
+      const failedResult = requestRendererRecovery({
+        getDraftState: () => EMPTY_INPUT,
+        isRunActive: () => false,
+        dispatchRelaunchEvent: () => true,
+      });
+      expect(failedResult.allowed).toBe(true);
+      await vi.waitFor(() => {
+        expect(invoke).toHaveBeenNthCalledWith(1, 'recycle_webview_process');
+        expect(reload).toHaveBeenCalledTimes(1);
+      });
+
+      const okResult = requestRendererRecovery({
+        getDraftState: () => EMPTY_INPUT,
+        isRunActive: () => false,
+        dispatchRelaunchEvent: () => true,
+      });
+      expect(okResult.allowed).toBe(true);
+      await vi.waitFor(() => {
+        expect(invoke).toHaveBeenNthCalledWith(2, 'recycle_webview_process');
+      });
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock('@tauri-apps/api/core');
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe('persistedDraftStateReader', () => {

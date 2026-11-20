@@ -105,6 +105,8 @@ export type SkillSummary = {
   description: string;
   source: SkillSource;
   path: string;
+  /** Configured extraPaths entry when source === 'mapped'. */
+  mappedFrom?: string;
   enabled: boolean;
   hidden?: boolean;
   /** Present for skills installed from git by piwin. */
@@ -115,6 +117,8 @@ export type SkillsConfig = {
   extraPaths: string[];
   /** Disabled skill ids */
   disabledIds: string[];
+  /** Mapped skill ids excluded from discovery and UI. */
+  excludedIds?: string[];
 };
 
 export type FormatSkillPromptOptions = {

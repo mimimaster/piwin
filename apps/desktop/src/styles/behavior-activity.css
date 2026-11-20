@@ -270,6 +270,11 @@
   transform-origin: center;
 }
 
+.skill-activity-chip-visual .ui-anim-lite-ring {
+  transform: scale(0.75);
+  transform-origin: center;
+}
+
 /* Bind small, behavior-specific motion to existing timeline markers. The
  * registry selects the animation data; these rules select the concrete CSS
  * effect. This keeps new tool kinds from needing another component branch. */

@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_MODEL_MAX_OUTPUT_TOKENS } from '@piwin/contracts';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { lookupCatalogByModelId } from './model-catalog-reader.js';
-import { buildPiProviderRegistration, resolvePiApiForProvider } from './pi-model-runtime.js';
+import {
+  buildPiProviderRegistration,
+  completionNeedsRegistrationStream,
+  resolvePiApiForProvider,
+} from './pi-model-runtime.js';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
 
 describe('pi-model-runtime', () => {
@@ -112,7 +116,7 @@ describe('pi-model-runtime', () => {
     const mistralCompat = {
       supportsStore: false,
       supportsDeveloperRole: false,
-      supportsReasoningEffort: false,
+      supportsReasoningEffort: true,
       supportsUsageInStreaming: false,
       maxTokensField: 'max_tokens',
       requiresToolResultName: true,
@@ -159,6 +163,29 @@ describe('pi-model-runtime', () => {
       models: [{ id: 'mistral-large-latest' }],
     });
     expect(anthropicMistral.models[0]).not.toHaveProperty('compat');
+  });
+
+  it('requires registration stream for Mistral OpenAI-compatible targets', () => {
+    const mistralProvider: ModelProviderConfig = {
+      id: 'custom-openai',
+      protocol: 'openai-compatible',
+      name: 'mistral',
+      baseUrl: 'https://api.mistral.ai/v1',
+      models: [{ id: 'deepseek-v4-1-flash-1017' }],
+    };
+    expect(completionNeedsRegistrationStream(mistralProvider, 'deepseek-v4-1-flash-1017')).toBe(
+      true,
+    );
+
+    const gatewayProvider: ModelProviderConfig = {
+      id: 'local-gateway',
+      protocol: 'openai-compatible',
+      name: 'Gateway',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      models: [{ id: 'devstral-2512' }, { id: 'gpt-5.6' }],
+    };
+    expect(completionNeedsRegistrationStream(gatewayProvider, 'devstral-2512')).toBe(true);
+    expect(completionNeedsRegistrationStream(gatewayProvider, 'gpt-5.6')).toBe(false);
   });
 
   describe('system prompt role (ADR 0082)', () => {

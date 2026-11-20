@@ -38,6 +38,7 @@ describe('remote settings projection', () => {
           skills: {
             extraPaths: ['/Users/private/.cursor/skills'],
             disabledIds: ['disabled-skill'],
+            excludedIds: ['aws-cdk'],
           },
           subagents: {
             profiles: [],
@@ -83,6 +84,7 @@ describe('remote settings projection', () => {
           skills: {
             extraPaths: ['/Users/private/.cursor/skills'],
             disabledIds: ['disabled-skill'],
+            excludedIds: ['aws-cdk'],
           },
           subagents: {
             schemes: [{ id: 'scheme-1', name: 'Visual review' }],
@@ -224,6 +226,45 @@ describe('remote settings projection', () => {
     expect(serialized).toContain('"command"');
     expect(serialized).toContain(command);
     expect(serialized).toContain('windsurf-search.mjs');
+  });
+
+  it('preserves providers with more than 128 models and removedModelIds in settings projection', () => {
+    const models = Array.from({ length: 300 }, (_, index) => ({
+      id: `model-${index}`,
+      label: `Model ${index}`,
+      enabled: false,
+    }));
+    const removedModelIds = Array.from({ length: 150 }, (_, index) => `removed-${index}`);
+    const projected = projectRemoteSettingsData({
+      snapshot: {
+        schemaVersion: 2,
+        revision: 'settings-revision',
+        config: {
+          providers: [
+            {
+              id: 'devin',
+              protocol: 'openai-compatible',
+              name: 'Devin',
+              baseUrl: 'oauth://devin',
+              source: 'subscription',
+              models,
+              removedModelIds,
+            },
+          ],
+        },
+      },
+    }) as {
+      snapshot: {
+        config: {
+          providers: Array<{ models: Array<{ id: string; enabled?: boolean }>; removedModelIds: string[] }>;
+        };
+      };
+    };
+    const provider = projected.snapshot.config.providers[0];
+    expect(provider?.models).toHaveLength(300);
+    expect(provider?.models[299]).toMatchObject({ id: 'model-299', enabled: false });
+    expect(provider?.removedModelIds).toHaveLength(150);
+    expect(provider?.removedModelIds[149]).toBe('removed-149');
   });
 });
 
@@ -1439,5 +1480,47 @@ describe('remote host status projection', () => {
     expect(data['generalWorkspaceProjectId']).toBe('project-0123456789abcdef01234567');
     expect('generalWorkspacePath' in data).toBe(false);
     expect('piwinRoot' in data).toBe(false);
+  });
+
+  it('preserves mappedFrom alongside path on remote skills/list response', () => {
+    const projected = projectRemoteResponse(
+      { type: 'skills/list' },
+      {
+        type: 'response',
+        command: 'skills/list',
+        success: true,
+        data: {
+          skills: [
+            {
+              id: 'keep-mapped',
+              name: 'keep-mapped',
+              description: 'Keep',
+              source: 'mapped',
+              path: '/Users/private/.claude/skills/keep-mapped',
+              mappedFrom: '/Users/private/.claude/skills',
+              enabled: true,
+            },
+          ],
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+
+    expect(projected).toMatchObject({
+      success: true,
+      data: {
+        skills: [
+          {
+            id: 'keep-mapped',
+            path: '/Users/private/.claude/skills/keep-mapped',
+            mappedFrom: '/Users/private/.claude/skills',
+          },
+        ],
+      },
+    });
   });
 });

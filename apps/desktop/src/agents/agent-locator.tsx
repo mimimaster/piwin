@@ -1,17 +1,27 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import {
   AsteriskBreath,
   BreathDot,
   BreathMatrix,
+  LiteRing,
   RadialBellow,
   type AnimationSize,
 } from '@piwin/ui-kit';
 import type { SkillActivityView } from '../conversation/chat-reducer.js';
+import { globalMemoryGovernor, type MemoryPressureLevel } from '../notes/memory-governor.js';
 import type { AgentLocatorAnimation } from '../platform/ui-preferences.js';
 import { getBehaviorActivitySpec, resolveRunBehaviorId } from '../run-activity/behavior-activity.js';
-import { useTrackLiveMotion } from '../run-activity/live-motion-metrics.js';
+import { useTrackLiveMotion, type LiveMotionKind } from '../run-activity/live-motion-metrics.js';
 import { useRunActivityPhrases } from '../run-activity/run-activity-hooks.js';
 import type { RunActivityInput } from '../run-activity/run-activity-types.js';
+
+function useMemoryPressureLevel(): MemoryPressureLevel {
+  return useSyncExternalStore(
+    globalMemoryGovernor.subscribe,
+    globalMemoryGovernor.getLevel,
+    globalMemoryGovernor.getLevel,
+  );
+}
 
 export type AgentLocatorProps = {
   input: RunActivityInput;
@@ -32,20 +42,30 @@ export function AgentLocatorMark(props: {
   locale: 'zh-CN' | 'en';
   size?: AnimationSize;
   label?: string;
+  testId?: string;
 }): ReactElement | null {
   const animation = props.animation ?? 'radial-bellow';
   const size = props.size ?? 'sm';
   const label = props.label ?? (props.locale === 'zh-CN' ? '代理运行中' : 'Agent is working');
-  useTrackLiveMotion(animation);
-  switch (animation) {
+  const pressureLevel = useMemoryPressureLevel();
+  const effectiveAnimation: LiveMotionKind | 'none' =
+    animation === 'none'
+      ? 'none'
+      : pressureLevel === 'critical' && animation !== 'breath-dot'
+        ? 'lite-ring'
+        : animation;
+  useTrackLiveMotion(effectiveAnimation);
+  switch (effectiveAnimation) {
+    case 'lite-ring':
+      return <LiteRing size={size} label={label} testId={props.testId ?? 'agent-locator-lite-ring'} />;
     case 'asterisk-breath':
-      return <AsteriskBreath size={size} label={label} testId="agent-locator-asterisk" />;
+      return <AsteriskBreath size={size} label={label} testId={props.testId ?? 'agent-locator-asterisk'} />;
     case 'breath-dot':
-      return <BreathDot size={size} label={label} testId="agent-locator-dot" />;
+      return <BreathDot size={size} label={label} testId={props.testId ?? 'agent-locator-dot'} />;
     case 'none':
       return null;
     case 'radial-bellow':
-      return <RadialBellow size={size} label={label} testId="agent-locator-radial-bellow" />;
+      return <RadialBellow size={size} label={label} testId={props.testId ?? 'agent-locator-radial-bellow'} />;
   }
 }
 
@@ -99,7 +119,13 @@ export function AgentLocator(props: AgentLocatorProps): ReactElement {
 export function SkillActivityChip(props: SkillActivityChipProps): ReactElement {
   const locale = props.locale ?? 'zh-CN';
   const loading = props.loading === true;
-  useTrackLiveMotion(loading ? 'breath-matrix' : 'none');
+  const pressureLevel = useMemoryPressureLevel();
+  const motionKind: LiveMotionKind | 'none' = !loading
+    ? 'none'
+    : pressureLevel === 'critical'
+      ? 'lite-ring'
+      : 'breath-matrix';
+  useTrackLiveMotion(motionKind);
   return (
     <span
       className={`skill-activity-chip${loading ? ' is-loading' : ''}`}
@@ -111,7 +137,15 @@ export function SkillActivityChip(props: SkillActivityChipProps): ReactElement {
       role="status"
       aria-live="polite"
     >
-      {loading ? (
+      {motionKind === 'lite-ring' ? (
+        <span className="skill-activity-chip-visual" aria-hidden="true">
+          <LiteRing
+            size="sm"
+            label={locale === 'zh-CN' ? '加载技能' : 'Loading skill'}
+            testId="skill-activity-lite-ring"
+          />
+        </span>
+      ) : motionKind === 'breath-matrix' ? (
         <span className="skill-activity-chip-visual" aria-hidden="true">
           <BreathMatrix
             size="sm"

@@ -18,6 +18,8 @@ import {
 
 export const AUTO_RECYCLE_HIDDEN_MS = 60_000;
 export const AUTO_RECYCLE_COOLDOWN_MS = 10 * 60_000;
+export const AUTO_RECYCLE_RETRY_MS = 30_000;
+export const AUTO_RECYCLE_UNFOCUSED_IDLE_MS = 3 * 60_000;
 
 export type MemoryAutoRecycleDeps = {
   isRunActive?: () => boolean;
@@ -29,6 +31,8 @@ export type MemoryAutoRecycleDeps = {
   now?: () => number;
   hiddenDelayMs?: number;
   cooldownMs?: number;
+  retryDelayMs?: number;
+  unfocusedIdleMs?: number;
 };
 
 function defaultUiBlockingModalOpen(): boolean {
@@ -42,6 +46,8 @@ export function installMemoryAutoRecycle(deps: MemoryAutoRecycleDeps = {}): () =
   }
   const hiddenDelayMs = deps.hiddenDelayMs ?? AUTO_RECYCLE_HIDDEN_MS;
   const cooldownMs = deps.cooldownMs ?? AUTO_RECYCLE_COOLDOWN_MS;
+  const retryDelayMs = deps.retryDelayMs ?? AUTO_RECYCLE_RETRY_MS;
+  const unfocusedIdleMs = deps.unfocusedIdleMs ?? AUTO_RECYCLE_UNFOCUSED_IDLE_MS;
   const now = deps.now ?? (() => Date.now());
   const getFootprintBytes = deps.getFootprintBytes ?? getLastMemoryPressureBytes;
   const isRunActive = deps.isRunActive ?? (() => false);
@@ -50,43 +56,117 @@ export function installMemoryAutoRecycle(deps: MemoryAutoRecycleDeps = {}): () =
   const recover = deps.recover ?? (() => requestRendererRecovery());
 
   let lastRecycleAtMs = Number.NEGATIVE_INFINITY;
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let windowBlurred = false;
+  let hiddenTimer: ReturnType<typeof setTimeout> | null = null;
+  let unfocusedTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const clearTimer = (): void => {
-    if (timer !== null) {
-      clearTimeout(timer);
-      timer = null;
+  const clearHiddenTimer = (): void => {
+    if (hiddenTimer !== null) {
+      clearTimeout(hiddenTimer);
+      hiddenTimer = null;
     }
   };
 
-  const tryRecycle = (): void => {
-    timer = null;
-    if (document.visibilityState !== 'hidden') return;
-    if (isRunActive()) return;
-    if (isProtectedSurfaceActive()) return;
+  const clearUnfocusedTimer = (): void => {
+    if (unfocusedTimer !== null) {
+      clearTimeout(unfocusedTimer);
+      unfocusedTimer = null;
+    }
+  };
+
+  const scheduleHidden = (delayMs: number): void => {
+    clearHiddenTimer();
+    hiddenTimer = setTimeout(() => tryRecycle('hidden'), delayMs);
+  };
+
+  const scheduleUnfocused = (delayMs: number): void => {
+    clearUnfocusedTimer();
+    unfocusedTimer = setTimeout(() => tryRecycle('unfocused'), delayMs);
+  };
+
+  const reschedule = (mode: 'hidden' | 'unfocused'): void => {
+    if (mode === 'hidden') {
+      if (document.visibilityState === 'hidden') scheduleHidden(retryDelayMs);
+      return;
+    }
+    if (windowBlurred && document.visibilityState !== 'hidden') {
+      scheduleUnfocused(retryDelayMs);
+    }
+  };
+
+  const tryRecycle = (mode: 'hidden' | 'unfocused'): void => {
+    if (mode === 'hidden') {
+      hiddenTimer = null;
+      if (document.visibilityState !== 'hidden') return;
+    } else {
+      unfocusedTimer = null;
+      if (!windowBlurred || document.visibilityState === 'hidden') return;
+    }
+
+    if (isRunActive() || isProtectedSurfaceActive() || isUiBlockingModalOpen()) {
+      reschedule(mode);
+      return;
+    }
     const bytes = getFootprintBytes();
-    if (bytes === null || bytes < MEMORY_PRESSURE_CRITICAL_BYTES) return;
-    if (isUiBlockingModalOpen()) return;
+    if (bytes === null || bytes < MEMORY_PRESSURE_CRITICAL_BYTES) {
+      reschedule(mode);
+      return;
+    }
     const currentMs = now();
-    if (currentMs - lastRecycleAtMs < cooldownMs) return;
+    if (currentMs - lastRecycleAtMs < cooldownMs) {
+      reschedule(mode);
+      return;
+    }
+    const result = recover();
+    if (!result.allowed) {
+      reschedule(mode);
+      return;
+    }
     lastRecycleAtMs = currentMs;
-    recover();
   };
 
   const onVisibilityChange = (): void => {
     if (document.visibilityState === 'hidden') {
-      clearTimer();
-      timer = setTimeout(tryRecycle, hiddenDelayMs);
+      clearUnfocusedTimer();
+      scheduleHidden(hiddenDelayMs);
       return;
     }
-    clearTimer();
+    clearHiddenTimer();
+    if (windowBlurred) {
+      scheduleUnfocused(unfocusedIdleMs);
+    }
+  };
+
+  const onBlur = (): void => {
+    windowBlurred = true;
+    if (document.visibilityState !== 'hidden') {
+      scheduleUnfocused(unfocusedIdleMs);
+    }
+  };
+
+  const onUserActive = (): void => {
+    windowBlurred = false;
+    clearUnfocusedTimer();
   };
 
   document.addEventListener('visibilitychange', onVisibilityChange);
+  if (typeof window !== 'undefined') {
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onUserActive);
+    window.addEventListener('pointerdown', onUserActive);
+    window.addEventListener('keydown', onUserActive);
+  }
   onVisibilityChange();
 
   return () => {
-    clearTimer();
+    clearHiddenTimer();
+    clearUnfocusedTimer();
     document.removeEventListener('visibilitychange', onVisibilityChange);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onUserActive);
+      window.removeEventListener('pointerdown', onUserActive);
+      window.removeEventListener('keydown', onUserActive);
+    }
   };
 }

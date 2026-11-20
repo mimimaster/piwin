@@ -1,3 +1,4 @@
+import { isShellFamilyTool } from '@piwin/session/shell-tool';
 import type { ToolCardUi } from '../conversation/chat-reducer';
 import { classifyShellCommand } from './shell-command-intent.js';
 
@@ -250,7 +251,11 @@ export function computeBatchSummary(
   let searchCount = 0;
 
   for (const tool of tools) {
-    if (tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled') {
+    if (
+      tool.status === 'error' &&
+      tool.presentation?.error?.category !== 'cancelled' &&
+      !isShellFamilyTool(tool)
+    ) {
       errorCount += 1;
     }
     if (tool.status === 'running') {

@@ -589,3 +589,33 @@ pub fn purge_webview_memory(
         );
     }
 }
+
+/// Recycle the calling window's OS WebContent process (macOS `_killWebContentProcess`
+/// followed by reload) after returning from the command so the frontend invoke promise
+/// resolves cleanly before teardown. Clears any pending sample ack gate first so the
+/// monitor continues emitting to the freshly spawned renderer process.
+#[tauri::command]
+pub fn recycle_webview_process(
+    window: tauri::WebviewWindow,
+    state: tauri::State<MemoryObservabilityState>,
+) {
+    state.clear_pending_sample();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        webview_tuning::recycle_webview_window(&window);
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clearing_pending_sample_unblocks_ack_gate_before_recycle() {
+        let state = MemoryObservabilityState::default();
+        state.set_pending_sample(42);
+        assert!(state.has_pending_sample());
+        state.clear_pending_sample();
+        assert!(!state.has_pending_sample());
+    }
+}

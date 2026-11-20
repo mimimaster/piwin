@@ -24,6 +24,7 @@
 import { canReclaimComposerDrafts } from '../composer/composer-draft-reclaim.js';
 import type { ComposerReclaimInput } from '../composer/composer-draft-reclaim.js';
 import { draftsFromPersistedStore, loadComposerDraftStore } from '../composer/composer-draft-persistence.js';
+import { isTauriRuntime } from '../host/host-client-transport-detect.js';
 import { prepareRendererRelaunch } from './renderer-relaunch-preparation.js';
 
 /** One durability check, in evaluation order. */
@@ -142,9 +143,16 @@ export function requestRendererRecovery(
   const relaunch =
     resolved.relaunch ??
     (() => {
-      if (typeof window !== 'undefined') {
-        window.location.reload();
+      if (typeof window === 'undefined') return;
+      if (isTauriRuntime()) {
+        void import('@tauri-apps/api/core')
+          .then(({ invoke }) => invoke('recycle_webview_process'))
+          .catch(() => {
+            window.location.reload();
+          });
+        return;
       }
+      window.location.reload();
     });
   relaunch();
   return { allowed: true, checks };

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { RadialBellow } from './animations.js';
+import { LiteRing, RadialBellow } from './animations.js';
 
 describe('RadialBellow animation geometry', () => {
   it('places each vane inside a static radial slot so paused animations keep ring layout', () => {
@@ -23,5 +23,25 @@ describe('RadialBellow animation geometry', () => {
     expect(keyframeMatch?.[1]).not.toContain('var(--i)');
     expect(keyframeMatch?.[1]).not.toContain('rotate(');
     expect(keyframeMatch?.[1]).toContain('transform: scale(');
+  });
+});
+
+describe('LiteRing low-memory motion primitive', () => {
+  it('renders a single non-SVG rotating arc element', () => {
+    const markup = renderToStaticMarkup(createElement(LiteRing, { size: 'sm' }));
+    const arcMatches = markup.match(/class="ui-anim-lite-ring__arc"/g) ?? [];
+    expect(arcMatches).toHaveLength(1);
+    expect(markup).not.toContain('<svg');
+  });
+
+  it('uses pure transform rotation in @keyframes and respects reduced-motion', () => {
+    const css = readFileSync(new URL('./primitive-animations.css', import.meta.url), 'utf8');
+    const keyframeMatch = css.match(/@keyframes ui-anim-lite-ring\s*\{([\s\S]*?\n\})/);
+    expect(keyframeMatch?.[1]).toContain('transform: rotate(360deg)');
+
+    const reducedMotionMatch = css.match(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?\n\})/);
+    expect(reducedMotionMatch?.[1]).toContain('.ui-anim-lite-ring__arc');
+    expect(reducedMotionMatch?.[1]).toContain('.ui-anim-radial-bellow__vane');
+    expect(reducedMotionMatch?.[1]).toContain('transform: scale(0.55, 0.45)');
   });
 });

@@ -1,6 +1,11 @@
 import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import { extensionModelProviderOrigin, isExtensionProvider } from '@piwin/contracts';
-import { catalogModelToConfigEntry, mergeSubscriptionCatalogModel, type SubscriptionCatalogSeedModel } from './seed-subscription-provider.js';
+import {
+  catalogModelToConfigEntry,
+  mergeSubscriptionCatalogModel,
+  shouldSeedNewCatalogModelsDisabled,
+  type SubscriptionCatalogSeedModel,
+} from './seed-subscription-provider.js';
 import type { SubscriptionExtensionProvider } from './subscription-extension-providers.js';
 
 /** Reject a colliding claim, not the user's channel or the whole catalog. */
@@ -30,6 +35,7 @@ export function projectPublicModelProviders(
       continue;
     }
     const previous = new Map(existing?.models.map((model) => [model.id, model]));
+    const seedNewDisabled = shouldSeedNewCatalogModelsDisabled(existing);
     const next: ModelProviderConfig = {
       id: claim.providerId,
       name: claim.displayName || existing?.name || claim.providerId,
@@ -43,7 +49,10 @@ export function projectPublicModelProviders(
       models: catalogFor(claim.providerId).map((model) => {
         const fresh = catalogModelToConfigEntry(model);
         const saved = previous.get(model.id);
-        return saved ? mergeSubscriptionCatalogModel(fresh, saved) : fresh;
+        if (saved) {
+          return mergeSubscriptionCatalogModel(fresh, saved);
+        }
+        return seedNewDisabled ? { ...fresh, enabled: false } : fresh;
       }),
     };
     const index = providers.findIndex((provider) => provider.id === claim.providerId);

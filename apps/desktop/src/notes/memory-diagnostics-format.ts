@@ -58,8 +58,9 @@ export function getLiveStatusAnimationCount(
 
 /**
  * Current visual/motion degradation matrix matching `memory-degradation.css`.
- * Core `ui-anim-*` status indicators stay active under `normal` and `moderate`
- * pressure while visible, and pause under `critical` pressure or `parked`.
+ * Core status indicators stay full under `normal` and `moderate` pressure,
+ * downgrade to single-layer low-memory motion (`LiteRing` / `BreathDot`) under
+ * `critical` pressure while visible, and pause when occluded (`parked`).
  */
 export function describeVisualDegradationPolicy(
   data: Pick<MemoryDiagnosticsPanelData, 'level' | 'parked' | 'frontend'> | null,
@@ -73,7 +74,7 @@ export function describeVisualDegradationPolicy(
   const coreMotionStatus = parked
     ? copy.motionPolicyItems.coreMotion.paused(liveCount)
     : level === 'critical'
-      ? copy.motionPolicyItems.coreMotion.pausedCritical(liveCount)
+      ? copy.motionPolicyItems.coreMotion.lite(liveCount)
       : copy.motionPolicyItems.coreMotion.active(liveCount);
 
   return [
@@ -81,7 +82,7 @@ export function describeVisualDegradationPolicy(
       id: 'core-motion',
       label: copy.motionPolicyItems.coreMotion.label,
       status: coreMotionStatus,
-      active: !parked && level !== 'critical',
+      active: !parked,
     },
     {
       id: 'text-shimmer',

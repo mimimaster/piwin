@@ -50,7 +50,7 @@ describe('bundled theme store', () => {
     expect(inkstone?.path).toBe(join(getThemesDir(root), 'piwin-inkstone'));
 
     const manifest = await loadThemeManifest(root, 'piwin-inkstone');
-    expect(manifest.tokens.bg).toBe('#0b0a09');
+    expect(manifest.tokens.bg).toBe('#0b0b0a');
   });
 
   it('migrates retired face ids to the single Inkstone package', async () => {

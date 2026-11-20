@@ -254,4 +254,37 @@ describe('loadDiscoveredResources', () => {
       false,
     );
   });
+
+  it('excludes mapped skills listed in excludedSkillIds from createPiResourceLoader catalog', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-loader-excluded-'));
+    const agentDir = await mkdtemp(join(tmpdir(), 'pi-agent-excluded-'));
+    const extraDir = await mkdtemp(join(tmpdir(), 'piwin-extra-excluded-'));
+    await mkdir(join(extraDir, 'aws-cdk'), { recursive: true });
+    await writeFile(
+      join(extraDir, 'aws-cdk', 'SKILL.md'),
+      '---\nname: aws-cdk\ndescription: CDK\n---\n',
+      'utf8',
+    );
+    await mkdir(join(extraDir, 'keep-mapped'), { recursive: true });
+    await writeFile(
+      join(extraDir, 'keep-mapped', 'SKILL.md'),
+      '---\nname: keep-mapped\ndescription: Keep\n---\n',
+      'utf8',
+    );
+
+    const loaded = await createPiResourceLoader({
+      cwd: piwinRoot,
+      agentDir,
+      piwinRoot,
+      scope: { kind: 'general' },
+      extraSkillPaths: [extraDir],
+      excludedSkillIds: ['aws-cdk'],
+      followPiNativeInventory: false,
+    });
+    const skillIds = loaded.resourceCatalog.entries
+      .filter((entry) => entry.kind === 'skill')
+      .map((entry) => entry.resourceId);
+    expect(skillIds).toContain('keep-mapped');
+    expect(skillIds).not.toContain('aws-cdk');
+  });
 });

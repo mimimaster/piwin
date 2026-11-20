@@ -95,6 +95,31 @@ const LANG_ALIASES: Record<string, string> = {
 let highlighterPromise: Promise<Highlighter> | null = null;
 const loadedLanguages = new Set<string>(PRELOAD_LANGS);
 
+/** Dispose the shared Shiki highlighter and reset loaded grammar state (critical pressure). */
+export function disposeSyntaxHighlighter(): void {
+  const pending = highlighterPromise;
+  highlighterPromise = null;
+  loadedLanguages.clear();
+  for (const lang of PRELOAD_LANGS) {
+    loadedLanguages.add(lang);
+  }
+  if (pending !== null) {
+    void pending
+      .then((hl) => {
+        if (typeof (hl as { dispose?: () => void }).dispose === 'function') {
+          (hl as { dispose: () => void }).dispose();
+        }
+      })
+      .catch(() => {});
+  }
+}
+
+globalMemoryGovernor.subscribe((level) => {
+  if (level === 'critical') {
+    disposeSyntaxHighlighter();
+  }
+});
+
 /** Pick a shiki theme that contrasts with the active desktop mode. */
 export function getShikiTheme(): typeof DARK_THEME | typeof LIGHT_THEME {
   return readThemeMode() === 'light' ? LIGHT_THEME : DARK_THEME;
@@ -289,7 +314,11 @@ export function useHighlightLines(lines: string[], lang: string): Map<number, To
   const sourceIdentityRef = useRef(`${lang}::${joined}`);
 
   useEffect(() => {
-    if (degradationLevel === 'critical' || isTestEnv() || !shouldHighlightCode(joined)) {
+    if (degradationLevel === 'critical') {
+      setResult(null);
+      return;
+    }
+    if (isTestEnv() || !shouldHighlightCode(joined)) {
       return;
     }
     let cancelled = false;

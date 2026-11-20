@@ -275,3 +275,128 @@
   font-size: var(--fs-chrome);
   color: var(--text-3);
 }
+
+.ext-list-group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.ext-list-group-header .ext-list-group-title {
+  margin: 0;
+}
+
+.ext-list-group-header-title,
+.ext-list-group-actions,
+.ext-mapped-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.ext-mapped-path-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  max-width: 100%;
+  padding: 2px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.ext-mapped-path-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+.ext-mapped-path-unmap {
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.ext-mapped-path-unmap:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+.ext-mapped-batch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-card);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.ext-list-item--selectable {
+  cursor: pointer;
+}
+
+.ext-mapped-checkbox {
+  flex: none;
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+.ext-excluded-tray {
+  margin-top: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.ext-excluded-tray-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.ext-excluded-summary {
+  font-size: var(--fs-chrome);
+}
+
+.ext-excluded-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.ext-excluded-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 3px var(--s-3);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ext-excluded-chip:hover:not(:disabled) {
+  color: var(--text-1);
+}

@@ -302,6 +302,49 @@ describe('appearance theme migration', () => {
     expect(migrated.accent).toBe('#B03A24');
   });
 
+  it('maps previous warm paper, modern light, and warm ink defaults onto lowered-chroma defaults', () => {
+    expect(
+      migrateStoredAppearanceTheme(
+        {
+          preset: 'paper',
+          background: '#E6E1D7',
+          foreground: '#1D1B17',
+          accent: '#B03A24',
+        },
+        'light',
+      ),
+    ).toEqual({ ...DEFAULT_LIGHT_THEME_SETTINGS, preset: 'paper' });
+
+    expect(
+      migrateStoredAppearanceTheme(
+        {
+          preset: 'modern',
+          background: '#E2E5E9',
+          foreground: '#111827',
+          accent: '#111827',
+        },
+        'light',
+      ),
+    ).toEqual({
+      preset: 'modern',
+      background: '#E5E6E8',
+      foreground: '#16181D',
+      accent: '#16181D',
+    });
+
+    expect(
+      migrateStoredAppearanceTheme(
+        {
+          preset: 'default',
+          background: '#0B0A09',
+          foreground: '#EBE5DA',
+          accent: '#E25A3D',
+        },
+        'dark',
+      ),
+    ).toEqual(DEFAULT_DARK_THEME_SETTINGS);
+  });
+
   it('leaves custom accent colors alone', () => {
     const custom = {
       preset: 'default' as const,

@@ -62,6 +62,7 @@ export async function discoverResourcesDefault(
 ): Promise<DiscoveredResources> {
   const extraSkillPaths = options.config.skills?.extraPaths ?? [];
   const disabledSkillIds = options.config.skills?.disabledIds ?? [];
+  const excludedSkillIds = options.config.skills?.excludedIds ?? [];
   const extraExtensionPaths = options.config.extensions?.extraPaths ?? [];
   const disabledExtensionIds = options.config.extensions?.disabledIds ?? [];
   const extraPromptPaths = options.config.prompts?.extraPaths ?? [];
@@ -76,6 +77,7 @@ export async function discoverResourcesDefault(
       ...(options.scope.kind === 'project' ? { projectPath: options.scope.projectPath } : {}),
       ...(extraSkillPaths.length > 0 ? { extraSkillPaths } : {}),
       ...(disabledSkillIds.length > 0 ? { disabledSkillIds } : {}),
+      ...(excludedSkillIds.length > 0 ? { excludedSkillIds } : {}),
       ...(extraExtensionPaths.length > 0 ? { extraExtensionPaths } : {}),
       ...(disabledExtensionIds.length > 0 ? { disabledExtensionIds } : {}),
       ...(extraPromptPaths.length > 0 ? { extraPromptPaths } : {}),

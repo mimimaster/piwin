@@ -31,8 +31,10 @@ import {
   enforceBoundedTranscriptWindow,
   mapTranscriptMessagesToUi,
   preserveAssistantModelSnapshots,
+  resolveTranscriptWindowLimits,
   reuseUnchangedTranscriptMessages,
 } from './chat-reducer-transcript';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
 import { mergeRefreshedTailWithLiveMessages } from './transcript-live-merge.js';
 import { contextUsageForLoadMessages, contextUsageForSessionSet } from './chat-reducer-context';
 import { applyContextTelemetry } from '../context/context-telemetry-reducer';
@@ -259,6 +261,7 @@ export function reduceChatSession(
       const bounded = retainBoundedTranscriptWindow(
         candidateMessages,
         collectRetainedTranscriptMessageIds(candidateMessages, state.streaming),
+        resolveTranscriptWindowLimits(globalMemoryGovernor.getLevel()),
       );
       const messages = bounded.messages;
       const retainedMessageIds = new Set(messages.map((message) => message.id));

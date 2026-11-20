@@ -55,20 +55,20 @@ export function toManifestTokens(deck: ThemeDeckTokens): ThemeManifest['tokens']
  * disagree. See docs/design/inkstone/09-port-drift.md.
  */
 export const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
-  void: '#e6e1d7',
-  surface1: '#f0ece4',
-  surface2: '#f8f6f0',
-  surface3: '#fffdf8',
+  void: '#e4e3df',
+  surface1: '#efeeeb',
+  surface2: '#f8f7f5',
+  surface3: '#fefdfb',
   surface4: '#ffffff',
 
-  text1: '#1d1b17',
-  text2: '#5a554d',
-  text3: '#726b61',
-  text4: '#8f887d',
+  text1: '#1b1b19',
+  text2: '#565552',
+  text3: '#6c6b68',
+  text4: '#898884',
 
-  line1: 'rgba(29, 27, 23, 0.06)',
-  line2: 'rgba(29, 27, 23, 0.11)',
-  line3: 'rgba(29, 27, 23, 0.2)',
+  line1: 'rgba(27, 27, 25, 0.06)',
+  line2: 'rgba(27, 27, 25, 0.11)',
+  line3: 'rgba(27, 27, 25, 0.2)',
 
   iris: '#b03a24',
   irisLift: '#d4553d',
@@ -88,24 +88,24 @@ export const INKSTONE_PAPER_DECK: ThemeDeckTokens = {
  * Pure slate cool-grey, high contrast, zero colored wash on void/surfaces.
  */
 export const INKSTONE_MODERN_DECK: ThemeDeckTokens = {
-  void: '#e2e5e9',
-  surface1: '#edf0f3',
+  void: '#e5e6e8',
+  surface1: '#eff0f2',
   surface2: '#f8f9fa',
   surface3: '#ffffff',
   surface4: '#ffffff',
 
-  text1: '#111827',
-  text2: '#475467',
-  text3: '#667085',
-  text4: '#98a2b3',
+  text1: '#16181d',
+  text2: '#52555a',
+  text3: '#6f7177',
+  text4: '#a0a2a7',
 
-  line1: 'rgba(17, 24, 39, 0.05)',
-  line2: 'rgba(17, 24, 39, 0.09)',
-  line3: 'rgba(17, 24, 39, 0.15)',
+  line1: 'rgba(22, 24, 29, 0.05)',
+  line2: 'rgba(22, 24, 29, 0.09)',
+  line3: 'rgba(22, 24, 29, 0.15)',
 
-  iris: '#111827',
-  irisLift: '#1f2937',
-  irisPress: '#030712',
+  iris: '#16181d',
+  irisLift: '#262930',
+  irisPress: '#0b0c0f',
   onIris: '#ffffff',
 
   ember: '#d97706',
@@ -128,20 +128,20 @@ export const INKSTONE_MIST_DECK = INKSTONE_MODERN_DECK;
  * meaning of every status color and action.
  */
 const INKSTONE_INK_DECK: ThemeDeckTokens = {
-  void: '#0b0a09',
-  surface1: '#141210',
-  surface2: '#191714',
-  surface3: '#201d19',
-  surface4: '#2a2621',
+  void: '#0b0b0a',
+  surface1: '#121211',
+  surface2: '#171716',
+  surface3: '#1e1d1c',
+  surface4: '#272624',
 
-  text1: '#ebe5da',
-  text2: '#a59d92',
-  text3: '#8b8378',
-  text4: '#6a6259',
+  text1: '#e7e6e3',
+  text2: '#a09f9c',
+  text3: '#868582',
+  text4: '#666562',
 
-  line1: 'rgba(235, 229, 218, 0.06)',
-  line2: 'rgba(235, 229, 218, 0.1)',
-  line3: 'rgba(235, 229, 218, 0.17)',
+  line1: 'rgba(231, 230, 227, 0.06)',
+  line2: 'rgba(231, 230, 227, 0.1)',
+  line3: 'rgba(231, 230, 227, 0.17)',
 
   iris: '#e25a3d',
   irisLift: '#f07054',
@@ -223,7 +223,7 @@ export const INKSTONE_LIGHT_PRESETS: readonly InkstoneLightPresetMeta[] = [
     descriptionZh: '纯净极简 · 方案一',
     descriptionEn: 'Clean Slate · Modern',
     manifest: PIWIN_APPEARANCE_INKSTONE_MODERN,
-    slabBg: '#0f172a',
+    slabBg: '#16181d',
   },
   {
     id: 'paper',
@@ -232,7 +232,7 @@ export const INKSTONE_LIGHT_PRESETS: readonly InkstoneLightPresetMeta[] = [
     descriptionZh: '暖润宣纸 · 原版',
     descriptionEn: 'Warm Paper · Classic',
     manifest: PIWIN_APPEARANCE_INKSTONE_PAPER,
-    slabBg: '#1f1c18',
+    slabBg: '#1c1b19',
   },
 ] as const;
 

@@ -8,8 +8,36 @@ import type {
 } from '@piwin/contracts';
 import { HOST_COMMAND_REQUEST_ENVELOPE_VERSION, formatError } from '@piwin/contracts';
 import { readDesktopClientPrincipalId } from '../platform/desktop-client-principal.js';
-import { desktopMetrics, utf8ByteLength } from '../run-activity/diagnostic-metrics.js';
+import { desktopMetrics } from '../run-activity/diagnostic-metrics.js';
 import { isReplayDoneFrame } from './host-push-frame.js';
+
+function estimatePayloadBytes(value: unknown, depth = 0): number {
+  if (value === null || value === undefined) return 4;
+  if (typeof value === 'string') return value.length * 2;
+  if (typeof value === 'number' || typeof value === 'boolean') return 8;
+  if (depth >= 4) return 64;
+  if (Array.isArray(value)) {
+    const sampleLimit = Math.min(value.length, 64);
+    let sum = 2;
+    for (let i = 0; i < sampleLimit; i += 1) {
+      sum += estimatePayloadBytes(value[i], depth + 1) + 1;
+    }
+    return value.length > sampleLimit && sampleLimit > 0
+      ? Math.round((sum / sampleLimit) * value.length)
+      : sum;
+  }
+  if (typeof value === 'object') {
+    let sum = 2;
+    let count = 0;
+    for (const [key, entry] of Object.entries(value)) {
+      sum += key.length * 2 + estimatePayloadBytes(entry, depth + 1) + 4;
+      count += 1;
+      if (count >= 64) break;
+    }
+    return sum;
+  }
+  return 16;
+}
 import { getHostRequestTimeoutMs } from './host-client-request-timeouts.js';
 import { HostClientPushLayer } from './host-client-push.js';
 import { isTauriRuntime } from './host-client-transport-detect.js';
@@ -81,7 +109,7 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
         try {
           desktopMetrics.recordIngress(
             `push:${payloadType}`,
-            utf8ByteLength(JSON.stringify(event.payload)),
+            estimatePayloadBytes(event.payload),
           );
         } catch {
           // Metrics must never break the transport; unserializable payloads
@@ -116,7 +144,7 @@ export abstract class HostClientLiveTransport extends HostClientPushLayer {
             if (typeof itemType === 'string') {
               desktopMetrics.recordIngress(
                 `push:${itemType}`,
-                utf8ByteLength(JSON.stringify(item)),
+                estimatePayloadBytes(item),
               );
             }
           }

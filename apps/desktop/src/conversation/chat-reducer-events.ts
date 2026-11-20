@@ -1,4 +1,5 @@
-import type { AgentEvent } from '@piwin/contracts';
+import type { AgentEvent, AgentEventEnvelope, ToolPresentation } from '@piwin/contracts';
+import { isShellFamilyTool } from '@piwin/session/shell-tool';
 import { createBoundedTextAccumulator } from './bounded-text-accumulator';
 import { ensureFailedRunAssistant, markLatestAssistantFailure } from '../run-activity/run-failure-message';
 import type {
@@ -18,11 +19,12 @@ import {
 import { applyCompactionEndContextUsage, applyUsageUpdate } from './chat-reducer-context';
 import { resolveCompactionAnchorMessageId } from './compaction-anchor';
 import {
+  envelopeRunKey,
   isEnvelopeStale,
   isStaleByEnvelope,
   isStaleOptionalRunEvent,
   isUserControlInFlight,
-  recordEnvelope,
+  recordEnvelopesBatch,
   recordEventEnvelope,
   resolveAssistantModelFallback,
   withoutEmptyAssistantPlaceholders,
@@ -74,7 +76,29 @@ function isStaleCompactionEvent(
   return isStaleOptionalRunEvent(state, event.runId);
 }
 
-export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
+function slimSettledToolPresentation(presentation: ToolPresentation): ToolPresentation {
+  if (!presentation.output) {
+    return presentation;
+  }
+  const { output, ...structured } = presentation;
+  if (output.truncation !== undefined) {
+    return {
+      ...structured,
+      output: {
+        text: '',
+        truncated: true,
+        truncation: output.truncation,
+      },
+    };
+  }
+  return structured;
+}
+
+export function applyAgentEvent(
+  state: ChatUiState,
+  event: AgentEvent,
+  options?: { slimSettledShellOutput?: boolean },
+): ChatUiState {
   switch (event.type) {
     case 'message/start': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
@@ -413,6 +437,27 @@ export function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiSt
             const mergedPresentation = event.presentation
               ? mergeToolPresentation(tool.presentation, event.presentation)
               : tool.presentation;
+            const isShellTool = isShellFamilyTool({
+              toolName: tool.toolName,
+              presentation: mergedPresentation,
+            });
+            if (options?.slimSettledShellOutput === true && isShellTool) {
+              const outputTruncated =
+                mergedPresentation?.output?.truncated === true ||
+                mergedPresentation?.output?.truncation !== undefined;
+              const slimPresentation = mergedPresentation
+                ? slimSettledToolPresentation(mergedPresentation)
+                : undefined;
+              return {
+                ...tool,
+                status: event.isError ? 'error' : 'done',
+                output: '',
+                outputRetainedBytes: 0,
+                outputTruncated,
+                ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
+                ...(slimPresentation ? { presentation: slimPresentation } : {}),
+              };
+            }
             const displayOutput =
               mergedPresentation?.output?.text !== undefined
                 ? mergedPresentation.output.text
@@ -751,29 +796,53 @@ export function reduceChatEvents(state: ChatUiState, action: ChatUiEventAction):
       if (isStaleByEnvelope(state, action)) {
         return state;
       }
-      return applyAgentEvent(recordEventEnvelope(state, action), action.event);
+      return applyAgentEvent(
+        recordEventEnvelope(state, action),
+        action.event,
+        action.slimSettledShellOutput ? { slimSettledShellOutput: true } : undefined,
+      );
     case 'event/batch': {
       if (state.activeSessionId !== action.sessionId || state.awaitingTranscript) {
         return state;
       }
-      // C1: process batch events individually, checking each for envelope staleness
+      // C1: process batch events individually while recording dedup metadata once per batch.
       let currentState = state;
       const envelopes = action.envelopes ?? [];
+      const acceptedEnvelopes: AgentEventEnvelope[] = [];
+      const seenInBatch = new Set<string>();
+      const seqInBatch = new Map<string, number>();
       for (let index = 0; index < action.events.length; index++) {
         const batchEvent = action.events[index];
         if (!batchEvent) {
           continue;
         }
         const batchEnvelope = envelopes[index];
-        if (batchEnvelope && isEnvelopeStale(currentState, batchEnvelope)) {
-          continue;
-        }
         if (batchEnvelope) {
-          currentState = recordEnvelope(currentState, batchEnvelope);
+          const runKey = envelopeRunKey(batchEnvelope);
+          const inBatchSeq = seqInBatch.get(runKey);
+          if (
+            isEnvelopeStale(currentState, batchEnvelope) ||
+            seenInBatch.has(batchEnvelope.eventId) ||
+            (inBatchSeq !== undefined && batchEnvelope.sequence <= inBatchSeq)
+          ) {
+            continue;
+          }
+          seenInBatch.add(batchEnvelope.eventId);
+          seqInBatch.set(
+            runKey,
+            Math.max(inBatchSeq ?? (currentState.lastAcceptedSequenceByRun[runKey] ?? 0), batchEnvelope.sequence),
+          );
+          acceptedEnvelopes.push(batchEnvelope);
         }
-        currentState = applyAgentEvent(currentState, batchEvent);
+        currentState = applyAgentEvent(
+          currentState,
+          batchEvent,
+          action.slimSettledShellOutput ? { slimSettledShellOutput: true } : undefined,
+        );
       }
-      return currentState;
+      return acceptedEnvelopes.length > 0
+        ? recordEnvelopesBatch(currentState, acceptedEnvelopes)
+        : currentState;
     }
     default:
       return state;

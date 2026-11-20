@@ -8,13 +8,20 @@ import {
   type NativeSearchStreamSimple,
 } from './native-web-search.js';
 import {
+  isMistralOpenAiTarget,
+  wrapStreamSimpleForMistralOpenAi,
+} from './mistral-openai-stream.js';
+import {
   wrapStreamSimpleForModelRequestBody,
   type ModelRequestBodyFlags,
 } from './model-request-body-stream.js';
 import { resolvePiNativeSearchStream, type PiNativeSearchApi } from './pi-native-search-stream.js';
 import { wrapStreamSimpleForRequestTiming } from './stream-request-timing.js';
 
-export type ProviderStreamModelFlags = NativeSearchModelFlags & ModelRequestBodyFlags;
+export type ProviderStreamModelFlags = NativeSearchModelFlags &
+  ModelRequestBodyFlags & {
+    baseUrl?: string;
+  };
 
 export function resolveProviderStreamSimple(input: {
   api: PiNativeSearchApi;
@@ -27,10 +34,13 @@ export function resolveProviderStreamSimple(input: {
   const needsGeminiIsolation =
     input.api === 'openai-completions' &&
     input.models.some((model) => isGeminiOpenAiCompatModelId(model.id));
+  const needsMistralWire =
+    input.api === 'openai-completions' &&
+    input.models.some((model) => isMistralOpenAiTarget(model.id, model.baseUrl));
   const fallback = resolvePiNativeSearchStream(input.api);
   // Innermost: the custom body hook is the one Pi calls, so it merges last.
   const base = wrapStreamSimpleForModelRequestBody(input.streamSimple ?? fallback, input.models);
-  if (!needsSearch && !needsGeminiIsolation) {
+  if (!needsSearch && !needsGeminiIsolation && !needsMistralWire) {
     return wrapStreamSimpleForRequestTiming(base);
   }
   let stream = base;
@@ -44,6 +54,13 @@ export function resolveProviderStreamSimple(input: {
   if (needsGeminiIsolation) {
     stream =
       wrapStreamSimpleForGeminiOpenAiSession(stream, {
+        fallbackStreamSimple: fallback,
+      }) ?? stream;
+  }
+  if (needsMistralWire) {
+    stream =
+      wrapStreamSimpleForMistralOpenAi(stream, {
+        models: input.models,
         fallbackStreamSimple: fallback,
       }) ?? stream;
   }

@@ -19,18 +19,20 @@
 /* data-memory-parked (memory-parking.ts) is occlusion-only: engaged after
    the window has been hidden long enough and removed on the same turn that
    restores visibility. It may strip blur (cheap to rebuild). */
-html[data-memory-pressure='moderate'] *,
-html[data-memory-pressure='critical'] *,
-html[data-memory-parked] * {
+html[data-memory-pressure='moderate'] * {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
 
-/* Collapse wallpaper layer under pressure or parking so translucent backing layers release. */
-html[data-memory-pressure='moderate'] .app-wallpaper,
-html[data-memory-pressure='critical'] .app-wallpaper,
-html[data-memory-parked] .app-wallpaper {
-  display: none !important;
+/* Under critical pressure or occlusion parking, strip glass blur AND stop ALL
+   animations and will-change layer promotions across the entire document so
+   scrolling turns/chrome stop allocating IOSurface compositor layers. */
+html[data-memory-pressure='critical'] *,
+html[data-memory-parked] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  animation: none !important;
+  will-change: auto !important;
 }
 
 /* Strip 3D perspective, preserve-3d layers, and transient transform will-change
@@ -191,7 +193,10 @@ html[data-memory-parked] .slab .ring {
 
 html[data-memory-pressure='moderate'] .sidebar,
 html[data-memory-pressure='critical'] .sidebar,
-html[data-memory-parked] .sidebar {
+html[data-memory-parked] .sidebar,
+html[data-memory-pressure='moderate'] .right-panel,
+html[data-memory-pressure='critical'] .right-panel,
+html[data-memory-parked] .right-panel {
   -webkit-backface-visibility: visible !important;
   backface-visibility: visible !important;
   will-change: auto !important;
@@ -276,9 +281,10 @@ html[data-memory-parked] .behavior-generic-active {
 }
 
 /* Stop infinite status & entrance animations under pressure or parking.
-   Core ui-anim-* status indicators (AgentLocator / RadialBellow) stay running
-   only at moderate pressure while visible; critical pressure and occlusion
-   parking stop them to eliminate continuous 60fps compositor commits. */
+   Under critical pressure while visible, heavy multi-layer/SVG ui-anim-*
+   primitives stop while core status indicators downgrade to single-layer
+   low-memory dynamic motion (LiteRing / BreathDot). Occlusion parking
+   (data-memory-parked) stops every ui-anim-* animation. */
 html[data-memory-pressure='moderate'] .behavior-thinking-active,
 html[data-memory-pressure='critical'] .behavior-thinking-active,
 html[data-memory-parked] .behavior-thinking-active,
@@ -312,8 +318,20 @@ html[data-memory-parked] .bubble.is-new,
 html[data-memory-pressure='moderate'] .action-marquee-item,
 html[data-memory-pressure='critical'] .action-marquee-item,
 html[data-memory-parked] .action-marquee-item,
-html[data-memory-pressure='critical'] [class*='ui-anim-'],
-html[data-memory-pressure='critical'] [class*='ui-anim-'] *,
+html[data-memory-pressure='critical'] .ui-anim-radial-bellow,
+html[data-memory-pressure='critical'] .ui-anim-radial-bellow *,
+html[data-memory-pressure='critical'] .ui-anim-breath-matrix,
+html[data-memory-pressure='critical'] .ui-anim-breath-matrix *,
+html[data-memory-pressure='critical'] .ui-anim-asterisk,
+html[data-memory-pressure='critical'] .ui-anim-asterisk *,
+html[data-memory-pressure='critical'] .ui-anim-pulse-block,
+html[data-memory-pressure='critical'] .ui-anim-pulse-block *,
+html[data-memory-pressure='critical'] .ui-anim-solid-bars,
+html[data-memory-pressure='critical'] .ui-anim-solid-bars *,
+html[data-memory-pressure='critical'] .ui-anim-organic-blob,
+html[data-memory-pressure='critical'] .ui-anim-organic-blob *,
+html[data-memory-pressure='critical'] .ui-anim-cascade-ripple,
+html[data-memory-pressure='critical'] .ui-anim-cascade-ripple *,
 html[data-memory-parked] [class*='ui-anim-'],
 html[data-memory-parked] [class*='ui-anim-'] * {
   animation: none !important;
@@ -327,10 +345,37 @@ html[data-memory-parked] .lamp::after {
   animation: none !important;
 }
 
+/* Inkstone transcript/timeline infinite animations that promote composited layers
+   inside the scrolling transcript under moderate pressure. */
+html[data-memory-pressure='moderate'] .work-h .lamp,
+html[data-memory-pressure='moderate'] .turn-work-details-summary .lamp,
+html[data-memory-pressure='moderate'] .node.run,
+html[data-memory-pressure='moderate'] .think.is-streaming,
+html[data-memory-pressure='moderate'] .turn-thinking.is-streaming,
+html[data-memory-pressure='moderate'] .tool-call-card .tool-call-summary > .node::after,
+html[data-memory-pressure='moderate'] .explore-flow-capsule > .node::after,
+html[data-memory-pressure='moderate'] .tool-batch-capsule > .node::after,
+html[data-memory-pressure='moderate'] [data-status-tone='running'] .av,
+html[data-memory-pressure='moderate'] .turn-work-details-summary .turn-summary-active-animation {
+  animation: none !important;
+}
+
+/* Under critical pressure or occlusion parking, also stop pseudo-element
+   animations (status ripples, pulse halos, shimmer overlays) and layer promotions. */
+html[data-memory-pressure='critical'] *::before,
+html[data-memory-pressure='critical'] *::after,
+html[data-memory-parked] *::before,
+html[data-memory-parked] *::after {
+  animation: none !important;
+  will-change: auto !important;
+}
+
 html[data-memory-pressure='critical'] .ui-anim-radial-bellow__vane {
   opacity: 0.72 !important;
+  transform: scale(0.55, 0.45) !important;
 }
 
 html[data-memory-parked] .ui-anim-radial-bellow__vane {
   opacity: 0.55 !important;
+  transform: scale(0.55, 0.45) !important;
 }

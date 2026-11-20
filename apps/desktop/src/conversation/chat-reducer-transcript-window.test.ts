@@ -391,4 +391,29 @@ describe('chatUiReducer transcript window', () => {
     state = chatUiReducer(state, { type: 'session/remove', sessionId: 'a' });
     expect(state.workingSessionIds).toEqual({});
   });
+
+  it('applies critical governor limits during session/load-messages', async () => {
+    const { globalMemoryGovernor } = await import('../notes/memory-governor.js');
+    globalMemoryGovernor.setLevel('critical');
+    try {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'critical-session' });
+      state = chatUiReducer(state, {
+        type: 'session/load-messages',
+        sessionId: 'critical-session',
+        messages: Array.from({ length: 40 }, (_, index) => ({
+          id: `c-${index}`,
+          role: 'assistant' as const,
+          text: `msg ${index}`,
+          createdAt: `2026-08-09T00:00:${String(index % 60).padStart(2, '0')}.000Z`,
+          status: 'done' as const,
+        })),
+      });
+      expect(state.messages).toHaveLength(24);
+      expect(state.messages[0]?.id).toBe('c-16');
+      expect(state.messages.at(-1)?.id).toBe('c-39');
+    } finally {
+      globalMemoryGovernor.reset();
+    }
+  });
 });

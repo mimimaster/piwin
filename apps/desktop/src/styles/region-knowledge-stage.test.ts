@@ -9,7 +9,7 @@ const css = readFileSync(join(here, 'region-knowledge-stage.css'), 'utf8');
 describe('Knowledge stage face tokens', () => {
   it('does not pin paper tokens onto vault-stage overlays', () => {
     const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
-    const paperRule = stripped.match(/([^{]+)\{[^}]*--void:\s*#e6e1d7/);
+    const paperRule = stripped.match(/([^{]+)\{[^}]*--void:\s*#e4e3df/);
     expect(paperRule).not.toBeNull();
     const selector = paperRule?.[1] ?? '';
     expect(selector).not.toMatch(/\.vault-stage\b/);

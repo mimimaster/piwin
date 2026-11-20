@@ -364,7 +364,12 @@ export function buildWorkerProviderRegistration(
     defaultApi: api,
     models: models.map((model) => {
       const extraBody = extraBodiesById.get(model.id);
-      return { id: model.id, api: model.api, ...(extraBody ? { extraBody } : {}) };
+      return {
+        id: model.id,
+        api: model.api,
+        ...(model.baseUrl ? { baseUrl: model.baseUrl } : {}),
+        ...(extraBody ? { extraBody } : {}),
+      };
     }),
     // Optional under exactOptionalPropertyTypes: omit rather than pass undefined.
     ...(streamSimple === undefined ? {} : { streamSimple }),

@@ -78,6 +78,15 @@ describe('durable turn work summaries', () => {
               presentation: { targetPaths: [' file.ts '], changedPaths: ['file.ts'] },
             },
             {
+              toolName: 'bash',
+              status: 'error',
+              presentation: { kind: 'shell', targetPaths: [] },
+            },
+            {
+              toolName: 'run_command',
+              status: 'error',
+            },
+            {
               status: 'error',
               presentation: { error: { category: 'cancelled', message: 'stopped' } },
               input: { path: 'other.ts' },
@@ -85,8 +94,16 @@ describe('durable turn work summaries', () => {
           ],
         },
       ]),
-    ).toEqual({ toolCount: 2, fileCount: 2, failureCount: 1 });
+    ).toEqual({ toolCount: 4, fileCount: 2, failureCount: 1 });
     expect(countTranscriptWork([{ status: 'error', error: 'failed' }]).failureCount).toBe(1);
+    expect(
+      countTranscriptWork([
+        {
+          status: 'done',
+          tools: [{ toolName: 'bash', status: 'error', presentation: { kind: 'shell' } }],
+        },
+      ]).failureCount,
+    ).toBe(0);
   });
 
   it('counts overlapping runs once and excludes the gap before a resumed run', () => {

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -52,6 +53,10 @@ import { readArtifactHostTheme, readInlineArtifactWidth } from './inline-artifac
 import { MediaPreviewReadProvider } from '../media/media-preview-read-context.js';
 import type { MediaPreviewReader } from './transcript-media-preview.js';
 import type { ArtifactCanvasTarget } from '../artifact/artifact-canvas-model.js';
+import {
+  ToolOutputReaderContext,
+  createHostToolOutputReader,
+} from '../tool-cards/tool-output-reader.js';
 import type { DocumentOpenInput } from '../tool-cards/tool-call-card.js';
 import { useSessionComposerProfile } from '../hooks/use-session-composer-profile.js';
 import { useConversationPanePermissions } from '../hooks/use-conversation-pane-permissions.js';
@@ -338,7 +343,10 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
   }, [hydrateForegroundRun, props.hostClient, props.locale, props.sessionId]);
 
   useEffect(() => {
-    const streamEventBuffer = createStreamEventBuffer({ dispatch });
+    const streamEventBuffer = createStreamEventBuffer({
+      dispatch,
+      slimSettledShellOutput: () => props.hostClient.supportsCommand('session/tool-output'),
+    });
     const unsubscribe = props.hostClient.subscribe((message) => {
       if (message.type === 'hydration') {
         streamEventBuffer.reset();
@@ -688,8 +696,17 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
         }
       : {}),
   });
+  const canReadToolOutput = props.hostClient.supportsCommand('session/tool-output');
+  const toolOutputReader = useMemo(
+    () =>
+      canReadToolOutput
+        ? createHostToolOutputReader((command) => props.hostClient.request(command), props.sessionId)
+        : null,
+    [canReadToolOutput, props.hostClient, props.sessionId],
+  );
   return (
-    <MediaPreviewReadProvider sessionId={props.sessionId} readMedia={props.readMedia}>
+    <ToolOutputReaderContext.Provider value={toolOutputReader}>
+      <MediaPreviewReadProvider sessionId={props.sessionId} readMedia={props.readMedia}>
       <div
         className="conversation-pane-session"
         data-testid="conversation-pane-session"
@@ -773,6 +790,7 @@ export function ConversationPaneSession(props: ConversationPaneSessionProps): Re
           </div>
         ) : null}
       </div>
-    </MediaPreviewReadProvider>
+      </MediaPreviewReadProvider>
+    </ToolOutputReaderContext.Provider>
   );
 }

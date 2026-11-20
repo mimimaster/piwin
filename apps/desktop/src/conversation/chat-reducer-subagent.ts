@@ -195,6 +195,18 @@ function patchSubagentToolWherever(
   return { ...stream, tools: patch(stream.tools) };
 }
 
+function putSubagentStream(
+  streams: Readonly<Record<string, SubagentStreamState>>,
+  childSessionId: string,
+  updated: SubagentStreamState,
+): Record<string, SubagentStreamState> {
+  return evictCompletedFirst(
+    { ...streams, [childSessionId]: updated },
+    MAX_SUBAGENT_CHILDREN,
+    (stream) => !stream.streaming,
+  );
+}
+
 function applySubagentStreamEvent(
   state: ChatUiState,
   childSessionId: string,
@@ -218,6 +230,10 @@ function applySubagentStreamEvent(
     permissionPrompt: null,
     permissionQueue: [],
   };
+  const withStream = (updated: SubagentStreamState): ChatUiState => ({
+    ...state,
+    subagentStreams: putSubagentStream(state.subagentStreams, childSessionId, updated),
+  });
 
   switch (event.type) {
     case 'message/start': {
@@ -238,10 +254,7 @@ function applySubagentStreamEvent(
         tools: [],
         attachments: [],
       };
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'message/text_delta': {
       const nextText = appendBoundedLiveText(
@@ -261,10 +274,7 @@ function applySubagentStreamEvent(
         textTruncated: nextText.truncated,
         ...(nextText.truncated || existing.truncated ? { truncated: true } : {}),
       };
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'message/text_snapshot': {
       const boundedText = createBoundedTextAccumulator(
@@ -279,10 +289,7 @@ function applySubagentStreamEvent(
         textTruncated: boundedText.truncated,
         ...(boundedText.truncated || existing.truncated ? { truncated: true } : {}),
       };
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'message/thinking_delta': {
       const nextThinking = appendBoundedLiveText(
@@ -302,10 +309,7 @@ function applySubagentStreamEvent(
         thinkingTruncated: nextThinking.truncated,
         ...(nextThinking.truncated || existing.truncated ? { truncated: true } : {}),
       };
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'message/end': {
       // The finished message becomes a retained segment so later messages of
@@ -316,10 +320,7 @@ function applySubagentStreamEvent(
         streaming: false,
         currentMessageId: null,
       };
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'tool/start': {
       const tool: SubagentStreamTool = {
@@ -347,10 +348,7 @@ function applySubagentStreamEvent(
           return [...tools, tool];
         });
         if (patched) {
-          return {
-            ...state,
-            subagentStreams: { ...state.subagentStreams, [childSessionId]: patched },
-          };
+          return withStream(patched);
         }
       }
       const tools = [...existing.tools];
@@ -361,10 +359,7 @@ function applySubagentStreamEvent(
         tools.push(tool);
       }
       const updated: SubagentStreamState = { ...existing, tools };
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'tool/update': {
       const applyUpdate = (tools: SubagentStreamTool[]): SubagentStreamTool[] =>
@@ -384,10 +379,7 @@ function applySubagentStreamEvent(
           };
         });
       const updated = patchSubagentToolWherever(existing, event.toolCallId, applyUpdate);
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'tool/end': {
       const applyEnd = (tools: SubagentStreamTool[]): SubagentStreamTool[] =>
@@ -411,10 +403,7 @@ function applySubagentStreamEvent(
         event.toolCallId,
         event.attachments ?? [],
       );
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'session/aborted':
     case 'session/ended': {
@@ -422,10 +411,7 @@ function applySubagentStreamEvent(
         { ...existing, streaming: false },
         [],
       );
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'permission/request': {
       const updated = applyPermissionQueueToStream(
@@ -440,20 +426,14 @@ function applySubagentStreamEvent(
           ...(event.context ? { context: event.context } : {}),
         }),
       );
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     case 'permission/resolved': {
       const currentQueue = streamPermissionQueue(existing);
       const nextQueue = dequeuePermissionPrompt(currentQueue, event.requestId);
       if (nextQueue === currentQueue) return state;
       const updated = applyPermissionQueueToStream(existing, nextQueue);
-      return {
-        ...state,
-        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
-      };
+      return withStream(updated);
     }
     default:
       return state;

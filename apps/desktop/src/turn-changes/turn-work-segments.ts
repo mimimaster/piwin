@@ -7,6 +7,7 @@
  * carries what it did (reads, edits, commands, failures) so the reader can
  * pick the part worth opening. Only open segments mount their rows.
  */
+import { isShellFamilyTool } from '@piwin/session/shell-tool';
 import type { ChatMessageUi, ToolCardUi } from '../conversation/chat-ui-types.js';
 import type { MemoryPressureLevel } from '../notes/memory-governor.js';
 import {
@@ -141,7 +142,13 @@ function isDelegationKind(kind: ToolClusterKind, tool: ToolCardUi): boolean {
 
 function addTool(draft: SegmentDraft, tool: ToolCardUi): void {
   draft.toolCount += 1;
-  if (tool.status === 'error') draft.stats.failed += 1;
+  if (
+    tool.status === 'error' &&
+    tool.presentation?.error?.category !== 'cancelled' &&
+    !isShellFamilyTool(tool)
+  ) {
+    draft.stats.failed += 1;
+  }
   if (tool.status === 'running') draft.running = true;
   const kind = clusterKindOf(tool);
   if (isExploratoryKind(kind)) draft.stats.explore += 1;

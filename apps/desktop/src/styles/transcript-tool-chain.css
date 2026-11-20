@@ -659,6 +659,11 @@
   transform-origin: center;
 }
 
+.turn-summary-active-animation > .ui-anim-lite-ring {
+  transform: scale(0.78);
+  transform-origin: center;
+}
+
 /* Think dots: the summary does not currently render dots, but the rules are
    kept so the indicator renders correctly if they are added later. */
 .turn-work-details-summary .dotty {

@@ -245,16 +245,44 @@ describe('Desktop renderer resource boundaries', () => {
       );
     }
 
-    // Core status indicators (`ui-anim-*`, e.g. AgentLocator / RadialBellow)
-    // remain active under moderate pressure while visible, and pause under
-    // critical pressure or occlusion (parked) so WebKit IOSurfacePool can drain.
+    // Wait-state indicator styling: moderate pressure keeps core ui-anim-* alive
+    // while critical pressure and occlusion parking stop all CSS animations and
+    // transient will-change promotions globally.
     expect(degradation).not.toContain("html[data-memory-pressure='moderate'] [class*='ui-anim-']");
     expect(degradation).not.toContain(
       "html[data-memory-pressure='moderate'] .ui-anim-radial-bellow__vane",
     );
-    expect(
-      ruleDeclarations(degradation, "html[data-memory-pressure='critical'] [class*='ui-anim-']"),
-    ).toContain('animation: none !important');
+    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *")).toContain(
+      'animation: none !important',
+    );
+    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *")).toContain(
+      'will-change: auto !important',
+    );
+    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *::before")).toContain(
+      'animation: none !important',
+    );
+    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *::after")).toContain(
+      'animation: none !important',
+    );
+    for (const heavyPrimitive of [
+      '.ui-anim-radial-bellow',
+      '.ui-anim-breath-matrix',
+      '.ui-anim-asterisk',
+      '.ui-anim-pulse-block',
+      '.ui-anim-solid-bars',
+      '.ui-anim-organic-blob',
+      '.ui-anim-cascade-ripple',
+    ]) {
+      expect(
+        ruleDeclarations(degradation, `html[data-memory-pressure='critical'] ${heavyPrimitive}`),
+      ).toContain('animation: none !important');
+    }
+    expect(ruleDeclarations(degradation, 'html[data-memory-parked] *')).toContain(
+      'animation: none !important',
+    );
+    expect(ruleDeclarations(degradation, 'html[data-memory-parked] *')).toContain(
+      'will-change: auto !important',
+    );
     expect(ruleDeclarations(degradation, "html[data-memory-parked] [class*='ui-anim-']")).toContain(
       'animation: none !important',
     );

@@ -766,14 +766,14 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
-  it('keeps a fold header when a streaming row already has a failed tool', () => {
+  it('keeps a fold header when a streaming row already has a failed non-shell tool', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Run it.' }),
       message('work-1', {
         runId: 'run-1',
         status: 'streaming',
-        text: 'The command failed.',
-        tools: [{ toolCallId: 'bash-1', toolName: 'bash', status: 'error', output: 'boom' }],
+        text: 'The read failed.',
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'error', output: 'boom' }],
       }),
     ]);
 
@@ -1048,13 +1048,13 @@ describe('projectTurnWorkDisclosure', () => {
     ).toBeNull();
   });
 
-  it('keeps a live fold header when a tool failed and the row itself did not', () => {
+  it('keeps a live fold header when a non-shell tool failed and the row itself did not', () => {
     const transcriptTurn = turn([
       message('user-1', { role: 'user', text: 'Implement this.' }),
       message('work-1', {
         runId: 'run-1',
         thinking: 'Inspecting.',
-        tools: [{ toolCallId: 'bash-1', toolName: 'bash', status: 'error', output: 'exit 1' }],
+        tools: [{ toolCallId: 'read-1', toolName: 'read', status: 'error', output: 'missing' }],
       }),
       message('work-2', {
         runId: 'run-1',

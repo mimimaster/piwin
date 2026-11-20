@@ -88,4 +88,24 @@ describe('highlightCode', () => {
     const stringToken = result[2]?.find((token) => token.content.includes('hello'));
     expect(tokenKindFromColor(stringToken?.color)).toBe('s');
   });
+
+  it('disposes the shared highlighter at critical pressure and re-initializes after recovery', async () => {
+    const { globalMemoryGovernor } = await import('../notes/memory-governor');
+    const { highlightCode } = await import('./syntax-highlight');
+    try {
+      const first = await highlightCode('const x = 1;', 'typescript');
+      expect(first.length).toBe(1);
+
+      globalMemoryGovernor.setLevel('critical');
+      const fallback = await highlightCode('const y = 2;', 'typescript');
+      expect(fallback).toEqual([[{ content: 'const y = 2;', offset: 0 }]]);
+
+      globalMemoryGovernor.reset();
+      const recovered = await highlightCode('const z = "ok";', 'typescript');
+      const stringToken = recovered[0]?.find((token) => token.content.includes('ok'));
+      expect(tokenKindFromColor(stringToken?.color)).toBe('s');
+    } finally {
+      globalMemoryGovernor.reset();
+    }
+  });
 });

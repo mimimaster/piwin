@@ -48,7 +48,10 @@ describe('seed subscription provider', () => {
         protocol: 'openai-compatible',
         baseUrl: 'oauth://openai-codex',
         source: 'subscription',
-        models: [{ id: 'gpt-5.4-codex', label: 'Codex', enabled: false, contextWindow: 200_000 }],
+        models: [
+          { id: 'gpt-5.4-codex', label: 'Codex', enabled: false, contextWindow: 200_000 },
+          { id: 'gpt-5.3-codex', label: '5.3 Codex' },
+        ],
       },
     ];
     const merged = upsertSubscriptionProvider(config, 'openai-codex', [
@@ -336,5 +339,94 @@ describe('seed subscription provider', () => {
     const model = merged.providers[0]?.models.find((entry) => entry.id === 'grok-4.5');
     expect(model?.thinkingLevels).toEqual(['low']);
     expect(model?.thinkingLevel).toBeUndefined();
+  });
+
+  it('seeds newly discovered catalog models as disabled when all existing models are disabled', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'devin',
+        name: 'Devin',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://devin',
+        source: 'subscription',
+        models: [
+          { id: 'swe-1-7', label: 'SWE-1.7', enabled: false },
+          { id: 'swe-1-6', label: 'SWE-1.6', enabled: false },
+        ],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'devin', [
+      { id: 'swe-1-7', name: 'SWE-1.7' },
+      { id: 'swe-1-6', name: 'SWE-1.6' },
+      { id: 'nemotron-3-5-lightning-high', name: 'Nemotron 3.5 Lightning High' },
+    ]);
+    expect(merged.providers[0]?.models.map((entry) => ({ id: entry.id, enabled: entry.enabled }))).toEqual([
+      { id: 'swe-1-7', enabled: false },
+      { id: 'swe-1-6', enabled: false },
+      { id: 'nemotron-3-5-lightning-high', enabled: false },
+    ]);
+  });
+
+  it('seeds newly discovered catalog models as disabled when the subscription provider is disabled', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'devin',
+        name: 'Devin',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://devin',
+        source: 'subscription',
+        enabled: false,
+        models: [{ id: 'swe-1-7', label: 'SWE-1.7' }],
+      },
+    ];
+    const merged = upsertSubscriptionProvider(config, 'devin', [
+      { id: 'swe-1-7', name: 'SWE-1.7' },
+      { id: 'swe-2', name: 'SWE-2' },
+    ]);
+    expect(merged.providers[0]?.models.find((entry) => entry.id === 'swe-1-7')?.enabled).toBeUndefined();
+    expect(merged.providers[0]?.models.find((entry) => entry.id === 'swe-2')?.enabled).toBe(false);
+  });
+
+  it('preserves persisted subscription row during transient needs-reauth and logging-in states', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'devin',
+        name: 'Devin',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://devin',
+        source: 'subscription',
+        models: [{ id: 'swe-1-7', label: 'SWE-1.7', enabled: false }],
+        removedModelIds: ['swe-1-6'],
+      },
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        models: [{ id: 'grok-4.6', label: 'Grok 4.6', enabled: false }],
+      },
+    ];
+    const next = ensureSubscriptionProviders(
+      config,
+      [
+        { providerId: 'devin', surface: 'v1', state: 'needs-reauth' },
+        { providerId: 'xai', surface: 'v1', state: 'logging-in' },
+      ],
+      () => [{ id: 'swe-2', name: 'SWE-2' }],
+    );
+    expect(next.providers.map((provider) => provider.id)).toEqual(['devin', 'xai']);
+    expect(next.providers[0]).toMatchObject({
+      id: 'devin',
+      models: [{ id: 'swe-1-7', label: 'SWE-1.7', enabled: false }],
+      removedModelIds: ['swe-1-6'],
+    });
+    expect(next.providers[1]).toMatchObject({
+      id: 'xai',
+      models: [{ id: 'grok-4.6', label: 'Grok 4.6', enabled: false }],
+    });
   });
 });

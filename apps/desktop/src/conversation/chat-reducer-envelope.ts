@@ -12,9 +12,11 @@ import { resolveActiveComposerAgentId } from '../composer/composer-dock-assembly
 import { removeSessionIdMarker, removeWorkingSessionId } from './chat-reducer-session-helpers';
 
 /** C1: maximum event ids retained for replay detection per session. */
-const MAX_RETAINED_EVENT_IDS = 10_000;
+const MAX_RETAINED_EVENT_IDS = 2_048;
 /** C1: when the event id ring exceeds the max, drop this many oldest entries. */
-const EVENT_ID_TRIM_BATCH = 5_000;
+const EVENT_ID_TRIM_BATCH = 1_024;
+/** Maximum per-run sequence cursors retained per active session. */
+const MAX_TRACKED_RUN_SEQUENCES = 64;
 
 export function envelopeRunKey(envelope: AgentEventEnvelope): string {
   return envelope.runId ?? '_global';
@@ -38,35 +40,67 @@ export function isEnvelopeStale(state: ChatUiState, envelope: AgentEventEnvelope
 }
 
 /**
- * Record an envelope into the dedup state (bounded eventId ring + max sequence).
+ * Record a batch of accepted envelopes with at most one Set/map clone per batch.
  */
-export function recordEnvelope(state: ChatUiState, envelope: AgentEventEnvelope): ChatUiState {
-  const runKey = envelopeRunKey(envelope);
-  const lastSeq = state.lastAcceptedSequenceByRun[runKey] ?? 0;
+export function recordEnvelopesBatch(
+  state: ChatUiState,
+  envelopes: readonly AgentEventEnvelope[],
+): ChatUiState {
+  if (envelopes.length === 0) {
+    return state;
+  }
+  let nextReceivedEventIds: Set<string> | null = null;
+  const nextSeq = { ...state.lastAcceptedSequenceByRun };
 
-  let nextReceivedEventIds = state.receivedEventIds;
-  if (!nextReceivedEventIds.has(envelope.eventId)) {
-    nextReceivedEventIds = new Set(nextReceivedEventIds);
-    nextReceivedEventIds.add(envelope.eventId);
-    // Bounded ring: drop oldest when over limit (Set keeps insertion order).
-    if (nextReceivedEventIds.size > MAX_RETAINED_EVENT_IDS) {
-      let toDrop = EVENT_ID_TRIM_BATCH;
-      for (const oldestId of nextReceivedEventIds) {
-        if (toDrop <= 0) break;
-        nextReceivedEventIds.delete(oldestId);
-        toDrop -= 1;
+  for (const envelope of envelopes) {
+    const activeSet = nextReceivedEventIds ?? state.receivedEventIds;
+    if (!activeSet.has(envelope.eventId)) {
+      if (nextReceivedEventIds === null) {
+        nextReceivedEventIds = new Set(state.receivedEventIds);
+      }
+      nextReceivedEventIds.add(envelope.eventId);
+      // Bounded ring: drop oldest when over limit (Set keeps insertion order).
+      if (nextReceivedEventIds.size > MAX_RETAINED_EVENT_IDS) {
+        let toDrop = EVENT_ID_TRIM_BATCH;
+        for (const oldestId of nextReceivedEventIds) {
+          if (toDrop <= 0) break;
+          nextReceivedEventIds.delete(oldestId);
+          toDrop -= 1;
+        }
+      }
+    }
+    const runKey = envelopeRunKey(envelope);
+    const lastSeq = nextSeq[runKey] ?? 0;
+    const nextValue = Math.max(lastSeq, envelope.sequence);
+    if (runKey in nextSeq) {
+      delete nextSeq[runKey];
+    }
+    nextSeq[runKey] = nextValue;
+  }
+
+  const seqKeys = Object.keys(nextSeq);
+  if (seqKeys.length > MAX_TRACKED_RUN_SEQUENCES) {
+    const overflow = seqKeys.length - MAX_TRACKED_RUN_SEQUENCES;
+    for (let i = 0; i < overflow; i += 1) {
+      const oldestKey = seqKeys[i];
+      if (oldestKey !== undefined) {
+        delete nextSeq[oldestKey];
       }
     }
   }
 
   return {
     ...state,
-    receivedEventIds: nextReceivedEventIds,
-    lastAcceptedSequenceByRun: {
-      ...state.lastAcceptedSequenceByRun,
-      [runKey]: Math.max(lastSeq, envelope.sequence),
-    },
+    receivedEventIds: nextReceivedEventIds ?? state.receivedEventIds,
+    lastAcceptedSequenceByRun: nextSeq,
   };
+}
+
+/**
+ * Record an envelope into the dedup state (bounded eventId ring + max sequence).
+ */
+export function recordEnvelope(state: ChatUiState, envelope: AgentEventEnvelope): ChatUiState {
+  return recordEnvelopesBatch(state, [envelope]);
 }
 
 /**

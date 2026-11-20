@@ -2754,6 +2754,60 @@ describe('session/tool-output snapshot recovery', () => {
     });
   });
 
+  it('flushes pending transcript writes before reading a tool output snapshot', async () => {
+    let flushed = false;
+    const message: import('@piwin/contracts').SessionTranscriptMessage = {
+      id: 'msg-flush-1',
+      role: 'assistant',
+      text: '',
+      createdAt: new Date().toISOString(),
+      status: 'done',
+      tools: [
+        {
+          toolCallId: 'tc-bash-flush',
+          toolName: 'bash',
+          status: 'error',
+          output: 'just finished stderr',
+          presentation: {
+            kind: 'shell',
+            title: 'bash',
+            command: 'pnpm test',
+          },
+        },
+      ],
+    };
+    const session = createDelayedSessionHandle();
+    const { context } = createControlContext(session);
+    context.flushTranscriptRecorder = async () => {
+      flushed = true;
+    };
+    context.getTranscriptStore = async () =>
+      ({
+        getMessage: async (messageId: string) =>
+          flushed && messageId === message.id ? message : undefined,
+      }) as unknown as import('@piwin/session').SessionTranscriptStore;
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/tool-output',
+        sessionId: 'session-1',
+        messageId: 'msg-flush-1',
+        toolCallId: 'tc-bash-flush',
+      },
+      undefined,
+      context,
+    );
+
+    expect(flushed).toBe(true);
+    if (!response?.success) {
+      throw new Error('session/tool-output failed');
+    }
+    expect(response.data).toMatchObject({
+      status: 'ready',
+      output: 'just finished stderr',
+    });
+  });
+
   it('returns not-found for a missing message or tool call', async () => {
     const message: import('@piwin/contracts').SessionTranscriptMessage = {
       id: 'msg-missing',

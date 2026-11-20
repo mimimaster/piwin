@@ -53,10 +53,10 @@ describe('buildTurnPresentation', () => {
     expect(presentation.toolCallCount).toBe(1);
   });
 
-  it('marks failure when a tool errors', () => {
+  it('marks failure when a non-shell tool errors, and ignores shell tool errors', () => {
     const presentation = buildTurnPresentation({
       message: assistantMessage({
-        tools: [{ toolCallId: 't1', toolName: 'bash', status: 'error', output: 'boom' }],
+        tools: [{ toolCallId: 't1', toolName: 'write_file', status: 'error', output: 'boom' }],
       }),
       runRecordsById: {},
       activeRunId: null,
@@ -64,6 +64,17 @@ describe('buildTurnPresentation', () => {
     });
     expect(presentation.hasFailure).toBe(true);
     expect(presentation.summaryLabel).toMatch(/Failed/i);
+
+    const bashOnlyFailure = buildTurnPresentation({
+      message: assistantMessage({
+        tools: [{ toolCallId: 't2', toolName: 'bash', status: 'error', output: 'exit 1' }],
+      }),
+      runRecordsById: {},
+      activeRunId: null,
+      permissionPrompt: null,
+    });
+    expect(bashOnlyFailure.hasFailure).toBe(false);
+    expect(bashOnlyFailure.summaryLabel).not.toMatch(/Failed|失败/i);
   });
 
   it('supports legacy messages without runId', () => {

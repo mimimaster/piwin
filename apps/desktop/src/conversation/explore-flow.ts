@@ -25,6 +25,7 @@
  */
 import type { TranscriptTurn } from './transcript-turns.js';
 import { isAssistantContentEmpty } from './assistant-message-content';
+import { isShellFamilyTool } from '@piwin/session/shell-tool';
 import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
 import {
   countExploredFiles,
@@ -251,7 +252,7 @@ function finalizeRun(
     if (clusterKind === 'search') searchCount += 1;
     if (isCancelledExploreTool(item.tool)) {
       cancelledCount += 1;
-    } else if (item.tool.status === 'error') {
+    } else if (item.tool.status === 'error' && !isShellFamilyTool(item.tool)) {
       errorCount += 1;
     }
     if (item.tool.status === 'running') hasRunning = true;

@@ -847,6 +847,9 @@ export async function handleSessionLiveCommand(
     }
 
     case 'session/tool-output': {
+      if (context.flushTranscriptRecorder) {
+        await context.flushTranscriptRecorder(command.sessionId);
+      }
       const store = await context.getTranscriptStore(command.sessionId);
       const message = await store.getMessage(command.messageId);
       if (!message) {

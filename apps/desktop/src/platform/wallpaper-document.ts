@@ -41,15 +41,8 @@ function ensureLayer(root: HTMLElement): HTMLElement {
  */
 export function syncWindowMaterialMarker(root: HTMLElement): void {
   const inkstone = INKSTONE_FACES.has(root.dataset.themeId ?? '');
-  const pressure = root.dataset.memoryPressure;
-  const suppressed =
-    pressure === 'moderate' ||
-    pressure === 'critical' ||
-    root.dataset.memoryParked !== undefined;
   const wanted =
-    inkstone &&
-    !suppressed &&
-    (root.dataset.nativeWindowMaterial !== undefined || root.dataset.wallpaper === 'on');
+    inkstone && (root.dataset.nativeWindowMaterial !== undefined || root.dataset.wallpaper === 'on');
   if (wanted) {
     root.dataset.windowMaterial = 'on';
   } else {

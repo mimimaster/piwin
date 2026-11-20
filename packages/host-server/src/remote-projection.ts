@@ -508,6 +508,7 @@ const REMOTE_PATH_KEYS = new Set([
   'directory',
   'entryPath',
   'extraPaths',
+  'mappedFrom',
   'outputPath',
   'packPath',
   'path',
@@ -623,6 +624,9 @@ function projectDomainRevisions(value: unknown): Record<string, string> {
   return projected;
 }
 
+const REMOTE_SETTINGS_MAX_ARRAY_ITEMS = 128;
+const REMOTE_SETTINGS_MAX_MODEL_ARRAY_ITEMS = 2048;
+
 function projectRemoteSettingsValue(value: unknown, key: string | undefined, depth = 0): unknown {
   if (depth > 12) {
     return undefined;
@@ -649,8 +653,12 @@ function projectRemoteSettingsValue(value: unknown, key: string | undefined, dep
     return boundedString(redactRemoteHostPaths(value), 32_000);
   }
   if (Array.isArray(value)) {
+    const maxItems =
+      key === 'models' || key === 'removedModelIds'
+        ? REMOTE_SETTINGS_MAX_MODEL_ARRAY_ITEMS
+        : REMOTE_SETTINGS_MAX_ARRAY_ITEMS;
     return value
-      .slice(0, 128)
+      .slice(0, maxItems)
       .map((item) => projectRemoteSettingsValue(item, key, depth + 1))
       .filter((item) => item !== undefined);
   }

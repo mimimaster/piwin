@@ -18,9 +18,12 @@ export function normalizeSkillsConfig(value: unknown, defaults: SkillsConfig): S
   if (!record) {
     return defaults;
   }
+  const rawExcluded = asStringArray(record.excludedIds);
+  const excludedIds = rawExcluded !== undefined ? rawExcluded : defaults.excludedIds;
   return {
     extraPaths: asStringArray(record.extraPaths) ?? defaults.extraPaths,
     disabledIds: asStringArray(record.disabledIds) ?? defaults.disabledIds,
+    ...(excludedIds && excludedIds.length > 0 ? { excludedIds } : {}),
   };
 }
 

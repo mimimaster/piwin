@@ -208,7 +208,7 @@ export function collectLiveTranscriptMessageIds(
 
 export const TRANSCRIPT_PROTECTED_TAIL_MESSAGES = 16;
 
-function resolveTranscriptWindowLimits(level: MemoryPressureLevel): TranscriptWindowLimits {
+export function resolveTranscriptWindowLimits(level: MemoryPressureLevel): TranscriptWindowLimits {
   switch (level) {
     case 'critical':
       return { maxMessages: 24, maxBytes: 256 * 1024 };

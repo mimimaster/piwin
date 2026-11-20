@@ -298,9 +298,3 @@ html .tool-call-card .shell-trail.is-running pre.shell-trail-out {
   font: 10.5px var(--mono, var(--font-mono, monospace));
   white-space: nowrap;
 }
-
-/* A non-zero exit or a timeout is the outcome; say it without expanding. */
-.tool-call-card .tool-call-exit-tag {
-  flex: none;
-  color: var(--crimson, var(--coral));
-}

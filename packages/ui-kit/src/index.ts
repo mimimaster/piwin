@@ -188,6 +188,7 @@ export {
   RadialBellow,
   CascadeRipple,
   AsteriskBreath,
+  LiteRing,
 } from './animations.js';
 export type {
   OrganicBlobProps,
@@ -195,6 +196,7 @@ export type {
   RadialBellowProps,
   CascadeRippleProps,
   AsteriskBreathProps,
+  LiteRingProps,
 } from './animations.js';
 
 /** Model vendor brand marks (shared by Desktop and Mobile bylines). */

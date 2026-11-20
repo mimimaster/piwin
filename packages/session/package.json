@@ -35,6 +35,11 @@
       "types": "./src/session-display-name.ts",
       "import": "./src/session-display-name.ts",
       "default": "./src/session-display-name.ts"
+    },
+    "./shell-tool": {
+      "types": "./src/shell-tool.ts",
+      "import": "./src/shell-tool.ts",
+      "default": "./src/shell-tool.ts"
     }
   },
   "scripts": {

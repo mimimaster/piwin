@@ -11,6 +11,8 @@ export type StreamEventBuffer = {
 
 export type StreamEventBufferOptions = {
   dispatch: (action: ChatUiAction) => void;
+  /** Clear settled shell output on tool/end when Host supports lazy reload. */
+  slimSettledShellOutput?: () => boolean;
   /**
    * Legacy test hooks retained while callers migrate. Stream delivery no
    * longer depends on a frame or timer scheduler.
@@ -36,6 +38,7 @@ export function createStreamEventBuffer(options: StreamEventBufferOptions): Stre
       sessionId,
       event,
       ...(envelope ? { envelope } : {}),
+      ...(options.slimSettledShellOutput?.() ? { slimSettledShellOutput: true } : {}),
     });
   }
 

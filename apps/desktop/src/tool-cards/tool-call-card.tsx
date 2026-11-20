@@ -4,7 +4,7 @@
  * once opened (the row shows +/− until then); the original raw output is
  * folded into a <details> below.
  */
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import { useContext, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { useTranscriptLocalFoldMeasure } from '../hooks/use-transcript-local-fold-measure.js';
 import type { ToolCardUi } from '../conversation/chat-reducer';
 import type { ToolCallDensity } from '../platform/ui-preferences';
@@ -59,8 +59,11 @@ import {
   WebSearchSourceAttempts,
 } from '../browser/web-search-diagnostics-display';
 import { shouldShowApprovedSeal } from './tool-approved-seal.js';
+import { isShellFamilyTool } from '@piwin/session/shell-tool';
 import { useThemeId } from '../theme/theme-id.js';
-import { ShellToolBody, describeShellCommand, resolveShellStamp } from './shell-tool-body.js';
+import { ShellToolBody, describeShellCommand } from './shell-tool-body.js';
+import { LazyToolOutputPre } from './lazy-tool-output-pre.js';
+import { ToolOutputMessageContext, ToolOutputReaderContext } from './tool-output-reader.js';
 
 
 export type ToolCallCardProps = {
@@ -170,6 +173,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const terminalMustCollapse =
     props.collapseWhenTerminal === true && tool.status !== 'running';
   const hasExpandableBody = toolHasExpandableBody(tool);
+  const isShellTool = isShellFamilyTool(tool);
+  const canLazyReadToolOutput = Boolean(
+    useContext(ToolOutputReaderContext) && useContext(ToolOutputMessageContext),
+  );
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
   const recoveredArgs = recoverToolArgsFromInputPreview(tool.presentation?.inputPreview);
@@ -204,11 +211,12 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     Boolean(props.request);
   // Edits keep their diff closed: every one of a long chain's edits mounting a
   // highlighted DiffCard at once was most of the cost of opening 已工作.
+  // Failed bash/shell tools stay collapsed too so they only lazy-load on click.
   const autoExpand = terminalMustCollapse
     ? false
     : (props.defaultExpanded ??
       ((tool.status === 'running' && expandWhileRunning && hasExpandableBody) ||
-        tool.status === 'error' ||
+        (tool.status === 'error' && !isShellTool) ||
         (density === 'detailed' && hasExpandableBody)));
   const [internalExpanded, setInternalExpanded] = useState(autoExpand);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
@@ -222,13 +230,21 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     if (disclosureIntentRef.current !== 'automatic') {
       return;
     }
+    if (props.collapseWhenTerminal === true && tool.status !== 'running') {
+      setInternalExpanded(false);
+      return;
+    }
+    if (props.defaultExpanded !== undefined) {
+      return;
+    }
     if (tool.status === 'running') {
       setInternalExpanded(expandWhileRunning && toolHasExpandableBody(tool));
-    } else if (props.collapseWhenTerminal === true) {
-      setInternalExpanded(false);
-    } else if (tool.status === 'error') {
+    } else if (tool.status === 'error' && !isShellTool) {
       setInternalExpanded(true);
-    } else if (tool.status === 'done' && (density !== 'detailed' || !toolHasExpandableBody(tool))) {
+    } else if (
+      (tool.status === 'done' || (tool.status === 'error' && isShellTool)) &&
+      (density !== 'detailed' || !toolHasExpandableBody(tool))
+    ) {
       setInternalExpanded(false);
     } else if (density === 'compact') {
       setInternalExpanded(false);
@@ -238,6 +254,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   }, [
     tool.status,
     tool.output,
+    isShellTool,
     density,
     props.collapseWhenTerminal,
     props.defaultExpanded,
@@ -373,7 +390,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     baseBehaviorId === 'web.fetch' ||
     (baseBehaviorId === 'shell' && isFetchLikeShellCommand(command));
   // Plain shell commands get the terminal sheet; fetch-like curl keeps its request surface.
-  const isShellSheet = baseBehaviorId === 'shell' && !isFetchStyle && Boolean(command);
+  const isShellSheet = (isShellTool || baseBehaviorId === 'shell') && !isFetchStyle && Boolean(command);
   const fetchRequestPreview = isFetchStyle
     ? (command ?? resolveFetchRequestPreview(inputPreview, summary))
     : undefined;
@@ -388,14 +405,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     baseBehaviorId === 'shell'
       ? (extractCommandDescription(command) ?? shellFirstLine ?? summary)
       : summary;
-  const shellFailStamp = isShellSheet
-    ? resolveShellStamp({
-        status: tool.status,
-        exitCode: tool.presentation?.exitCode,
-        errorCategory: tool.presentation?.error?.category,
-        locale,
-      })
-    : undefined;
   // Collapsed MCP rows append a short query snippet; expanded rows keep the
   // server/tool identity in the header while the body owns full args/result.
   const headerSummary = isMcpBehavior
@@ -441,7 +450,8 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     targetPaths.length > 0 ||
     hasChangedPaths ||
     Boolean(tool.presentation?.error) ||
-    Boolean(outputTruncation);
+    Boolean(outputTruncation) ||
+    (isShellTool && tool.status !== 'running' && canLazyReadToolOutput);
 
   function openPrimaryPath(): boolean {
     const path = primaryTargetPath;
@@ -643,11 +653,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               {diffStats.removed > 0 ? (
                 <span className="minus del">−{diffStats.removed}</span>
               ) : null}
-            </span>
-          ) : null}
-          {shellFailStamp?.tone === 'fail' ? (
-            <span className="tool-call-exit-tag" data-testid="tool-call-exit-tag">
-              {shellFailStamp.label}
             </span>
           ) : null}
           {truncationCopy ? (
@@ -868,6 +873,18 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
                 {(bodyOutput ?? '').slice(0, density === 'compact' ? 2000 : 8000)}
               </pre>
             </CollapsibleContentBlock>
+          ) : null}
+          {!isShellSheet &&
+          isShellTool &&
+          !bodyOutput &&
+          citations.kind === 'none' &&
+          !canRenderDiffCard &&
+          tool.status !== 'running' ? (
+            <LazyToolOutputPre
+              toolCallId={tool.toolCallId}
+              maxChars={density === 'compact' ? 2000 : 8000}
+              locale={locale}
+            />
           ) : null}
           {bodyOutput && citations.kind === 'none' && canRenderDiffCard ? (
             <details className="tool-call-raw-fold">

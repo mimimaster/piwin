@@ -36,6 +36,7 @@ import { attachXtermImageLinks } from './xterm-image-links.js';
 import { attachTerminalUrlLinks } from './xterm-url-links.js';
 import { attachXtermImageAddon, type XtermImages } from './xterm-image-addon';
 import { fullBleedColumns } from './xterm-fit-gutter';
+import { registerLivePtyToken } from './live-pty-registry.js';
 import {
   tauriPtyOpen,
   tauriPtyOpenTui,
@@ -156,6 +157,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     const transport = props.pty?.transport ?? TAURI_PTY_TRANSPORT;
     let disposed = false;
     const connection = new AbortController();
+    let releaseLivePty: (() => void) | null = null;
     let lastSize: { cols: number; rows: number } | null = null;
     let resizeObserver: ResizeObserver | null = null;
     let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -354,6 +356,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       try {
         const size = { cols: terminal.cols, rows: terminal.rows };
         lastSize = size;
+        releaseLivePty?.();
+        releaseLivePty = registerLivePtyToken();
         await connectXtermPty({
           signal: connection.signal,
           transport,
@@ -383,6 +387,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
           },
           onData: (data) => terminal.write(data),
           onExit: (event) => {
+            releaseLivePty?.();
+            releaseLivePty = null;
             terminal.writeln('\r\n[process exited]');
             ptyIdRef.current = null;
             onHandleRef.current?.(null);
@@ -390,6 +396,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
           },
         });
       } catch (error) {
+        releaseLivePty?.();
+        releaseLivePty = null;
         if (disposed) return;
         const message = formatError(error);
         onStatusRef.current('error', null, message);
@@ -446,6 +454,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
 
     return () => {
       disposed = true;
+      releaseLivePty?.();
+      releaseLivePty = null;
       showRef.current = null;
       resizeNowRef.current = null;
       bootingRef.current = false;

@@ -4,6 +4,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
+import { globalMemoryGovernor } from '../notes/memory-governor.js';
 import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 
 declare global {
@@ -36,6 +37,7 @@ describe('AgentLocator', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.parentNode?.removeChild(container);
+    globalMemoryGovernor.reset();
     window.matchMedia = previousMatchMedia;
   });
 
@@ -105,5 +107,45 @@ describe('AgentLocator', () => {
     expect(chip?.getAttribute('data-activity-id')).toBe('skill.load');
     expect(chip?.textContent).toContain('加载技能：writing-plans');
     expect(container.querySelector('[data-testid="skill-activity-matrix"]')).not.toBeNull();
+  });
+
+  it('downgrades multi-layer and SVG indicators to LiteRing under critical pressure while preserving BreathDot and recovery', () => {
+    act(() => {
+      globalMemoryGovernor.setLevel('critical');
+    });
+
+    render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="radial-bellow" />);
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-radial-bellow"]')).toBeNull();
+
+    render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="asterisk-breath" />);
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-asterisk"]')).toBeNull();
+
+    render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="breath-dot" />);
+    expect(container.querySelector('[data-testid="agent-locator-dot"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).toBeNull();
+
+    render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="none" />);
+    expect(container.querySelector('.agent-locator-visual')).toBeNull();
+
+    render(
+      <SkillActivityChip
+        skill={{ skillId: 'writing-plans', name: 'writing-plans' }}
+        loading
+        locale="zh-CN"
+      />,
+    );
+    expect(container.querySelector('[data-testid="skill-activity-lite-ring"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="skill-activity-matrix"]')).toBeNull();
+
+    render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="radial-bellow" />);
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).not.toBeNull();
+
+    act(() => {
+      globalMemoryGovernor.setLevel('normal');
+    });
+    expect(container.querySelector('[data-testid="agent-locator-radial-bellow"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).toBeNull();
   });
 });

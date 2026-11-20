@@ -297,6 +297,9 @@ export async function handleCatalogCommand(
       config.skills = {
         extraPaths: skillsConfig.extraPaths,
         disabledIds: [...disabled],
+        ...(skillsConfig.excludedIds && skillsConfig.excludedIds.length > 0
+          ? { excludedIds: skillsConfig.excludedIds }
+          : {}),
       };
       await savePiwinConfig(config, rootDir);
       return ok(requestId, 'skills/set_enabled', {

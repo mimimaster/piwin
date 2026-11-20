@@ -37,7 +37,7 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
   );
   const liveMotionCount = getLiveStatusAnimationCount(data);
   const parked = data?.parked === true;
-  const motionPauseReason = parked ? 'parked' : data?.level === 'critical' ? 'critical' : null;
+  const motionMode = parked ? 'parked' : data?.level === 'critical' ? 'lite' : null;
 
   return (
     <div className="memory-diagnostics" data-testid="memory-diagnostics-panel" data-condition={report.condition}>
@@ -108,7 +108,7 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
         </dl>
         <div className="memory-diag-caches" data-testid="memory-diag-caches">
           <MemoryDiagRow label={copy.motionLiveLabel} testId="memory-diag-live-motion">
-            {copy.motionLiveSummary(liveMotionCount, motionPauseReason)}
+            {copy.motionLiveSummary(liveMotionCount, motionMode)}
           </MemoryDiagRow>
           {caches.length === 0 ? (
             <MemoryDiagNote>{data === null ? copy.explanation.loading : copy.noCachesCompact}</MemoryDiagNote>

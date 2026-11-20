@@ -4,12 +4,18 @@ import type {
   SessionTurnSummary,
 } from '@piwin/contracts';
 import { classifyCompactionNoOp } from '@piwin/contracts';
+import { isShellFamilyTool } from './shell-tool.js';
 
 type WorkTool = Pick<SessionToolCardView, 'status'> & {
-  presentation?: Pick<
-    NonNullable<SessionToolCardView['presentation']>,
-    'changedPaths' | 'targetPaths' | 'error'
-  >;
+  toolName?: string | undefined;
+  presentation?:
+    | (Pick<
+        NonNullable<SessionToolCardView['presentation']>,
+        'changedPaths' | 'targetPaths' | 'error'
+      > & {
+        kind?: NonNullable<SessionToolCardView['presentation']>['kind'] | undefined;
+      })
+    | undefined;
   input?: unknown;
 };
 export type TranscriptWorkMessage = {
@@ -35,7 +41,11 @@ export function countTranscriptWork(messages: Iterable<TranscriptWorkMessage>): 
     messageFailed ||= message.status === 'error' || message.error !== undefined;
     for (const tool of message.tools ?? []) {
       toolCount += 1;
-      if (tool.status === 'error' && tool.presentation?.error?.category !== 'cancelled')
+      if (
+        tool.status === 'error' &&
+        tool.presentation?.error?.category !== 'cancelled' &&
+        !isShellFamilyTool(tool)
+      )
         failedTools += 1;
       for (const path of tool.presentation?.changedPaths ?? []) addPath(path);
       for (const path of tool.presentation?.targetPaths ?? []) addPath(path);

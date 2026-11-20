@@ -24,6 +24,7 @@ export type CreatePiResourceLoaderOptions = {
   projectPath?: string;
   scope?: SessionScope;
   disabledSkillIds?: string[];
+  excludedSkillIds?: string[];
   extraExtensionPaths?: string[];
   disabledExtensionIds?: string[];
   extraPromptPaths?: string[];
@@ -74,6 +75,9 @@ export async function createPiResourceLoader(options: CreatePiResourceLoaderOpti
     skillsConfig: {
       extraPaths: options.extraSkillPaths ?? [],
       disabledIds: options.disabledSkillIds ?? [],
+      ...(options.excludedSkillIds && options.excludedSkillIds.length > 0
+        ? { excludedIds: options.excludedSkillIds }
+        : {}),
     },
     promptsConfig: {
       extraPaths: options.extraPromptPaths ?? [],

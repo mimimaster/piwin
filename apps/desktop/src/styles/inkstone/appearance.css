@@ -256,7 +256,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   width: 100%;
   height: 52px;
   border-radius: 6px;
-  background: var(--card-preset-void, #e6e1d7);
+  background: var(--card-preset-void, #e4e3df);
   padding: 4px;
   box-sizing: border-box;
   display: flex;
@@ -268,7 +268,7 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   display: flex;
   flex-direction: column;
   gap: 3px;
-  background: var(--card-preset-s1, #f0ece4);
+  background: var(--card-preset-s1, #efeeeb);
   border-radius: 4px;
   padding: 4px;
   border: 1px solid rgba(0, 0, 0, 0.05);

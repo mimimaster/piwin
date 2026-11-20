@@ -18,11 +18,15 @@ import {
 } from './chat-reducer-transcript';
 import { settleStreamingAssistants } from './chat-reducer-tools';
 import { mergeIdleLoop } from '../run-activity/run-idle-loop-merge';
+import { putRecordLru } from '../platform/record-budget';
 import {
   dropPermissionPromptsForRun,
   permissionQueueFields,
 } from '../settings/permission-queue';
 import { projectInstructionUserMessage } from './instruction-message-projection';
+
+const MAX_RUN_RECORDS = 64;
+const MAX_RUN_PHASE_HISTORY = 32;
 
 export type ChatUiRunAction = Extract<
   ChatUiAction,
@@ -87,7 +91,7 @@ export function applyRunRecord(
             at: phaseAt,
             ...(run.phaseDetail ? { detail: run.phaseDetail } : {}),
           },
-        ]
+        ].slice(-MAX_RUN_PHASE_HISTORY)
       : (previousRecord?.phaseHistory ?? []);
   const outcome =
     run.status === 'completed'
@@ -133,7 +137,14 @@ export function applyRunRecord(
         : {}),
     ...mergeIdleLoop(run.idleLoop, previousRecord?.idleLoop),
   };
-  const records = { ...state.runRecordsById, [run.runId]: nextRecord };
+  const protectRunKeys = [state.activeRunId ?? '', state.lastTerminalRunId ?? ''];
+  const records = putRecordLru(
+    state.runRecordsById,
+    run.runId,
+    nextRecord,
+    MAX_RUN_RECORDS,
+    protectRunKeys,
+  );
 
   if (run.kind !== 'session-turn') {
     return { ...state, runRecordsById: records };
@@ -490,15 +501,18 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
         return {
           ...state,
           workingSessionIds: { ...state.workingSessionIds, [action.sessionId]: true },
-          runRecordsById: {
-            ...state.runRecordsById,
-            [action.runId]: {
+          runRecordsById: putRecordLru<RunRecordUi>(
+            state.runRecordsById,
+            action.runId,
+            {
               runId: action.runId,
               phaseHistory: [{ phase: 'accepted', at: Date.now() }],
               startedAt: action.acceptedAt ? parseAcceptedAt(action.acceptedAt) : Date.now(),
               endedAt: null,
             },
-          },
+            MAX_RUN_RECORDS,
+            state.activeRunId ? [state.activeRunId] : [],
+          ),
         };
       }
       if (state.activeRunId !== null && state.activeRunId !== action.runId) {
@@ -521,9 +535,10 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
           runPhase: 'streaming',
           streaming: true,
           runTerminal: { kind: 'none' },
-          runRecordsById: {
-            ...state.runRecordsById,
-            [action.runId]: {
+          runRecordsById: putRecordLru<RunRecordUi>(
+            state.runRecordsById,
+            action.runId,
+            {
               runId: action.runId,
               phaseHistory: previous?.phaseHistory ?? [{ phase: 'accepted', at: startedAt }],
               startedAt: previous?.startedAt ?? startedAt,
@@ -531,7 +546,9 @@ export function reduceChatRun(state: ChatUiState, action: ChatUiRunAction): Chat
               ...(previous?.outcome ? { outcome: previous.outcome } : {}),
               ...(previous?.terminalMessage ? { terminalMessage: previous.terminalMessage } : {}),
             },
-          },
+            MAX_RUN_RECORDS,
+            state.activeRunId ? [state.activeRunId] : [],
+          ),
         };
       }
     case 'foreground/admission':

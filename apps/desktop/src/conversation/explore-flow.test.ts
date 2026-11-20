@@ -449,4 +449,24 @@ describe('buildExploreFlowRolesByTurn', () => {
     expect(after.get('c1')).not.toBe(before.get('c1'));
     expect(after.get('c1')).toEqual(before.get('c1'));
   });
+
+  it('excludes failed read-only shell commands from explore capsule errorCount', () => {
+    const failedReadOnlyBash: ChatMessageUi = assistantStep('m1', {
+      tools: [
+        readTool('r1', 'src/a.ts'),
+        {
+          toolCallId: 'b1',
+          toolName: 'bash',
+          status: 'error',
+          output: '',
+          presentation: { kind: 'shell', title: 'bash', command: 'rg missing src' },
+        },
+      ],
+    });
+    const roles = buildExploreFlowRoles([failedReadOnlyBash]);
+    const anchor = roles.get('m1');
+    expect(anchor?.kind).toBe('anchor');
+    if (anchor?.kind !== 'anchor') return;
+    expect(anchor.group.errorCount).toBe(0);
+  });
 });

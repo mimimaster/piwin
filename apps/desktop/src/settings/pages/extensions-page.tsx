@@ -3,7 +3,6 @@
  * Unified capability extension hub aggregating:
  * - Skills & Rules
  * - MCP Tools
- * - Prompt Templates
  * - Plugins
  * - Pi Extensions
  */
@@ -13,12 +12,11 @@ import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 import { SkillsPanel } from '../../extensions/SkillsPanel';
 import { McpPanel } from '../../mcp/McpPanel';
-import { PromptsPanel } from '../../extensions/PromptsPanel';
 import { PluginsPanel } from '../../extensions/PluginsPanel';
 import { ExtensionsPanel } from '../../extensions/ExtensionsPanel';
 import { useResetSettingsMainScroll } from '../use-reset-settings-scroll.js';
 
-type ExtensionsSubTab = 'extensions' | 'skills' | 'tools' | 'prompts' | 'plugins';
+type ExtensionsSubTab = 'extensions' | 'skills' | 'tools' | 'plugins';
 
 export function ExtensionsPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -29,7 +27,6 @@ export function ExtensionsPage(): ReactElement {
     activeSessionId,
     requestSkills,
     requestMcp,
-    requestPrompts,
     requestPlugins,
     requestExtensions,
   } = settings;
@@ -37,9 +34,7 @@ export function ExtensionsPage(): ReactElement {
   const toolsAvailable = settingsHostSupportsCommand(settings, 'mcp/get');
   const pluginsAvailable = settingsHostSupportsCommand(settings, 'plugins/list');
   const skillsAvailable = settingsHostSupportsCommand(settings, 'skills/list');
-  const promptsAvailable = settingsHostSupportsCommand(settings, 'prompts/list');
   const skillsReadOnly = !settingsHostSupportsCommand(settings, 'skills/set_enabled');
-  const promptsReadOnly = !settingsHostSupportsCommand(settings, 'prompts/set_enabled');
 
   const [activeTab, setActiveTab] = useState<ExtensionsSubTab>('extensions');
   useResetSettingsMainScroll(activeTab);
@@ -61,11 +56,6 @@ export function ExtensionsPage(): ReactElement {
               value: 'tools',
               label: isChinese ? 'MCP 工具' : 'MCP',
               disabled: !toolsAvailable,
-            },
-            {
-              value: 'prompts',
-              label: isChinese ? '提示词' : 'Prompts',
-              disabled: !promptsAvailable,
             },
             {
               value: 'plugins',
@@ -104,17 +94,6 @@ export function ExtensionsPage(): ReactElement {
       {activeTab === 'tools' && (
         <div className="settings-card settings-card-flush" data-testid="settings-mcp">
           <McpPanel request={requestMcp} variant="inline" />
-        </div>
-      )}
-
-      {activeTab === 'prompts' && (
-        <div className="settings-card" data-testid="settings-prompts">
-          <PromptsPanel
-            projectPath={projectPath}
-            request={requestPrompts}
-            variant="inline"
-            readOnly={promptsReadOnly}
-          />
         </div>
       )}
 

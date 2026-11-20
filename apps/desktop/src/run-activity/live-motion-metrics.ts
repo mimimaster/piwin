@@ -10,7 +10,8 @@ export type LiveMotionKind =
   | 'radial-bellow'
   | 'asterisk-breath'
   | 'breath-dot'
-  | 'breath-matrix';
+  | 'breath-matrix'
+  | 'lite-ring';
 
 export type LiveMotionStats = {
   total: number;
@@ -22,6 +23,7 @@ const EMPTY_COUNTS: Record<LiveMotionKind, number> = {
   'asterisk-breath': 0,
   'breath-dot': 0,
   'breath-matrix': 0,
+  'lite-ring': 0,
 };
 
 let counts: Record<LiveMotionKind, number> = { ...EMPTY_COUNTS };
@@ -44,7 +46,8 @@ export function getLiveMotionStats(): LiveMotionStats {
     byKind['radial-bellow'] +
     byKind['asterisk-breath'] +
     byKind['breath-dot'] +
-    byKind['breath-matrix'];
+    byKind['breath-matrix'] +
+    byKind['lite-ring'];
   return { total, byKind };
 }
 

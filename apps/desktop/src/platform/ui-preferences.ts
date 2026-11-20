@@ -130,6 +130,27 @@ const RETIRED_INKSTONE_PAPER_APPEARANCE: AppearanceThemeSettings = {
   accent: '#C6412A',
 };
 
+const RETIRED_WARM_PAPER_APPEARANCE: AppearanceThemeSettings = {
+  preset: 'default',
+  background: '#E6E1D7',
+  foreground: '#1D1B17',
+  accent: '#B03A24',
+};
+
+const RETIRED_MODERN_LIGHT_APPEARANCE: AppearanceThemeSettings = {
+  preset: 'modern',
+  background: '#E2E5E9',
+  foreground: '#111827',
+  accent: '#111827',
+};
+
+const RETIRED_WARM_INK_APPEARANCE: AppearanceThemeSettings = {
+  preset: 'default',
+  background: '#0B0A09',
+  foreground: '#EBE5DA',
+  accent: '#E25A3D',
+};
+
 function normalizeAppearanceTheme(settings: AppearanceThemeSettings): AppearanceThemeSettings {
   return {
     preset: settings.preset,
@@ -156,19 +177,31 @@ export function migrateStoredAppearanceTheme(
   mode: 'light' | 'dark',
 ): AppearanceThemeSettings {
   const normalized = normalizeAppearanceTheme(settings);
+  if (mode === 'light' && appearanceThemesEqual(normalized, RETIRED_MODERN_LIGHT_APPEARANCE)) {
+    return createLightPresetSettings('modern');
+  }
   const legacy = mode === 'light' ? LEGACY_LIGHT_APPEARANCE : LEGACY_DARK_APPEARANCE;
   const deckDefault =
     mode === 'light' ? RETIRED_DECK_LIGHT_APPEARANCE : RETIRED_DECK_DARK_APPEARANCE;
-  const retiredInkstonePaper =
-    mode === 'light' && appearanceThemesEqual(normalized, RETIRED_INKSTONE_PAPER_APPEARANCE);
+  const retiredWarmPaper =
+    mode === 'light' &&
+    (appearanceThemesEqual(normalized, RETIRED_INKSTONE_PAPER_APPEARANCE) ||
+      appearanceThemesEqual(normalized, RETIRED_WARM_PAPER_APPEARANCE));
+  const retiredWarmInk =
+    mode === 'dark' && appearanceThemesEqual(normalized, RETIRED_WARM_INK_APPEARANCE);
   if (
     appearanceThemesEqual(normalized, legacy) ||
     appearanceThemesEqual(normalized, deckDefault) ||
-    retiredInkstonePaper
+    retiredWarmPaper ||
+    retiredWarmInk
   ) {
-    return mode === 'light'
-      ? { ...DEFAULT_LIGHT_THEME_SETTINGS }
-      : { ...DEFAULT_DARK_THEME_SETTINGS };
+    if (mode === 'light') {
+      return {
+        ...DEFAULT_LIGHT_THEME_SETTINGS,
+        ...(normalized.preset === 'paper' ? { preset: 'paper' } : {}),
+      };
+    }
+    return { ...DEFAULT_DARK_THEME_SETTINGS };
   }
   return normalized;
 }

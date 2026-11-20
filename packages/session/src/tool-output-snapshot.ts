@@ -13,6 +13,9 @@ import type {
   SessionToolOutputData,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { isShellFamilyTool } from './shell-tool.js';
+
+export { isShellFamilyTool };
 
 export const TOOL_SNAPSHOT_DEFAULT_MAX_BYTES = 256 * 1024;
 export const TOOL_SNAPSHOT_HARD_MAX_BYTES = 512 * 1024;
@@ -98,21 +101,6 @@ export function isReadFamilyTool(
     actionVerb.startsWith('opened') ||
     actionVerb.startsWith('viewed')
   );
-}
-
-const SHELL_TOOL_NAMES = new Set(['bash', 'shell', 'zsh', 'sh', 'run_command', 'exec']);
-
-/**
- * Shell tools, for the transcript's expanded bash row. Kept apart from
- * `isReadFamilyTool` so Doc Preview never treats command output as a file.
- */
-export function isShellFamilyTool(
-  tool: Pick<SessionToolCardView, 'toolName' | 'presentation'>,
-): boolean {
-  if (tool.presentation?.kind === 'shell') {
-    return true;
-  }
-  return SHELL_TOOL_NAMES.has((tool.toolName ?? '').toLowerCase());
 }
 
 function boundUtf8(

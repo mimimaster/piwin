@@ -7,7 +7,6 @@
  * Must not touch MemoryGovernor — pressure and parking are independent.
  */
 import { requestNativeWebviewMemoryPurge } from './memory-pressure';
-import { syncWindowMaterialMarker } from '../platform/wallpaper-document.js';
 
 export const PARK_AFTER_HIDDEN_MS = 120_000;
 
@@ -30,12 +29,10 @@ function applyParked(next: boolean): void {
   parked = next;
   if (next) {
     document.documentElement.dataset.memoryParked = '';
-    syncWindowMaterialMarker(document.documentElement);
     void requestNativeWebviewMemoryPurge();
     return;
   }
   delete document.documentElement.dataset.memoryParked;
-  syncWindowMaterialMarker(document.documentElement);
 }
 
 function onVisibilityChange(): void {

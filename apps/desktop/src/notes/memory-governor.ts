@@ -30,7 +30,6 @@ import {
   type CacheBudget,
   type MemoryPressureLevel,
 } from './cache-budget.js';
-import { syncWindowMaterialMarker } from '../platform/wallpaper-document.js';
 
 export type { CacheBudget, DisposableCache, MemoryPressureLevel } from './cache-budget.js';
 export {
@@ -191,7 +190,6 @@ class MemoryGovernor {
       } else {
         document.documentElement.dataset.memoryPressure = nextLevel;
       }
-      syncWindowMaterialMarker(document.documentElement);
     }
 
     // Notify listeners (highlight UI, artifact-memory-bridge).

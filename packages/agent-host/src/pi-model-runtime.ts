@@ -19,6 +19,11 @@ import {
   resolveRegistrationStreamSimple,
   type RegistrationModelStreamFlags,
 } from './attach-provider-stream-simple.js';
+import {
+  isMistralBaseUrl,
+  isMistralModelId,
+  isMistralOpenAiTarget,
+} from './mistral-openai-stream.js';
 import type { NativeSearchStreamSimple } from './native-web-search.js';
 import {
   CLOUD_CREDENTIAL_CHAIN_API_KEY,
@@ -68,17 +73,6 @@ export type PiModelCompat = {
  */
 const DEEPSEEK_MODEL_ID_PREFIX = 'deepseek';
 const GROK_MODEL_ID_PREFIX = 'grok';
-const MISTRAL_MODEL_ID_PREFIXES = [
-  'mistral',
-  'mixtral',
-  'codestral',
-  'devstral',
-  'magistral',
-  'pixtral',
-  'ministral',
-  'open-mistral',
-  'open-mixtral',
-] as const;
 
 const DEEPSEEK_OPENAI_COMPAT: PiModelCompat = {
   supportsStore: false,
@@ -95,14 +89,16 @@ const GROK_OPENAI_COMPAT: PiModelCompat = {
 };
 
 /**
- * Mistral's `/v1/chat/completions` endpoint rejects unknown OpenAI fields
- * (`store`, `max_completion_tokens`, `reasoning_effort`, `stream_options`,
- * `prompt_cache_retention`, `strict`, and `developer` role) with HTTP 422.
+ * Mistral's `/v1/chat/completions` accepts root-level `reasoning_effort` for
+ * reasoning-capable models (and Pi guards emission on `model.reasoning`), while
+ * still rejecting `store`, `max_completion_tokens`, `stream_options`,
+ * `prompt_cache_retention`, `strict`, `developer` role, and DeepSeek's
+ * `thinking` object with HTTP 422.
  */
 const MISTRAL_OPENAI_COMPAT: PiModelCompat = {
   supportsStore: false,
   supportsDeveloperRole: false,
-  supportsReasoningEffort: false,
+  supportsReasoningEffort: true,
   supportsUsageInStreaming: false,
   maxTokensField: 'max_tokens',
   requiresToolResultName: true,
@@ -115,15 +111,6 @@ function openaiCompatModelName(modelId: string): string {
   const id = modelId.trim().toLowerCase();
   const slash = id.lastIndexOf('/');
   return slash >= 0 ? id.slice(slash + 1) : id;
-}
-
-function isMistralBaseUrl(baseUrl: string | undefined): boolean {
-  if (!baseUrl) return false;
-  try {
-    return new URL(baseUrl).hostname.toLowerCase() === 'api.mistral.ai';
-  } catch {
-    return baseUrl.toLowerCase().includes('api.mistral.ai');
-  }
 }
 
 /**
@@ -166,7 +153,7 @@ function modelIdCompat(
   if (modelName.startsWith(GROK_MODEL_ID_PREFIX)) {
     return { ...GROK_OPENAI_COMPAT };
   }
-  if (MISTRAL_MODEL_ID_PREFIXES.some((prefix) => modelName.startsWith(prefix))) {
+  if (isMistralModelId(modelId)) {
     return { ...MISTRAL_OPENAI_COMPAT };
   }
   return undefined;
@@ -278,17 +265,25 @@ function positiveLimit(value: number | undefined): number | undefined {
 /**
  * One-shot Pi completions register a provider without the product stream
  * unless the request depends on it: cloud rows carry project/location/region
- * in it, and a model with a custom body (ADR 0095) needs its merge hook.
+ * in it, a model with a custom body (ADR 0095) needs its merge hook, and
+ * Mistral OpenAI-compatible targets need assistant sanitization and SSE array
+ * chunk normalization.
  */
 export function completionNeedsRegistrationStream(
   provider: ModelProviderConfig,
   modelId: string,
 ): boolean {
-  return (
+  const model = provider.models.find((entry) => entry.id === modelId);
+  if (
     isCloudCredentialProtocol(provider.protocol) ||
-    resolveModelRequestBody(provider, provider.models.find((model) => model.id === modelId)) !==
-      undefined
-  );
+    resolveModelRequestBody(provider, model) !== undefined
+  ) {
+    return true;
+  }
+  const endpoint = resolveModelEndpoint(provider, model);
+  const modelApi = resolvePiApiForProvider(endpoint.protocol, endpoint.chatApi);
+  const baseUrl = endpoint.baseUrl || resolveCloudBaseUrl(provider);
+  return modelApi === 'openai-completions' && isMistralOpenAiTarget(modelId, baseUrl);
 }
 
 export function buildPiProviderRegistration(
@@ -377,6 +372,7 @@ export function buildPiProviderRegistration(
     return {
       id: model.id,
       api: model.api,
+      ...(model.baseUrl ? { baseUrl: model.baseUrl } : {}),
       ...(model.capabilities ? { capabilities: model.capabilities } : {}),
       ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
       ...(model.nativeSearchOptions ? { nativeSearchOptions: model.nativeSearchOptions } : {}),

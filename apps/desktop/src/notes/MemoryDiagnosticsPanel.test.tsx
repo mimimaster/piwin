@@ -296,8 +296,8 @@ describe('MemoryDiagnosticsPanel', () => {
     }
   });
 
-  it('pauses live status animations and strips glass under critical pressure', async () => {
-    const releaseMotion = trackLiveMotionMount('radial-bellow');
+  it('downgrades live status animations to low-memory mode and strips glass under critical pressure', async () => {
+    const releaseMotion = trackLiveMotionMount('lite-ring');
     try {
       globalMemoryGovernor.setLevel('critical');
       const container = await renderPanel({
@@ -307,7 +307,7 @@ describe('MemoryDiagnosticsPanel', () => {
       });
 
       expect(text(container.querySelector('[data-testid="memory-diag-live-motion"]'))).toContain(
-        '1 项 · 高占用已暂停',
+        '1 项 · 轻量动态模式（高占用降级）',
       );
 
       const toggle = container.querySelector<HTMLButtonElement>(
@@ -320,7 +320,7 @@ describe('MemoryDiagnosticsPanel', () => {
       const policySection = container.querySelector('[data-testid="memory-diag-motion-policy"]');
       expect(policySection).not.toBeNull();
       expect(text(container.querySelector('[data-testid="memory-diag-policy-core-motion"]'))).toContain(
-        '已暂停 · 占用过高静态模式（1 个）',
+        '轻量动态 · 高占用降级（1 个）',
       );
       expect(text(container.querySelector('[data-testid="memory-diag-policy-text-shimmer"]'))).toContain(
         '已降级',

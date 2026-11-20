@@ -102,22 +102,22 @@ const ENGLISH = {
   },
   motionSection: 'Motion & degradation policy',
   motionLiveLabel: 'Live status animations',
-  motionLiveSummary: (count: number, pauseReason: 'parked' | 'critical' | null) =>
+  motionLiveSummary: (count: number, mode: 'parked' | 'lite' | null) =>
     `${count} active · ${
-      pauseReason === 'parked'
+      mode === 'parked'
         ? 'paused (window hidden)'
-        : pauseReason === 'critical'
-          ? 'paused (critical pressure)'
+        : mode === 'lite'
+          ? 'low-memory mode (single-layer)'
           : 'active (normal/moderate)'
     }`,
   motionPolicyNote:
-    'Core status animations (ui-anim-*) stay active at normal/moderate pressure, and pause under critical pressure (1536 MiB) or when the window is hidden alongside opaque solid surfaces. WebKit does not report per-element IOSurface bytes.',
+    'Core status animations stay full at normal/moderate pressure, switch to single-layer low-memory motion (LiteRing / BreathDot) under critical pressure (1536 MiB), and pause when the window is hidden alongside opaque solid surfaces. WebKit does not report per-element IOSurface bytes.',
   motionPolicyItems: {
     coreMotion: {
       label: 'Core status icon (ui-anim-*)',
       active: (count: number) => `Active (${count} mounted)`,
       paused: (count: number) => `Paused · window hidden (${count} mounted)`,
-      pausedCritical: (count: number) => `Paused · critical memory (${count} mounted)`,
+      lite: (count: number) => `Low-memory motion (${count} mounted)`,
     },
     shimmer: {
       label: 'Status text shimmer (wb-shimmer)',
@@ -234,22 +234,22 @@ const CHINESE: typeof ENGLISH = {
   },
   motionSection: '动效与降级策略 Motion policy',
   motionLiveLabel: '动态状态图标 Live motion',
-  motionLiveSummary: (count: number, pauseReason: 'parked' | 'critical' | null) =>
+  motionLiveSummary: (count: number, mode: 'parked' | 'lite' | null) =>
     `${count} 项 · ${
-      pauseReason === 'parked'
+      mode === 'parked'
         ? '窗口隐藏已暂停'
-        : pauseReason === 'critical'
-          ? '高占用已暂停（静态省电）'
+        : mode === 'lite'
+          ? '轻量动态模式（高占用降级）'
           : '运行中'
     }`,
   motionPolicyNote:
-    '核心状态图标（ui-anim-*）仅在正常与偏高（768 MiB）下保持运行，达到占用过高（1536 MiB）或窗口隐藏时即切换为静态省电状态，并同步切回实心纯色画布；WebKit 不提供按单个 CSS 组件拆分的 IOSurface 字节数。',
+    '核心状态图标在正常与偏高（768 MiB）下保持完整动效，达到占用过高（1536 MiB）时自动降级为单层轻量动态环（LiteRing / BreathDot）保持运行，仅窗口隐藏时暂停；WebKit 不提供按单个 CSS 组件拆分的 IOSurface 字节数。',
   motionPolicyItems: {
     coreMotion: {
       label: '核心状态图标 (ui-anim-*)',
       active: (count: number) => `运行中（${count} 个）`,
       paused: (count: number) => `已暂停 · 窗口隐藏（${count} 个）`,
-      pausedCritical: (count: number) => `已暂停 · 占用过高静态模式（${count} 个）`,
+      lite: (count: number) => `轻量动态 · 高占用降级（${count} 个）`,
     },
     shimmer: {
       label: '文字流光 (wb-shimmer)',

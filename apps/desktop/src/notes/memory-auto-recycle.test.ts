@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AUTO_RECYCLE_COOLDOWN_MS,
   AUTO_RECYCLE_HIDDEN_MS,
+  AUTO_RECYCLE_RETRY_MS,
+  AUTO_RECYCLE_UNFOCUSED_IDLE_MS,
   installMemoryAutoRecycle,
 } from './memory-auto-recycle.js';
 import { MEMORY_PRESSURE_CRITICAL_BYTES } from './memory-pressure.js';
@@ -136,6 +138,66 @@ describe('installMemoryAutoRecycle', () => {
     setVisibility('hidden');
     vi.advanceTimersByTime(AUTO_RECYCLE_HIDDEN_MS);
     expect(recover).toHaveBeenCalledTimes(2);
+    dispose();
+  });
+
+  it('retries while remaining hidden after an active run finishes', () => {
+    let runActive = true;
+    const recover = vi.fn(() => ({ allowed: true, checks: [] }));
+    const dispose = installMemoryAutoRecycle({
+      isRunActive: () => runActive,
+      getFootprintBytes: () => MEMORY_PRESSURE_CRITICAL_BYTES,
+      isUiBlockingModalOpen: () => false,
+      recover,
+    });
+
+    setVisibility('hidden');
+    vi.advanceTimersByTime(AUTO_RECYCLE_HIDDEN_MS);
+    expect(recover).not.toHaveBeenCalled();
+
+    runActive = false;
+    vi.advanceTimersByTime(AUTO_RECYCLE_RETRY_MS - 1);
+    expect(recover).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(recover).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it('recycles after unfocused idle on visible macOS windows and resets on focus or input', () => {
+    let runActive = false;
+    const recover = vi.fn(() => ({ allowed: true, checks: [] }));
+    const dispose = installMemoryAutoRecycle({
+      isRunActive: () => runActive,
+      getFootprintBytes: () => MEMORY_PRESSURE_CRITICAL_BYTES,
+      isUiBlockingModalOpen: () => false,
+      recover,
+    });
+
+    window.dispatchEvent(new Event('blur'));
+    vi.advanceTimersByTime(AUTO_RECYCLE_UNFOCUSED_IDLE_MS - 1);
+    expect(recover).not.toHaveBeenCalled();
+
+    // User focus cancels the scheduled unfocused recycle.
+    window.dispatchEvent(new Event('focus'));
+    vi.advanceTimersByTime(AUTO_RECYCLE_UNFOCUSED_IDLE_MS);
+    expect(recover).not.toHaveBeenCalled();
+
+    // Input activity while blurred also cancels.
+    window.dispatchEvent(new Event('blur'));
+    vi.advanceTimersByTime(AUTO_RECYCLE_UNFOCUSED_IDLE_MS / 2);
+    window.dispatchEvent(new Event('keydown'));
+    vi.advanceTimersByTime(AUTO_RECYCLE_UNFOCUSED_IDLE_MS);
+    expect(recover).not.toHaveBeenCalled();
+
+    // Active run skips then retries once run ends while still blurred.
+    runActive = true;
+    window.dispatchEvent(new Event('blur'));
+    vi.advanceTimersByTime(AUTO_RECYCLE_UNFOCUSED_IDLE_MS);
+    expect(recover).not.toHaveBeenCalled();
+
+    runActive = false;
+    vi.advanceTimersByTime(AUTO_RECYCLE_RETRY_MS);
+    expect(recover).toHaveBeenCalledTimes(1);
     dispose();
   });
 });

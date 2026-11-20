@@ -324,6 +324,33 @@
   }
 }
 
+/* ── Lite Ring (轻量动态环) ──────────────────────────────────────── */
+
+.ui-anim-lite-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-anim-lite-ring__arc {
+  display: block;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: color-mix(in srgb, currentColor 26%, transparent);
+  border-top-color: currentColor;
+  border-right-color: color-mix(in srgb, currentColor 62%, transparent);
+  animation: ui-anim-lite-ring 1.05s linear infinite;
+}
+
+.ui-anim--sm .ui-anim-lite-ring__arc { width: 16px; height: 16px; border-width: 2px; }
+.ui-anim--md .ui-anim-lite-ring__arc { width: 28px; height: 28px; border-width: 2.5px; }
+.ui-anim--lg .ui-anim-lite-ring__arc { width: 40px; height: 40px; border-width: 3px; }
+
+@keyframes ui-anim-lite-ring {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Reduced motion: freeze all breathing animations ────────────── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -336,9 +363,14 @@
   .ui-anim-cascade-ripple__bar,
   .ui-anim-asterisk__spinner,
   .ui-anim-asterisk__arm,
-  .ui-anim-asterisk__core {
+  .ui-anim-asterisk__core,
+  .ui-anim-lite-ring__arc {
     animation: none;
     opacity: 0.6;
+  }
+
+  .ui-anim-radial-bellow__vane {
+    transform: scale(0.55, 0.45);
   }
 }
 

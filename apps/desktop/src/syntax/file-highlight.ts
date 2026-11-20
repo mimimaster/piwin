@@ -45,6 +45,13 @@ function releaseClient(): void {
   warmedLanguages.clear();
 }
 
+globalMemoryGovernor.subscribe((level) => {
+  if (level === 'critical') {
+    releaseClient();
+    recentFiles.clear();
+  }
+});
+
 async function runRequest<T>(work: (client: HighlightClient) => Promise<T>): Promise<T> {
   const client = acquireClient();
   activeRequests += 1;

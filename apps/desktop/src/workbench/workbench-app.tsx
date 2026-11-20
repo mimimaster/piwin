@@ -52,6 +52,7 @@ import { ScreenCaptureLayer } from '../screen-capture/screen-capture-layer';
 import { useSessionRenderReclamation } from '../hooks/use-session-render-reclamation.js';
 import { selectVisibleSessionIds } from './docking/visible-sessions.js';
 import { useTrayQuotaSync } from '../tray-quota/use-tray-quota-sync.js';
+import { hasLiveXtermPty } from '../terminal/live-pty-registry.js';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -111,9 +112,7 @@ function HostWorkbench({
   const { sessionListChrome, sessionListQuery, setActiveSubPage, shell, terminal } = chrome;
   const protectedSurfaceRef = useRef(false);
   protectedSurfaceRef.current =
-    chrome.settingsOpen ||
-    activeSubPage !== null ||
-    (typeof document !== 'undefined' && document.querySelector('[data-testid="xterm-surface"]') !== null);
+    chrome.settingsOpen || activeSubPage !== null || hasLiveXtermPty();
   useEffect(
     () =>
       installMemoryAutoRecycle({

@@ -163,15 +163,16 @@ export function resolveShellStamp(input: {
   }
   if (input.status === 'error') {
     const category = input.errorCategory;
-    const label =
-      category === 'timeout'
-        ? zh ? '超时' : 'Timed out'
-        : category === 'cancelled'
-          ? zh ? '已取消' : 'Cancelled'
-          : category === 'permission'
-            ? zh ? '未获准' : 'Denied'
-            : zh ? '失败' : 'Failed';
-    return { tone: 'fail', label };
+    if (category === 'timeout') {
+      return { tone: 'fail', label: zh ? '超时' : 'Timed out' };
+    }
+    if (category === 'cancelled') {
+      return { tone: 'fail', label: zh ? '已取消' : 'Cancelled' };
+    }
+    if (category === 'permission') {
+      return { tone: 'fail', label: zh ? '未获准' : 'Denied' };
+    }
+    return { tone: 'idle', label: '' };
   }
   return { tone: 'idle', label: zh ? '完成' : 'Done' };
 }

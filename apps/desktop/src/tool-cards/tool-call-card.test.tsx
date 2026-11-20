@@ -4,6 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ToolCardUi } from '../conversation/chat-reducer';
 import { collectSessionTools, resolveToolOpenPath, ToolCallCard } from './tool-call-card';
+import {
+  ToolOutputMessageContext,
+  ToolOutputReaderContext,
+  createHostToolOutputReader,
+  type ToolOutputReader,
+} from './tool-output-reader.js';
+import type { HostClient } from '../host/host-client';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -438,16 +445,24 @@ describe('ToolCallCard openable file paths', () => {
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Bash');
     expect(card?.querySelector('.tool-call-summary')?.textContent).not.toContain('Tool error');
+    expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(card?.querySelector('.tool-call-body')).toBeNull();
+
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+
+    expect(card?.classList.contains('is-expanded')).toBe(true);
     expect(card?.querySelector('.tool-call-body')?.textContent).toContain('Command failed');
     expect(card?.querySelector('[data-testid="tool-call-error"]')?.textContent).toContain(
       'Command failed',
     );
     // Same failure string must not also render as a raw output pre.
     expect(card?.querySelector('.tool-call-output')).toBeNull();
-    expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
   });
 
-  it('reads a heredoc by its first line and states a failed exit on the row', () => {
+  it('reads a heredoc by its first line and keeps a failed shell collapsed with a red dot', () => {
     const heredocTool: ToolCardUi = {
       toolCallId: 'shell-heredoc-1',
       toolName: 'bash',
@@ -469,11 +484,14 @@ describe('ToolCallCard openable file paths', () => {
     });
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
     expect(card?.querySelector('.tool-call-preview')?.textContent).toBe("python3 << 'PY'");
     expect(card?.querySelector('[data-testid="tool-call-shell-tag"]')?.textContent).toBe(
       'python · 4 行',
     );
-    expect(card?.querySelector('[data-testid="tool-call-exit-tag"]')?.textContent).toBe('exit 2');
+    expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+    expect(card?.querySelector('.node.fail')).not.toBeNull();
+    expect(card?.querySelector('[data-testid="tool-call-exit-tag"]')).toBeNull();
   });
 
   it('keeps longer stderr under a structured error when it adds detail', () => {
@@ -505,6 +523,12 @@ describe('ToolCallCard openable file paths', () => {
     });
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+
     expect(card?.querySelector('[data-testid="tool-call-error"]')?.textContent).toContain(
       'Command failed: ls /missing',
     );
@@ -1380,6 +1404,106 @@ describe('ToolCallCard shared six-state node vocabulary', () => {
     expect(card?.classList.contains('is-expanded')).toBe(true);
     expect(card?.querySelector('[data-testid="tool-call-file-pill"]')).toBeNull();
     expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Read');
+  });
+
+  it('keeps failed bash collapsed with red dot, hides failure labels, and lazy-loads output only on click', async () => {
+    const request = vi.fn<HostClient['request']>(async () => ({
+      type: 'response',
+      command: 'session/tool-output',
+      success: true,
+      data: { status: 'ready', output: 'FAIL src/foo.test.ts\nAssertion failed', truncated: false },
+    }));
+    const reader: ToolOutputReader = createHostToolOutputReader(request, 'session-lazy');
+    const failedBash: ToolCardUi = {
+      toolCallId: 'bash-fail-lazy-1',
+      toolName: 'bash',
+      status: 'error',
+      output: '',
+      presentation: {
+        title: 'bash',
+        kind: 'shell',
+        actionVerb: 'Ran command',
+        command: 'pnpm vitest run src/foo.test.ts',
+      },
+    };
+
+    act(() => {
+      root.render(
+        <ToolOutputReaderContext.Provider value={reader}>
+          <ToolOutputMessageContext.Provider value="msg-lazy-1">
+            <ToolCallCard tool={failedBash} density="comfortable" locale="zh-CN" />
+          </ToolOutputMessageContext.Provider>
+        </ToolOutputReaderContext.Provider>,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(card?.querySelector('.node.fail')).not.toBeNull();
+    expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+    expect(card?.querySelector('[data-testid="tool-call-exit-tag"]')).toBeNull();
+    expect(card?.textContent).not.toContain('失败');
+    expect(request).not.toHaveBeenCalled();
+
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+    await act(async () => {});
+
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(request).toHaveBeenCalledWith({
+      type: 'session/tool-output',
+      sessionId: 'session-lazy',
+      messageId: 'msg-lazy-1',
+      toolCallId: 'bash-fail-lazy-1',
+    });
+    expect(card?.querySelector('.shell-trail-out')?.textContent).toContain('Assertion failed');
+    expect(card?.querySelector('[data-testid="tool-call-shell-stamp"]')).toBeNull();
+  });
+
+  it('lazy-loads non-ShellToolBody bash output (fetch-style curl or missing command) only after click', async () => {
+    const request = vi.fn<HostClient['request']>(async () => ({
+      type: 'response',
+      command: 'session/tool-output',
+      success: true,
+      data: { status: 'ready', output: 'HTTP/1.1 500 Internal Server Error', truncated: false },
+    }));
+    const reader: ToolOutputReader = createHostToolOutputReader(request, 'session-curl');
+    const curlBash: ToolCardUi = {
+      toolCallId: 'bash-curl-1',
+      toolName: 'bash',
+      status: 'error',
+      output: '',
+      presentation: {
+        title: 'bash',
+        kind: 'shell',
+        actionVerb: 'Ran command',
+        command: 'curl -sS https://example.com/health',
+      },
+    };
+
+    act(() => {
+      root.render(
+        <ToolOutputReaderContext.Provider value={reader}>
+          <ToolOutputMessageContext.Provider value="msg-curl-1">
+            <ToolCallCard tool={curlBash} density="compact" locale="zh-CN" />
+          </ToolOutputMessageContext.Provider>
+        </ToolOutputReaderContext.Provider>,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(request).not.toHaveBeenCalled();
+
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+    await act(async () => {});
+
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(card?.querySelector('.tool-call-output')?.textContent).toContain('500 Internal Server Error');
   });
 });
 

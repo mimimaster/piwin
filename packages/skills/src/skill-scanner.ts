@@ -31,19 +31,20 @@ const SOURCE_RANK: Record<SkillSource, number> = {
 export async function scanSkills(options: ScanSkillsOptions): Promise<SkillSummary[]> {
   const config = options.skillsConfig ?? createDefaultSkillsConfig();
   const disabled = new Set(config.disabledIds);
+  const excluded = toExcludedSet(config.excludedIds);
   const bundledCatalog = options.bundledRoot
     ? await scanSkillRoot(options.bundledRoot, 'bundled')
     : [];
   const bundledIds = new Set(bundledCatalog.map((skill) => skill.id));
   const results: SkillSummary[] = [];
-  const roots: Array<{ path: string; source: SkillSource }> = [];
+  const roots: Array<{ path: string; source: SkillSource; mappedFrom?: string }> = [];
   roots.push({ path: join(options.piwinRoot, 'skills'), source: 'user' });
   if (options.projectPath) {
     roots.push({ path: join(options.projectPath, '.pi', 'skills'), source: 'project' });
     roots.push({ path: join(options.projectPath, '.agents', 'skills'), source: 'project' });
   }
   for (const extra of config.extraPaths) {
-    roots.push({ path: expandHome(extra), source: 'mapped' });
+    roots.push({ path: expandHome(extra), source: 'mapped', mappedFrom: extra });
   }
   for (const rootEntry of roots) {
     for (const skill of await scanSkillRoot(rootEntry.path, rootEntry.source, bundledIds)) {
@@ -51,8 +52,14 @@ export async function scanSkills(options: ScanSkillsOptions): Promise<SkillSumma
         // Leftover copy under ~/.piwin/skills — the product tree is authority.
         continue;
       }
+      if (rootEntry.source === 'mapped' && excluded.has(skill.id.toLowerCase())) {
+        continue;
+      }
       results.push({
         ...skill,
+        ...(rootEntry.mappedFrom && skill.source === 'mapped'
+          ? { mappedFrom: rootEntry.mappedFrom }
+          : {}),
         enabled: !canToggleSkill(skill.source) || !disabled.has(skill.id),
       });
     }
@@ -61,6 +68,21 @@ export async function scanSkills(options: ScanSkillsOptions): Promise<SkillSumma
     results.push({ ...skill, enabled: true });
   }
   return collapseSkillCatalog(results).sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function toExcludedSet(ids: readonly string[] | undefined): Set<string> {
+  const excluded = new Set<string>();
+  for (const raw of ids ?? []) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    excluded.add(trimmed.toLowerCase());
+    try {
+      excluded.add(normalizeResourceId(trimmed));
+    } catch {
+      // Ignore malformed legacy entries.
+    }
+  }
+  return excluded;
 }
 
 async function scanSkillRoot(

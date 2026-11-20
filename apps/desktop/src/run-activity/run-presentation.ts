@@ -1,4 +1,5 @@
 /** Pure projection of one assistant turn into a coding-agent work record. */
+import { isShellFamilyTool } from '@piwin/session/shell-tool';
 import type { SessionRunOutcome, SessionRunPhase } from '@piwin/contracts';
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi, ToolCardUi } from '../conversation/chat-reducer';
 
@@ -109,7 +110,7 @@ export function buildTurnPresentation(input: BuildTurnPresentationInput): TurnPr
   }));
   const hasFailure =
     message.status === 'error' ||
-    message.tools.some((tool) => tool.status === 'error') ||
+    message.tools.some((tool) => tool.status === 'error' && !isShellFamilyTool(tool)) ||
     runRecord?.outcome === 'failed';
   const toolCallCount = message.tools.length;
   const thoughtSeconds = resolveThoughtSeconds(message, isThinkingActive);
@@ -215,7 +216,9 @@ function buildSummaryLabel(input: {
     return isChinese ? '工作中…' : 'Working…';
   }
   if (input.hasFailure || input.outcome === 'failed') {
-    const failedCount = input.tools.filter((tool) => tool.status === 'error').length;
+    const failedCount = input.tools.filter(
+      (tool) => tool.status === 'error' && !isShellFamilyTool(tool),
+    ).length;
     if (failedCount > 0) {
       return isChinese
         ? `失败 · ${failedCount} 次工具调用`

@@ -103,7 +103,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const backendInput = useBackendUserInput(args.activeSessionId);
 
   useEffect(() => {
-    const streamEventBuffer = createStreamEventBuffer({ dispatch: args.dispatch });
+    const streamEventBuffer = createStreamEventBuffer({
+      dispatch: args.dispatch,
+      slimSettledShellOutput: () => args.hostClient.supportsCommand('session/tool-output'),
+    });
     let cancelled = false;
     const runtime = {
       args,
