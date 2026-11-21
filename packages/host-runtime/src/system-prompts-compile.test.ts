@@ -3,17 +3,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  applyBuiltinSystemPromptStack,
+  ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   createDefaultArtifactConfig,
   DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
+  type ExecutionRunRecord,
+  type HostToolDescriptor,
   type PiwinConfig,
+  type PromptInput,
 } from '@piwin/contracts';
+import { applyAgentPromptContext } from './commands/agent-prompt-context.js';
+import type { SessionLiveContext } from './commands/session-live-context.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import { createExternalSearchWebConfig } from './blueprint-compiler-test-fixtures.js';
+import { createModelPromptAssembly } from './model-context-assembly.js';
 import { SettingsService } from './settings/settings-service.js';
 import {
   listSystemPromptCandidateFiles,
   readSystemPromptFiles,
 } from './system-prompt-files.js';
+import { resolveBuiltinSystemPrompt } from './system-prompts-compile.js';
 
 const tempDirs: string[] = [];
 
@@ -222,5 +231,175 @@ describe('system-prompts file stack compilation & persistence', () => {
     expect(subagentCompiled.backendBlueprint.appendSystemPrompt ?? '').not.toContain(
       'Layer 1: Cite exact symbols.',
     );
+  });
+
+  it('persists builtinStacks without presets and resets cleanly back to default', async () => {
+    const root = makeTempRoot();
+    const service = new SettingsService({ piwinRoot: root });
+
+    const saved = await service.update((cfg) =>
+      applyBuiltinSystemPromptStack(cfg, 'agent.default', {
+        includeBuiltin: false,
+        filePaths: ['/tmp/custom-agent.md'],
+      }),
+    );
+    expect(saved.snapshot.config.systemPrompts?.builtinStacks?.['agent.default']).toEqual({
+      includeBuiltin: false,
+      filePaths: ['/tmp/custom-agent.md'],
+    });
+
+    const cleared = await service.update((cfg) =>
+      applyBuiltinSystemPromptStack(cfg, 'agent.default', {
+        includeBuiltin: true,
+        filePaths: [],
+      }),
+    );
+    expect(cleared.snapshot.config.systemPrompts).toBeUndefined();
+  });
+
+  it('compiles builtinStacks for append, replace, and empty cleared slots (agent + artifact)', async () => {
+    const root = makeTempRoot();
+    const projectPath = makeTempRoot();
+    const agentExtra = join(root, 'system-prompts', 'agent-extra.md');
+    const artifactExtra = join(projectPath, 'artifact-rules.txt');
+    mkdirSync(join(root, 'system-prompts'), { recursive: true });
+    writeFileSync(agentExtra, 'Agent stacked layer.', 'utf8');
+    writeFileSync(artifactExtra, 'Custom artifact policy.', 'utf8');
+
+    // 1. includeBuiltin: true + stacked file appends after built-in default
+    const appendedConfig = makeConfig({
+      artifact: {
+        ...createDefaultArtifactConfig(),
+        scopes: {
+          general: { inline: true, canvas: true },
+          project: { inline: true, canvas: true },
+        },
+      },
+      systemPrompts: {
+        presets: [],
+        builtinStacks: {
+          'agent.default': { includeBuiltin: true, filePaths: [agentExtra] },
+          'artifact.decision': { includeBuiltin: false, filePaths: [artifactExtra] },
+        },
+      },
+    });
+    const artifactDescriptors: HostToolDescriptor[] = [
+      { name: ARTIFACT_INSTRUCTIONS_TOOL_NAME, description: 'Artifact instructions', parameters: {} },
+    ];
+    const artifactFamilyIndex = new Map([['artifact', [ARTIFACT_INSTRUCTIONS_TOOL_NAME]]] as const);
+    const compiledAppended = await compileBlueprintForWorker(
+      { scope: { kind: 'project', projectPath } },
+      {
+        config: appendedConfig,
+        piwinRoot: root,
+        discoverResources: emptyResources,
+        hostToolDescriptors: artifactDescriptors,
+        hostToolFamilyIndex: artifactFamilyIndex,
+      },
+    );
+    expect(compiledAppended.backendBlueprint.appendSystemPrompt).toContain(
+      `${DEFAULT_AGENT_MODE_SYSTEM_PROMPT}\n\nAgent stacked layer.`,
+    );
+    expect(compiledAppended.backendBlueprint.appendSystemPrompt).toContain('Custom artifact policy.');
+    expect(compiledAppended.backendBlueprint.appendSystemPrompt).not.toContain('## Decision Criteria');
+    expect(compiledAppended.sessionBlueprint.systemPromptSummary?.builtinModified).toBe(true);
+
+    // 2. includeBuiltin: false + stacked file replaces built-in default
+    const replacedConfig = applyBuiltinSystemPromptStack(appendedConfig, 'agent.default', {
+      includeBuiltin: false,
+      filePaths: [agentExtra],
+    });
+    const resolvedReplaced = await resolveBuiltinSystemPrompt({
+      config: replacedConfig,
+      slotId: 'agent.default',
+      piwinRoot: root,
+      projectPath,
+    });
+    expect(resolvedReplaced.effectiveContent).toBe('Agent stacked layer.');
+
+    // 3. includeBuiltin: false + empty filePaths disables built-in slot cleanly
+    let emptiedConfig = applyBuiltinSystemPromptStack(replacedConfig, 'agent.default', {
+      includeBuiltin: false,
+      filePaths: [],
+    });
+    emptiedConfig = applyBuiltinSystemPromptStack(emptiedConfig, 'artifact.decision', {
+      includeBuiltin: false,
+      filePaths: [],
+    });
+    const compiledEmpty = await compileBlueprintForWorker(
+      { scope: { kind: 'project', projectPath } },
+      {
+        config: emptiedConfig,
+        piwinRoot: root,
+        discoverResources: emptyResources,
+        hostToolDescriptors: artifactDescriptors,
+        hostToolFamilyIndex: artifactFamilyIndex,
+      },
+    );
+    expect(compiledEmpty.backendBlueprint.appendSystemPrompt ?? '').not.toContain(
+      DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
+    );
+    expect(compiledEmpty.backendBlueprint.appendSystemPrompt ?? '').not.toContain(
+      '## Decision Criteria',
+    );
+    expect(compiledEmpty.backendBlueprint.appendSystemPrompt).toContain(
+      '## HTML Artifact Runtime Contract',
+    );
+    expect(compiledEmpty.sessionBlueprint.systemPromptSummary?.builtinModified).toBe(true);
+  });
+
+  it('skips per-turn agent/goal preambles when builtinStacks empties them instead of falling back', async () => {
+    const root = makeTempRoot();
+    const goalFile = join(root, 'goal-extra.md');
+    writeFileSync(goalFile, 'Custom goal contract.', 'utf8');
+
+    const emptyAgentCfg = makeConfig({
+      systemPrompts: {
+        presets: [],
+        builtinStacks: {
+          'agent.default': { includeBuiltin: false, filePaths: [] },
+          'agent.goal': { includeBuiltin: false, filePaths: [goalFile] },
+        },
+      },
+    });
+
+    const makeFakeContext = (cfg: PiwinConfig): SessionLiveContext =>
+      ({
+        piwinRoot: root,
+        loadConfig: async () => cfg,
+        setSessionPermissionOverride: () => {},
+        clearSessionPermissionOverride: () => {},
+        listKnownSubagentProfileIds: async () => [],
+        setRunOrchestrationScheme: () => {},
+        getRunSignal: () => undefined,
+        isPromptPreparationAborted: () => false,
+        push: () => {},
+        sessionFilesTouched: new Map<string, string>(),
+      }) as unknown as SessionLiveContext;
+
+    const fakeRun = { id: 'run-1', status: 'running' } as unknown as ExecutionRunRecord;
+
+    const agentPromptInput: PromptInput = { text: 'Fix bug', agentMode: 'agent' };
+    await applyAgentPromptContext(
+      makeFakeContext(emptyAgentCfg),
+      { sessionId: 'sess-missing', input: agentPromptInput },
+      fakeRun,
+      createModelPromptAssembly(),
+      agentPromptInput,
+      'Fix bug',
+    );
+    expect(agentPromptInput.text).toBe('Fix bug');
+
+    const goalPromptInput: PromptInput = { text: 'Ship feature', agentMode: 'goal' };
+    await applyAgentPromptContext(
+      makeFakeContext(emptyAgentCfg),
+      { sessionId: 'sess-missing', input: goalPromptInput },
+      fakeRun,
+      createModelPromptAssembly(),
+      goalPromptInput,
+      'Ship feature',
+    );
+    expect(goalPromptInput.text).toContain('Custom goal contract.');
+    expect(goalPromptInput.text).not.toContain('Autonomous Goal Execution Loop');
   });
 });

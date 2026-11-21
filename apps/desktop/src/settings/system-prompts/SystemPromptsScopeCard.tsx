@@ -6,9 +6,13 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, IconEye, SegmentedControl } from '@piwin/ui-kit';
 import {
+  BUILTIN_SYSTEM_PROMPTS,
+  compileBuiltinSystemPromptStackContent,
   createDefaultSystemPromptsConfig,
   formatError,
   formatSystemPromptFileStack,
+  isBuiltinSystemPromptStackCustomized,
+  readBuiltinSystemPromptStack,
   readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
   SYSTEM_PROMPT_BUILTIN_ID,
@@ -19,6 +23,7 @@ import {
 } from '@piwin/contracts';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
+import { buildBuiltinFileLayers } from './builtin-prompt-stack-helpers';
 import { promptFileDisplayName, promptFileExtensionLabel } from './prompt-file-actions';
 import type { PromptPreviewLayer, PromptPreviewPayload } from './PromptPreviewModal';
 import { formatProjectOptionLabel, type SystemPromptProjectOption } from './system-prompt-projects';
@@ -125,13 +130,14 @@ export function SystemPromptsScopeCard(props: {
       projectPath: targetProjectPath,
       sessionPresetId: isViewingCurrentProject && activeSessionId ? sessionPresetId : undefined,
     });
-    const baseText = readBuiltinSystemPromptValue(
-      config,
-      targetProjectPath ? 'agent.default' : 'conversation.chat',
-    ).effectiveContent;
+    const baseSlotId = targetProjectPath ? ('agent.default' as const) : ('conversation.chat' as const);
+    const baseText = readBuiltinSystemPromptValue(config, baseSlotId).effectiveContent;
+    const baseStack = readBuiltinSystemPromptStack(config, baseSlotId);
     return {
       resolved,
+      baseSlotId,
       baseText,
+      baseStack,
       sourceText: sourceLabel(
         resolved.sourceKind,
         resolved.preset?.name,
@@ -150,32 +156,33 @@ export function SystemPromptsScopeCard(props: {
     targetProjectPath,
   ]);
 
+  const customizedBuiltinCount = useMemo(
+    () =>
+      BUILTIN_SYSTEM_PROMPTS.filter(
+        (slot) =>
+          isBuiltinSystemPromptStackCustomized(readBuiltinSystemPromptStack(config, slot.slotId)) ||
+          readBuiltinSystemPromptValue(config, slot.slotId).isOverridden,
+      ).length,
+    [config],
+  );
+
   async function handleOpenEffectivePreview(): Promise<void> {
     const preset = effective.resolved.preset;
-    if (!preset) {
-      props.onOpenPreview({
-        title: isZh ? '当前生效系统提示词' : 'Effective System Prompt',
-        badge: effective.sourceText,
-        badgeTone: 'neutral',
-        layers: [
-          {
-            id: 'builtin',
-            label: isZh ? '系统默认' : 'Built-in',
-            content: effective.baseText,
-          },
-        ],
-      });
-      return;
-    }
+    const { baseStack, baseText } = effective;
+    const allPathsToRead = Array.from(
+      new Set([...baseStack.filePaths, ...(preset?.filePaths ?? [])]),
+    );
 
-    setLoadingPreview(true);
+    const readByPath = new Map<string, SystemPromptFileReadItem>();
+    if (allPathsToRead.length > 0 && hostClient?.request) {
+      setLoadingPreview(true);
+    }
     try {
-      const readByPath = new Map<string, SystemPromptFileReadItem>();
-      if (hostClient?.request && preset.filePaths.length > 0) {
+      if (allPathsToRead.length > 0 && hostClient?.request) {
         const isRemote = hostClient.getTransport?.() === 'remote';
         const response = await hostClient.request({
           type: 'system-prompts/read-files',
-          paths: preset.filePaths,
+          paths: allPathsToRead,
           ...(!isRemote && targetProjectPath ? { projectPath: targetProjectPath } : {}),
         });
         if (response.success) {
@@ -186,13 +193,72 @@ export function SystemPromptsScopeCard(props: {
         }
       }
 
-      const validContents: string[] = [];
+      const baseBuilt = buildBuiltinFileLayers({
+        filePaths: baseStack.filePaths,
+        readByPath,
+        orderOffset: baseStack.includeBuiltin ? 1 : 0,
+        keyPrefix: 'base-file',
+      });
+      const effectiveBaseText = compileBuiltinSystemPromptStackContent({
+        baseContent: baseText,
+        stack: baseStack,
+        fileContents: baseBuilt.validContents,
+      });
+
+      const baseLayers: PromptPreviewLayer[] = [
+        ...(baseStack.includeBuiltin
+          ? [
+              {
+                id: 'base',
+                label: isZh ? '内置基底' : 'Built-in base',
+                content: baseText,
+              },
+            ]
+          : []),
+        ...baseBuilt.layers,
+      ];
+
+      if (!preset) {
+        if (baseStack.includeBuiltin && baseStack.filePaths.length === 0) {
+          props.onOpenPreview({
+            title: isZh ? '当前生效系统提示词' : 'Effective System Prompt',
+            badge: effective.sourceText,
+            badgeTone: 'neutral',
+            layers: [
+              {
+                id: 'builtin',
+                label: isZh ? '系统默认' : 'Built-in',
+                content: baseText,
+              },
+            ],
+          });
+          return;
+        }
+        props.onOpenPreview({
+          title: isZh ? '当前生效系统提示词' : 'Effective System Prompt',
+          badge: effective.sourceText,
+          badgeTone: effectiveBaseText ? 'running' : 'warning',
+          layers: [
+            {
+              id: 'effective',
+              label: isZh ? '完整合成' : 'Combined',
+              content:
+                effectiveBaseText ||
+                (isZh ? '（已清空内置默认且未堆叠文件）' : '(Built-in removed and no files stacked)'),
+            },
+            ...baseLayers,
+          ],
+        });
+        return;
+      }
+
+      const validPresetContents: string[] = [];
       const fileLayers: PromptPreviewLayer[] = preset.filePaths.map((filePath, index) => {
         const item = readByPath.get(filePath);
         const fileName = item?.fileName ?? promptFileDisplayName(filePath);
         const missing = item ? !item.exists : false;
         if (!missing && item?.content.trim()) {
-          validContents.push(item.content);
+          validPresetContents.push(item.content);
         }
         return {
           id: `file-${index}`,
@@ -206,13 +272,13 @@ export function SystemPromptsScopeCard(props: {
         };
       });
 
-      const stackedText = formatSystemPromptFileStack(validContents);
+      const stackedText = formatSystemPromptFileStack(validPresetContents);
       const isReplace = preset.mode === 'replace' && stackedText.length > 0;
       const combinedText = isReplace
         ? stackedText
-        : stackedText.length > 0
-          ? `${effective.baseText}\n\n${stackedText}`
-          : effective.baseText;
+        : stackedText.length > 0 && effectiveBaseText.length > 0
+          ? `${effectiveBaseText}\n\n${stackedText}`
+          : stackedText || effectiveBaseText;
 
       const layers: PromptPreviewLayer[] = [
         {
@@ -220,15 +286,7 @@ export function SystemPromptsScopeCard(props: {
           label: isZh ? '完整合成' : 'Combined',
           content: combinedText,
         },
-        ...(!isReplace
-          ? [
-              {
-                id: 'base',
-                label: isZh ? '内置基底' : 'Built-in base',
-                content: effective.baseText,
-              },
-            ]
-          : []),
+        ...(!isReplace ? baseLayers : []),
         ...fileLayers,
       ];
 
@@ -290,9 +348,43 @@ export function SystemPromptsScopeCard(props: {
             { value: 'builtins', label: isZh ? '内置提示词' : 'Built-ins' },
           ]}
         />
+
+        {props.tab === 'builtins' ? (
+          <div className="sysprompt-topbar-right">
+            <span className="sysprompt-topbar-summary">
+              {customizedBuiltinCount > 0
+                ? isZh
+                  ? `${BUILTIN_SYSTEM_PROMPTS.length} 个模块 · 已调整 ${customizedBuiltinCount} 项`
+                  : `${BUILTIN_SYSTEM_PROMPTS.length} modules · ${customizedBuiltinCount} customized`
+                : isZh
+                  ? `${BUILTIN_SYSTEM_PROMPTS.length} 个内置模块`
+                  : `${BUILTIN_SYSTEM_PROMPTS.length} built-in modules`}
+            </span>
+            <Button
+              size="compact"
+              variant="secondary"
+              disabled={loadingPreview}
+              onClick={() => void handleOpenEffectivePreview()}
+              title={effective.sourceText}
+              data-testid="system-prompts-effective-preview-btn"
+            >
+              <IconEye size={13} />
+              <span>
+                {loadingPreview
+                  ? isZh
+                    ? '读取中…'
+                    : 'Loading…'
+                  : isZh
+                    ? '查看最终提示词'
+                    : 'Inspect effective'}
+              </span>
+            </Button>
+          </div>
+        ) : null}
       </div>
 
-      <div className="sysprompt-status-banner" data-testid="system-prompts-effective-banner">
+      {props.tab === 'presets' ? (
+        <div className="sysprompt-status-banner" data-testid="system-prompts-effective-banner">
         <div className="sysprompt-status-main">
           <div className="sysprompt-status-summary">
             <span
@@ -427,7 +519,8 @@ export function SystemPromptsScopeCard(props: {
             </span>
           </div>
         ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

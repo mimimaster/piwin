@@ -1,4 +1,8 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { applyBuiltinSystemPromptStack } from '@piwin/contracts';
 import type { StructuredCompletionRequest } from './structured-completion.js';
 import { createDefaultPiwinConfig } from './config-store.js';
 import {
@@ -73,5 +77,36 @@ describe('buildWebFetchExtractDelegate', () => {
       buildWebFetchExtractDelegate(config, { resolveProviderSecret: async () => 'secret' }),
     ).toBeUndefined();
     expect(findReadyFetchExtractDelegate(config)).toBeUndefined();
+  });
+
+  it('uses stacked files and allows removing built-in prompt for web.fetch-extract', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'piwin-fetch-extract-'));
+    try {
+      const customPrompt = join(dir, 'extract.md');
+      writeFileSync(customPrompt, 'Extract exact numbers only.', 'utf8');
+      const config = applyBuiltinSystemPromptStack(configWithExtractDelegate(), 'web.fetch-extract', {
+        includeBuiltin: false,
+        filePaths: [customPrompt],
+      });
+      const complete = vi.fn(async (request: StructuredCompletionRequest) => {
+        expect(request.systemPrompt).toBe('Extract exact numbers only.');
+        return { text: '42' };
+      });
+      const delegate = buildWebFetchExtractDelegate(
+        config,
+        { resolveProviderSecret: async () => 'secret' },
+        { complete, piwinRoot: dir },
+      );
+      const out = await delegate?.extract({
+        query: 'Answer?',
+        url: 'https://example.com',
+        title: 'Test',
+        text: '42',
+      });
+      expect(out).toBe('42');
+      expect(complete).toHaveBeenCalledOnce();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -105,6 +105,7 @@ import { buildWebSearchModelDelegate } from '../model-web-search-delegate.js';
 import { buildWebFetchExtractDelegate } from '../model-web-fetch-extract-delegate.js';
 import { buildWebPageRenderer } from '../model-web-page-renderer.js';
 import { buildWebDocumentExtractor } from '../model-web-document-extractor.js';
+import { resolveBuiltinSystemPrompt } from '../system-prompts-compile.js';
 import { createSessionFetchSpillStore } from '../fetch-spill-store.js';
 import { getWebSearchLogStore } from '../web-search-log-store.js';
 import { resolveWebRuntimeCredentials } from '../web-credentials.js';
@@ -250,7 +251,10 @@ export async function buildSessionHostTools(
   // selected the external backend for this generation's model/policy.
   if (options.config?.web) {
     const webFetchExtractDelegate = options.secretResolver
-      ? buildWebFetchExtractDelegate(options.config, options.secretResolver)
+      ? buildWebFetchExtractDelegate(options.config, options.secretResolver, {
+          ...(options.piwinRoot ? { piwinRoot: options.piwinRoot } : {}),
+          ...(options.projectPath ? { projectPath: options.projectPath } : {}),
+        })
       : undefined;
     const webCredentials = options.secretResolver
       ? await resolveWebRuntimeCredentials(options.config.web, options.secretResolver)
@@ -532,7 +536,21 @@ export async function buildSessionHostTools(
     options.config &&
     (artifactCapability ? artifactCapability.enabled : options.config.artifact.enabled)
   ) {
-    tools.push(buildArtifactInstructionsTool(options.config.artifact, artifactCapability));
+    const resolvedArtifactDecision = await resolveBuiltinSystemPrompt({
+      config: options.config,
+      slotId: 'artifact.decision',
+      piwinRoot: options.piwinRoot,
+      projectPath: options.projectPath,
+    });
+    tools.push(
+      buildArtifactInstructionsTool(
+        options.config.artifact,
+        artifactCapability,
+        resolvedArtifactDecision.isCustomized
+          ? resolvedArtifactDecision.effectiveContent
+          : undefined,
+      ),
+    );
   }
 
   // --- Subagent run / start / wait / cancel ---

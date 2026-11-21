@@ -81,6 +81,8 @@ export {
   readSystemPromptFiles,
   resolveSystemPromptFilePath,
 } from './system-prompt-files.js';
+export { resolveBuiltinSystemPrompt } from './system-prompts-compile.js';
+export type { ResolvedBuiltinSystemPrompt } from './system-prompts-compile.js';
 export {
   getPiAgentDir,
   getPiwinPiAgentDir,

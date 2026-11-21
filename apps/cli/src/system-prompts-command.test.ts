@@ -80,4 +80,53 @@ describe('piwin system-prompts CLI', () => {
     updated = await loadPiwinConfig(root);
     expect(updated.systemPrompts?.defaultPresetId).toBeUndefined();
   });
+
+  it('lists and shows built-in slot file stacks and removed built-in state', async () => {
+    const root = makeTempRoot();
+    vi.stubEnv('PIWIN_ROOT', root);
+
+    const extraFile = join(root, 'extra-rule.md');
+    writeFileSync(extraFile, 'Always check return codes.', 'utf8');
+
+    const cfg = createDefaultPiwinConfig();
+    await savePiwinConfig(
+      {
+        ...cfg,
+        systemPrompts: {
+          presets: [],
+          builtinStacks: {
+            'agent.default': { includeBuiltin: true, filePaths: [extraFile] },
+            'web.fetch-extract': { includeBuiltin: false, filePaths: [] },
+          },
+        },
+      },
+      root,
+    );
+
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args) => {
+      logs.push(args.join(' '));
+    });
+
+    await commandSystemPrompts(['system-prompts', 'list']);
+    const listOutput = logs.join('\n');
+    expect(listOutput).toContain('agent.default');
+    expect(listOutput).toContain('[builtin + 1 files: @extra-rule.md]');
+    expect(listOutput).toContain('web.fetch-extract');
+    expect(listOutput).toContain('[disabled]');
+    expect(listOutput).not.toContain('walkthrough.system');
+
+    logs.length = 0;
+    await commandSystemPrompts(['system-prompts', 'show', 'agent.default']);
+    const showAgent = logs.join('\n');
+    expect(showAgent).toContain('includeBuiltin: yes');
+    expect(showAgent).toContain('@extra-rule.md');
+    expect(showAgent).toContain('Always check return codes.');
+
+    logs.length = 0;
+    await commandSystemPrompts(['system-prompts', 'show', 'web.fetch-extract']);
+    const showWeb = logs.join('\n');
+    expect(showWeb).toContain('includeBuiltin: no');
+    expect(showWeb).toContain('(empty — built-in removed and no files stacked)');
+  });
 });

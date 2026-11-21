@@ -51,6 +51,9 @@ export function PromptFileStackEditor(props: {
   readItemsByPath: ReadonlyMap<string, SystemPromptFileReadItem>;
   loadingCandidates?: boolean;
   disabled?: boolean;
+  leadingSlot?: ReactElement | null;
+  orderOffset?: number;
+  emptySlotHint?: string;
   onChangeFilePaths: (nextPaths: string[]) => void;
   onPreviewFile: (filePath: string) => void;
   onRefreshCandidates: () => void;
@@ -412,7 +415,7 @@ export function PromptFileStackEditor(props: {
         </Notice>
       ) : null}
 
-      {props.filePaths.length === 0 ? (
+      {props.filePaths.length === 0 && !props.leadingSlot ? (
         <button
           type="button"
           className="sysprompt-empty-slot"
@@ -422,13 +425,15 @@ export function PromptFileStackEditor(props: {
         >
           <span className="sysprompt-empty-at">@</span>
           <span>
-            {isZh
-              ? '点击或输入 @ 引用 .md / .txt 文件，按堆叠顺序拼接'
-              : 'Click or type @ to stack .md / .txt files in order'}
+            {props.emptySlotHint ??
+              (isZh
+                ? '点击或输入 @ 引用 .md / .txt 文件，按堆叠顺序拼接'
+                : 'Click or type @ to stack .md / .txt files in order')}
           </span>
         </button>
       ) : (
         <ol className="sysprompt-stack-list" data-testid="system-prompts-stack-list">
+          {props.leadingSlot}
           {props.filePaths.map((filePath, index) => {
             const readItem = props.readItemsByPath.get(filePath);
             const fileName = promptFileDisplayName(filePath);
@@ -439,7 +444,7 @@ export function PromptFileStackEditor(props: {
               isZh,
             });
             const isMissing = readItem !== undefined && !readItem.exists;
-            const orderTag = String(index + 1).padStart(2, '0');
+            const orderTag = String(index + 1 + (props.orderOffset ?? 0)).padStart(2, '0');
             const isDropTarget = dropIndex === index && dragIndex !== null && dragIndex !== index;
             const resolvedPath = readItem?.resolvedPath ?? filePath;
             const showSubPath = sourceInfo.compactPath !== fileName;

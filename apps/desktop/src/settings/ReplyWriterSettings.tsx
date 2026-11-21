@@ -7,7 +7,15 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, Select, Switch, Skeleton } from '@piwin/ui-kit';
 import type { ModelRef, PiwinConfig, ReplyWriterConfig, ReplyWriterLanguage } from '@piwin/contracts';
-import { formatError, isModelEnabled, isProviderEnabled, modelSupportsCapability, readBuiltinSystemPromptValue } from '@piwin/contracts';
+import {
+  formatError,
+  isBuiltinSystemPromptStackCustomized,
+  isModelEnabled,
+  isProviderEnabled,
+  modelSupportsCapability,
+  readBuiltinSystemPromptStack,
+  readBuiltinSystemPromptValue,
+} from '@piwin/contracts';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { useSettings } from './settings-context';
 import { requestSystemPromptFocus } from './system-prompts/system-prompts-focus';
@@ -184,13 +192,16 @@ export function ReplyWriterSettings(): ReactElement {
         <FieldRow
           label={isChinese ? '系统提示词' : 'System prompt'}
           description={
-            readBuiltinSystemPromptValue(config, 'delegate.reply-writer').isOverridden
+            readBuiltinSystemPromptValue(config, 'delegate.reply-writer').isOverridden ||
+            isBuiltinSystemPromptStackCustomized(
+              readBuiltinSystemPromptStack(config, 'delegate.reply-writer'),
+            )
               ? isChinese
-                ? '当前已配置自定义写作提示词，可在「系统提示词」页面弹窗只读查看。'
-                : 'Custom prompt active. Inspect read-only in System Prompts.'
+                ? '当前已自定义写作提示词或堆叠文件，可在「系统提示词」页面管理。'
+                : 'Custom prompt or file stack active. Manage in System Prompts.'
               : isChinese
-                ? '当前使用内置默认写作契约，可在「系统提示词」页面弹窗只读查看。'
-                : 'Using built-in default contract. View read-only in System Prompts.'
+                ? '当前使用内置默认写作契约，可在「系统提示词」页面查看或叠文件调整。'
+                : 'Using built-in default contract. Inspect or stack prompt files in System Prompts.'
           }
         >
           <Button
@@ -202,7 +213,7 @@ export function ReplyWriterSettings(): ReactElement {
             }}
             data-testid="reply-writer-open-system-prompt"
           >
-            {isChinese ? '查看提示词' : 'View prompt'}
+            {isChinese ? '管理提示词' : 'Manage prompt'}
           </Button>
         </FieldRow>
 

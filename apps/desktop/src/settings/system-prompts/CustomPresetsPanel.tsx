@@ -520,7 +520,7 @@ export function CustomPresetsPanel(props: {
 
   return (
     <section
-      className="settings-section settings-section-card sysprompt-workbench"
+      className="settings-section sysprompt-workbench"
       data-testid="system-prompts-presets-panel"
     >
       {presets.length > 0 ? (

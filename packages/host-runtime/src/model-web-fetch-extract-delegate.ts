@@ -11,7 +11,6 @@ import type {
 import {
   isModelEnabled,
   modelSupportsCapability,
-  readBuiltinSystemPromptValue,
 } from '@piwin/contracts';
 import {
   buildFetchExtractUserPrompt,
@@ -25,6 +24,7 @@ import {
   type StructuredCompletionResult,
 } from './structured-completion.js';
 import type { SecretResolver } from './secret-resolver.js';
+import { resolveBuiltinSystemPrompt } from './system-prompts-compile.js';
 
 const EXTRACT_TEMPERATURE = 0;
 const EXTRACT_MAX_OUTPUT_TOKENS = 2_048;
@@ -38,6 +38,8 @@ export type ReadyFetchExtractDelegate = {
 
 export type BuildWebFetchExtractDelegateDependencies = {
   complete?: (request: StructuredCompletionRequest) => Promise<StructuredCompletionResult>;
+  piwinRoot?: string | undefined;
+  projectPath?: string | undefined;
 };
 
 /** Resolve a chat-capable model selected for focused `web_fetch` extraction. */
@@ -92,11 +94,16 @@ export function buildWebFetchExtractDelegate(
         },
       }));
 
-  const systemPrompt = readBuiltinSystemPromptValue(config, 'web.fetch-extract').effectiveContent;
   return {
     model: configured.ref,
     async extract(input, options) {
       const signal = options?.signal ?? new AbortController().signal;
+      const { effectiveContent: systemPrompt } = await resolveBuiltinSystemPrompt({
+        config,
+        slotId: 'web.fetch-extract',
+        piwinRoot: dependencies.piwinRoot,
+        projectPath: dependencies.projectPath,
+      });
       const result = await complete({
         provider: configured.provider,
         modelId: configured.model.id,

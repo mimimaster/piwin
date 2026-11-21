@@ -2,10 +2,13 @@
  * Normalization helpers for `PiwinConfig.systemPrompts`.
  */
 import type {
+  BuiltinSystemPromptSlotId,
+  BuiltinSystemPromptStackConfig,
   SystemPromptPreset,
   SystemPromptsConfig,
 } from '@piwin/contracts';
 import {
+  isBuiltinSystemPromptSlotId,
   isValidSystemPromptPresetId,
   MAX_SYSTEM_PROMPT_PRESETS,
   normalizeSystemPromptFileStack,
@@ -73,8 +76,28 @@ export function normalizeSystemPromptsConfig(value: unknown): SystemPromptsConfi
     }
   }
 
+  const builtinStacks: Partial<Record<BuiltinSystemPromptSlotId, BuiltinSystemPromptStackConfig>> =
+    {};
+  const rawBuiltinStacks = asRecord(record.builtinStacks);
+  if (rawBuiltinStacks) {
+    for (const [slotId, rawStack] of Object.entries(rawBuiltinStacks)) {
+      if (!isBuiltinSystemPromptSlotId(slotId)) continue;
+      const item = asRecord(rawStack);
+      if (!item) continue;
+      const includeBuiltin = item.includeBuiltin !== false;
+      const rawPaths = Array.isArray(item.filePaths)
+        ? item.filePaths.filter((entry): entry is string => typeof entry === 'string')
+        : [];
+      const filePaths = normalizeSystemPromptFileStack(rawPaths);
+      if (!includeBuiltin || filePaths.length > 0) {
+        builtinStacks[slotId] = { includeBuiltin, filePaths };
+      }
+    }
+  }
+
   const hasProjects = Object.keys(projectPresetIds).length > 0;
-  if (presets.length === 0 && !defaultPresetId && !hasProjects) {
+  const hasBuiltinStacks = Object.keys(builtinStacks).length > 0;
+  if (presets.length === 0 && !defaultPresetId && !hasProjects && !hasBuiltinStacks) {
     return undefined;
   }
 
@@ -82,5 +105,6 @@ export function normalizeSystemPromptsConfig(value: unknown): SystemPromptsConfi
     presets,
     ...(defaultPresetId ? { defaultPresetId } : {}),
     ...(hasProjects ? { projectPresetIds } : {}),
+    ...(hasBuiltinStacks ? { builtinStacks } : {}),
   };
 }

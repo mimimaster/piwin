@@ -14,11 +14,11 @@ import type { TranscriptStoreMessageInput } from '@piwin/session';
 import { findEnabledProvider } from '../provider-helpers.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from '../paths.js';
 import {
-  assembleReplyWriterSystemPrompt,
   assembleReplyWriterUserPrompt,
   boundReplyWriterSourceText,
   completeReplyWriter,
 } from '../reply-writer.js';
+import { resolveBuiltinSystemPrompt } from '../system-prompts-compile.js';
 import type { StructuredCompletionDependencies } from '../structured-completion.js';
 import type { SessionLiveContext } from './session-live-context.js';
 
@@ -50,14 +50,17 @@ async function rewriteCompletedReply(
     return;
   }
   let sessionKind: 'main' | 'subagent' | 'side-chat' | undefined;
+  let sessionProjectPath: string | undefined;
   try {
     const record = await getSessionRecord(
       getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
       input.sessionId,
     );
     sessionKind = record?.kind;
+    sessionProjectPath = record?.projectPath;
   } catch {
     sessionKind = undefined;
+    sessionProjectPath = undefined;
   }
   const store = await context.getTranscriptStore(input.sessionId);
   const assistant = await store.lastMessageByRole('assistant');
@@ -96,12 +99,18 @@ async function rewriteCompletedReply(
     ? config.replyWriter.language
     : 'zh-CN';
   const user = await store.lastMessageByRole('user');
+  const resolvedPrompt = await resolveBuiltinSystemPrompt({
+    config,
+    slotId: 'delegate.reply-writer',
+    piwinRoot: context.piwinRoot,
+    projectPath: sessionProjectPath,
+  });
   const timeout = new AbortController();
   try {
     const rewritten = await completeReplyWriter({
       provider,
       model: writerModel,
-      systemPrompt: assembleReplyWriterSystemPrompt(config.replyWriter),
+      systemPrompt: resolvedPrompt.effectiveContent,
       userPrompt: assembleReplyWriterUserPrompt({
         language,
         evidence: {

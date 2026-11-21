@@ -14,7 +14,13 @@ import type {
   VisionDelegationConfig,
   VisionDelegateResult,
 } from '@piwin/contracts';
-import { formatError, isProviderEnabled, readBuiltinSystemPromptValue } from '@piwin/contracts';
+import {
+  formatError,
+  isBuiltinSystemPromptStackCustomized,
+  isProviderEnabled,
+  readBuiltinSystemPromptStack,
+  readBuiltinSystemPromptValue,
+} from '@piwin/contracts';
 import { useDesktopLocale } from '../i18n/desktop-locale-context';
 import { useSettings } from '../settings/settings-context';
 import { requestSystemPromptFocus } from '../settings/system-prompts/system-prompts-focus';
@@ -215,13 +221,16 @@ export function VisionDelegationSettings(): ReactElement {
         <FieldRow
           label={isChinese ? '系统提示词' : 'System prompt'}
           description={
-            readBuiltinSystemPromptValue(config, 'delegate.vision').isOverridden
+            readBuiltinSystemPromptValue(config, 'delegate.vision').isOverridden ||
+            isBuiltinSystemPromptStackCustomized(
+              readBuiltinSystemPromptStack(config, 'delegate.vision'),
+            )
               ? isChinese
-                ? '当前已配置自定义视觉提示词，可在「系统提示词」页面弹窗只读查看。'
-                : 'Custom prompt active. Inspect read-only in System Prompts.'
+                ? '当前已自定义视觉提示词或堆叠文件，可在「系统提示词」页面管理。'
+                : 'Custom prompt or file stack active. Manage in System Prompts.'
               : isChinese
-                ? '当前使用内置默认视觉识别契约，可在「系统提示词」页面弹窗只读查看。'
-                : 'Using built-in default vision prompt. View read-only in System Prompts.'
+                ? '当前使用内置默认视觉识别契约，可在「系统提示词」页面查看或叠文件调整。'
+                : 'Using built-in default vision prompt. Inspect or stack prompt files in System Prompts.'
           }
         >
           <Button
@@ -233,7 +242,7 @@ export function VisionDelegationSettings(): ReactElement {
             }}
             data-testid="vision-delegation-open-system-prompt"
           >
-            {isChinese ? '查看提示词' : 'View prompt'}
+            {isChinese ? '管理提示词' : 'Manage prompt'}
           </Button>
         </FieldRow>
 

@@ -382,6 +382,7 @@ async function compileAgentCapabilityPlan(
     config.artifact,
     snapshot.tools.hostTools,
     agentArtifactCapability(config, input),
+    systemPromptOverlay.artifactDecisionPrompt,
   );
 
   // MCP guidance is part of the model-visible contract only when the compiled
@@ -674,6 +675,7 @@ function compileConversationPlan(
     config.artifact,
     snapshot.tools.hostTools,
     conversationArtifactCapability(config),
+    systemPromptOverlay.artifactDecisionPrompt,
   );
 
   const knowledgeAppendPrompt = formatMountedKnowledgeBasePrompt(

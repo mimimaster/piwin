@@ -201,6 +201,7 @@ export function SystemPromptsPage(): ReactElement {
         />
       ) : (
         <BuiltinPromptsPanel
+          selectedProjectPath={effectiveSelectedProjectPath}
           initialSlotId={focusedSlotId}
           onConsumeInitialSlot={() => setFocusedSlotId(undefined)}
           onOpenPreview={setPreviewPayload}

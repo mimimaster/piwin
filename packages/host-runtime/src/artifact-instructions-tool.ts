@@ -23,11 +23,12 @@ const ALREADY_LOADED_OUTPUT =
 export function formatArtifactCapabilityPrompt(
   config: ArtifactConfig,
   capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+  decisionPromptOverride?: string,
 ): string | undefined {
   if (!config.enabled || !capability.enabled) {
     return undefined;
   }
-  const instructions = formatArtifactInstructions(config, capability);
+  const instructions = formatArtifactInstructions(config, capability, decisionPromptOverride);
   return instructions.trim().length > 0 ? instructions : undefined;
 }
 
@@ -36,18 +37,20 @@ export function formatResidentArtifactPrompt(
   config: ArtifactConfig,
   hostTools: readonly HostToolDescriptor[],
   capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+  decisionPromptOverride?: string,
 ): string | undefined {
   const hasArtifactInstructions = hostTools.some(
     (tool) => tool.name === ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   );
   return hasArtifactInstructions
-    ? formatArtifactCapabilityPrompt(config, capability)
+    ? formatArtifactCapabilityPrompt(config, capability, decisionPromptOverride)
     : undefined;
 }
 
 export function buildArtifactInstructionsTool(
   config: ArtifactConfig,
   capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+  decisionPromptOverride?: string,
 ): HostToolRegistration {
   const loadedRuns = new Set<string>();
 
@@ -85,7 +88,7 @@ export function buildArtifactInstructionsTool(
 
       return {
         ok: true,
-        output: `${formatArtifactKitReference()}\n\n${formatArtifactInstructions(config, capability)}`,
+        output: `${formatArtifactKitReference()}\n\n${formatArtifactInstructions(config, capability, decisionPromptOverride)}`,
       };
     },
   };

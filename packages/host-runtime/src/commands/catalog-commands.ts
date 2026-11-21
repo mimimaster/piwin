@@ -25,7 +25,8 @@ import { testProviderConnection } from '../provider-connection-test.js';
 import { prepareProviderProbe } from './provider-probe-context.js';
 import { testImageGenerationModel } from '../image-generation-test.js';
 import { decodeBase64Audio, transcribeOpenAiCompatible } from '@piwin/speech';
-import { DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT, VisionDelegationCache, delegateImageToVisionModel, sharedVisionDelegationCache } from '../vision-delegation.js';
+import { VisionDelegationCache, delegateImageToVisionModel, sharedVisionDelegationCache } from '../vision-delegation.js';
+import { resolveBuiltinSystemPrompt } from '../system-prompts-compile.js';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -696,10 +697,16 @@ export async function handleCatalogCommand(
           return fail(requestId, 'vision/delegate', 'imagePath or imageBase64 is required');
         }
 
-        const systemPrompt =
-          command.input.prompt?.trim() ||
-          visionConfig.systemPrompt?.trim() ||
-          DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
+        const explicitPrompt = command.input.prompt?.trim();
+        const systemPrompt = explicitPrompt
+          ? explicitPrompt
+          : (
+              await resolveBuiltinSystemPrompt({
+                config,
+                slotId: 'delegate.vision',
+                piwinRoot: rootDir,
+              })
+            ).effectiveContent;
         const fileBytes = await readFile(imagePath);
         const cacheKey =
           visionConfig.cacheEnabled === false

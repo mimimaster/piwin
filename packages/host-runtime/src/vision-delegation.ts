@@ -107,7 +107,10 @@ export type VisionDelegateRequest = {
 export async function delegateImageToVisionModel(request: VisionDelegateRequest): Promise<string> {
   const bytes = await readFile(request.imagePath);
   const base64 = Buffer.from(bytes).toString('base64');
-  const systemPrompt = request.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
+  const systemPrompt =
+    request.systemPrompt === ''
+      ? ''
+      : request.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
   const timeoutMs = request.timeoutMs ?? DEFAULT_VISION_DELEGATION_TIMEOUT_MS;
   const timeoutController = new AbortController();
   const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
@@ -201,25 +204,28 @@ async function describeOpenAiCompatible(params: {
   const url = resolveProviderChatEndpoint(params.provider, params.modelId, 'openai-completions');
   const headers = await buildProviderRequestHeaders(params.provider, async () => params.apiKey);
   headers.set('content-type', 'application/json');
+  const trimmedSystem = params.systemPrompt.trim();
+  const messages: unknown[] = [];
+  if (trimmedSystem.length > 0) {
+    messages.push({ role: 'system', content: trimmedSystem });
+  }
+  messages.push({
+    role: 'user',
+    content: [
+      { type: 'text', text: 'Describe this image.' },
+      {
+        type: 'image_url',
+        image_url: { url: `data:${params.mimeType};base64,${params.base64}` },
+      },
+    ],
+  });
   const response = await params.fetchImpl(url, {
     method: 'POST',
     headers,
     signal: params.signal,
     body: JSON.stringify({
       model: params.modelId,
-      messages: [
-        { role: 'system', content: params.systemPrompt },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Describe this image.' },
-            {
-              type: 'image_url',
-              image_url: { url: `data:${params.mimeType};base64,${params.base64}` },
-            },
-          ],
-        },
-      ],
+      messages,
       max_tokens: 1024,
       temperature: 0.2,
       stream: false,
@@ -251,13 +257,14 @@ async function describeAnthropicCompatible(params: {
   const url = resolveProviderChatEndpoint(params.provider, params.modelId, 'anthropic-messages');
   const headers = await buildProviderRequestHeaders(params.provider, async () => params.apiKey);
   headers.set('content-type', 'application/json');
+  const trimmedSystem = params.systemPrompt.trim();
   const response = await params.fetchImpl(url, {
     method: 'POST',
     headers,
     signal: params.signal,
     body: JSON.stringify({
       model: params.modelId,
-      system: params.systemPrompt,
+      ...(trimmedSystem.length > 0 ? { system: trimmedSystem } : {}),
       max_tokens: 1024,
       messages: [
         {
@@ -303,12 +310,15 @@ async function describeGoogleGemini(params: {
   const url = resolveProviderChatEndpoint(params.provider, params.modelId, 'google-generative-ai');
   const headers = await buildProviderRequestHeaders(params.provider, async () => params.apiKey);
   headers.set('content-type', 'application/json');
+  const trimmedSystem = params.systemPrompt.trim();
   const response = await params.fetchImpl(url, {
     method: 'POST',
     headers,
     signal: params.signal,
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: params.systemPrompt }] },
+      ...(trimmedSystem.length > 0
+        ? { systemInstruction: { parts: [{ text: trimmedSystem }] } }
+        : {}),
       contents: [
         {
           role: 'user',

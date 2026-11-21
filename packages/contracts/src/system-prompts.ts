@@ -1,10 +1,11 @@
 /**
  * System Prompts management & inspection contracts.
  *
- * Custom presets reference ordered stacks of external `.md` / `.txt` files
- * instead of storing inline editable prompt text, while preserving existing
- * `replyWriter.systemPrompt`, `visionDelegation.systemPrompt`, and
- * `artifact.decisionPrompt` inspection compatibility for built-in slots.
+ * Custom presets and built-in module prompt slots reference ordered stacks of
+ * external `.md` / `.txt` files instead of storing inline editable prompt text,
+ * while preserving existing `replyWriter.systemPrompt`,
+ * `visionDelegation.systemPrompt`, and `artifact.decisionPrompt` inspection
+ * compatibility for built-in slots.
  */
 
 import type { PiwinConfig } from './config.js';
@@ -36,8 +37,14 @@ export type BuiltinSystemPromptSlotId =
   | 'artifact.decision'
   | 'delegate.reply-writer'
   | 'delegate.vision'
-  | 'web.fetch-extract'
-  | 'walkthrough.system';
+  | 'web.fetch-extract';
+
+export type BuiltinSystemPromptStackConfig = {
+  /** Whether the built-in default prompt text is included at the top of the stack. */
+  includeBuiltin: boolean;
+  /** Ordered `.md` / `.txt` files appended after the built-in default (or replacing it). */
+  filePaths: string[];
+};
 
 /** Sentinel id forcing built-in defaults (skipping inherited global/project presets). */
 export const SYSTEM_PROMPT_BUILTIN_ID = '__builtin__';
@@ -51,6 +58,8 @@ export type SystemPromptsConfig = {
   defaultPresetId?: string;
   /** Per-project custom preset id (or `SYSTEM_PROMPT_BUILTIN_ID` to opt out). */
   projectPresetIds?: Record<string, string>;
+  /** Per-slot file stack & built-in inclusion overrides for built-in module prompts. */
+  builtinStacks?: Partial<Record<BuiltinSystemPromptSlotId, BuiltinSystemPromptStackConfig>>;
 };
 
 export type SystemPromptCandidateSource = 'global' | 'project';
@@ -196,16 +205,15 @@ export const BUILTIN_SYSTEM_PROMPTS: readonly BuiltinSystemPromptDescriptor[] = 
     overridable: true,
     defaultContent: DEFAULT_FETCH_EXTRACT_SYSTEM_PROMPT,
   },
-  {
-    slotId: 'walkthrough.system',
-    titleZh: '交付报告生成 (Walkthrough)',
-    titleEn: 'Walkthrough Delivery Report',
-    descriptionZh: '根据工具与文件变更证据生成最终交付报告的系统契约（为保证证据隔离与格式协议稳定，仅支持查看）。',
-    descriptionEn: 'System contract for generating Walkthrough delivery reports (read-only for safety).',
-    overridable: false,
-    defaultContent: WALKTHROUGH_SYSTEM_PROMPT,
-  },
 ];
+
+const BUILTIN_SLOT_ID_SET: ReadonlySet<string> = new Set(
+  BUILTIN_SYSTEM_PROMPTS.map((item) => item.slotId),
+);
+
+export function isBuiltinSystemPromptSlotId(value: string): value is BuiltinSystemPromptSlotId {
+  return BUILTIN_SLOT_ID_SET.has(value);
+}
 
 const SYSTEM_PROMPT_PRESET_ID_RE = /^[a-z0-9][a-z0-9-_]{0,63}$/;
 
@@ -320,7 +328,6 @@ export function readBuiltinSystemPromptValue(
           ? config.artifact.decisionPrompt.customPrompt
           : undefined;
       break;
-    case 'walkthrough.system':
     case 'agent.default':
     case 'agent.goal':
     case 'conversation.chat':
@@ -339,6 +346,66 @@ export function readBuiltinSystemPromptValue(
     isOverridden,
     ...(isOverridden ? { overrideContent: trimmed } : {}),
     effectiveContent: isOverridden ? trimmed : descriptor.defaultContent,
+  };
+}
+
+export function readBuiltinSystemPromptStack(
+  config: PiwinConfig | null | undefined,
+  slotId: BuiltinSystemPromptSlotId,
+): BuiltinSystemPromptStackConfig {
+  const entry = config?.systemPrompts?.builtinStacks?.[slotId];
+  return {
+    includeBuiltin: entry?.includeBuiltin ?? true,
+    filePaths: entry?.filePaths ? [...entry.filePaths] : [],
+  };
+}
+
+export function isBuiltinSystemPromptStackCustomized(
+  stack: BuiltinSystemPromptStackConfig,
+): boolean {
+  return !stack.includeBuiltin || stack.filePaths.length > 0;
+}
+
+export function compileBuiltinSystemPromptStackContent(params: {
+  baseContent: string;
+  stack: BuiltinSystemPromptStackConfig;
+  fileContents: readonly string[];
+}): string {
+  const parts: string[] = [];
+  if (params.stack.includeBuiltin && params.baseContent.trim().length > 0) {
+    parts.push(params.baseContent);
+  }
+  for (const raw of params.fileContents) {
+    if (raw.trim().length > 0) {
+      parts.push(raw);
+    }
+  }
+  return formatSystemPromptFileStack(parts);
+}
+
+export function applyBuiltinSystemPromptStack(
+  config: PiwinConfig,
+  slotId: BuiltinSystemPromptSlotId,
+  stack: BuiltinSystemPromptStackConfig,
+): PiwinConfig {
+  const currentSystemPrompts = config.systemPrompts ?? createDefaultSystemPromptsConfig();
+  const nextStacks = { ...(currentSystemPrompts.builtinStacks ?? {}) };
+  const normalizedFiles = normalizeSystemPromptFileStack(stack.filePaths);
+  if (stack.includeBuiltin && normalizedFiles.length === 0) {
+    delete nextStacks[slotId];
+  } else {
+    nextStacks[slotId] = {
+      includeBuiltin: stack.includeBuiltin,
+      filePaths: normalizedFiles,
+    };
+  }
+  const { builtinStacks: _prevStacks, ...restSystemPrompts } = currentSystemPrompts;
+  return {
+    ...config,
+    systemPrompts:
+      Object.keys(nextStacks).length > 0
+        ? { ...restSystemPrompts, builtinStacks: nextStacks }
+        : restSystemPrompts,
   };
 }
 

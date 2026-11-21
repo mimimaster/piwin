@@ -6,7 +6,6 @@ import {
   mergeAgentModeIntoPrompt,
   mergeOrchestrationSchemeIntoPrompt,
   orchestrationSchemeInjectionKey,
-  readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
   resolveOrchestrationScheme,
   resolvePermissionPreset,
@@ -17,6 +16,7 @@ import { formatPlanForModelContext } from '../format-plan-context.js';
 import type { ModelPromptAssembly } from '../model-context-assembly.js';
 import { getPiwinRoot, getPiwinSessionIndexPath, getPiwinSessionPlanPath } from '../paths.js';
 import { listKnownChatModelKeys } from '../provider-helpers.js';
+import { resolveBuiltinSystemPrompt } from '../system-prompts-compile.js';
 import { resolveExplicitPlanExecutionMode } from './plan-execution-intent.js';
 import { throwIfPromptPreparationAborted } from './prompt-preparation-abort.js';
 import type { SessionLiveContext } from './session-live-context.js';
@@ -141,14 +141,37 @@ export async function applyAgentPromptContext(
         projectPath: sessionRecord?.projectPath,
         sessionPresetId: sessionRecord?.systemPromptPresetId,
       });
+      const [agentDefault, agentGoal] = await Promise.all([
+        resolveBuiltinSystemPrompt({
+          config,
+          slotId: 'agent.default',
+          piwinRoot: context.piwinRoot,
+          projectPath: sessionRecord?.projectPath,
+        }),
+        resolveBuiltinSystemPrompt({
+          config,
+          slotId: 'agent.goal',
+          piwinRoot: context.piwinRoot,
+          projectPath: sessionRecord?.projectPath,
+        }),
+      ]);
+      const agentEmptyCleared = agentDefault.isCustomized && agentDefault.effectiveContent.length === 0;
+      const goalEmptyCleared = agentGoal.isCustomized && agentGoal.effectiveContent.length === 0;
       skipAgentTurnPreamble =
-        command.input.agentMode === 'agent' && activeSelection.preset?.mode === 'replace';
-      const agentDefault = readBuiltinSystemPromptValue(config, 'agent.default');
-      const agentGoal = readBuiltinSystemPromptValue(config, 'agent.goal');
-      if (agentDefault.isOverridden || agentGoal.isOverridden) {
+        (command.input.agentMode === 'agent' &&
+          (activeSelection.preset?.mode === 'replace' || agentEmptyCleared)) ||
+        (command.input.agentMode === 'goal' && goalEmptyCleared);
+      if (
+        (agentDefault.isCustomized && agentDefault.effectiveContent.length > 0) ||
+        (agentGoal.isCustomized && agentGoal.effectiveContent.length > 0)
+      ) {
         overrides = {
-          ...(agentDefault.isOverridden ? { agent: agentDefault.effectiveContent } : {}),
-          ...(agentGoal.isOverridden ? { goal: agentGoal.effectiveContent } : {}),
+          ...(agentDefault.isCustomized && agentDefault.effectiveContent.length > 0
+            ? { agent: agentDefault.effectiveContent }
+            : {}),
+          ...(agentGoal.isCustomized && agentGoal.effectiveContent.length > 0
+            ? { goal: agentGoal.effectiveContent }
+            : {}),
         };
       }
     } catch {

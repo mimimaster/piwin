@@ -21,8 +21,8 @@ import {
   VisionDelegationCache,
   sharedVisionDelegationCache,
   delegateImageToVisionModel,
-  DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
 } from './vision-delegation.js';
+import { resolveBuiltinSystemPrompt } from './system-prompts-compile.js';
 
 import { loadPiwinConfig } from './config-store.js';
 import { createSecretResolver } from './secret-resolver.js';
@@ -161,7 +161,11 @@ export async function buildModelPromptInput(
       const apiKey = isSubscriptionProvider(visionProvider)
         ? undefined
         : await createSecretResolver({ piwinRoot }).resolveProviderSecret(visionProvider);
-      const systemPrompt = delegate.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
+      const { effectiveContent: systemPrompt } = await resolveBuiltinSystemPrompt({
+        config,
+        slotId: 'delegate.vision',
+        piwinRoot: deps.options.piwinRoot,
+      });
       for (const mediaAttachment of imageMedia) {
         if (signal?.aborted) {
           throw new Error('prompt preparation aborted');

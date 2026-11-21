@@ -384,15 +384,20 @@ export const ARTIFACT_RUNTIME_CONTRACT = formatArtifactProtocol();
 export function formatArtifactInstructions(
   config: ArtifactConfig,
   capability: ResolvedArtifactCapability = FULL_ARTIFACT_CAPABILITY,
+  decisionPromptOverride?: string,
 ): string {
   if (!capability.enabled) {
     return '';
   }
+  const decisionPrompt =
+    decisionPromptOverride !== undefined
+      ? decisionPromptOverride.trim()
+      : resolveArtifactDecisionPrompt(config);
   const parts = [
     config.triggerMode === 'explicit-only' ? ARTIFACT_EXPLICIT_ONLY_HINT : undefined,
     config.styleModes === 'host-only' ? ARTIFACT_HOST_STYLE_ONLY_HINT : undefined,
     resolveArtifactSurfaceHint(capability),
-    resolveArtifactDecisionPrompt(config),
+    decisionPrompt.length > 0 ? decisionPrompt : undefined,
     formatArtifactProtocol(),
   ].filter((part): part is string => part !== undefined && part.length > 0);
   return parts.join('\n\n');

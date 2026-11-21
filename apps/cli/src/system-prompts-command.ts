@@ -3,7 +3,7 @@ import {
   BUILTIN_SYSTEM_PROMPTS,
   createDefaultSystemPromptsConfig,
   formatSystemPromptFileStack,
-  readBuiltinSystemPromptValue,
+  readBuiltinSystemPromptStack,
   resolveActiveSystemPromptSelection,
   SYSTEM_PROMPT_BUILTIN_ID,
   SYSTEM_PROMPT_INHERIT_ID,
@@ -13,6 +13,7 @@ import {
   getPiwinRoot,
   loadPiwinConfig,
   readSystemPromptFiles,
+  resolveBuiltinSystemPrompt,
   savePiwinConfig,
 } from '@piwin/host-runtime';
 import { parseOptionalProject } from './cli-args.js';
@@ -48,9 +49,19 @@ export async function commandSystemPrompts(argv: string[]): Promise<void> {
       }
     }
     console.log('');
-    console.log('Built-in Prompts (read-only):');
+    console.log('Built-in Prompts:');
     for (const slot of BUILTIN_SYSTEM_PROMPTS) {
-      console.log(`  ${slot.slotId}\t[read-only]\t${slot.titleEn}`);
+      const stack = readBuiltinSystemPromptStack(config, slot.slotId);
+      const atNames = stack.filePaths.map((filePath) => `@${path.basename(filePath)}`).join(' -> ');
+      const status =
+        stack.includeBuiltin && stack.filePaths.length === 0
+          ? '[builtin]'
+          : stack.includeBuiltin
+            ? `[builtin + ${stack.filePaths.length} files: ${atNames}]`
+            : stack.filePaths.length > 0
+              ? `[replaced: ${stack.filePaths.length} files: ${atNames}]`
+              : '[disabled]';
+      console.log(`  ${slot.slotId}\t${status}\t${slot.titleEn}`);
     }
     return;
   }
@@ -87,15 +98,32 @@ export async function commandSystemPrompts(argv: string[]): Promise<void> {
     }
     const builtin = BUILTIN_SYSTEM_PROMPTS.find((item) => item.slotId === targetId);
     if (builtin) {
-      const value = readBuiltinSystemPromptValue(
+      const slotId = builtin.slotId as BuiltinSystemPromptSlotId;
+      const resolved = await resolveBuiltinSystemPrompt({
         config,
-        builtin.slotId as BuiltinSystemPromptSlotId,
-      );
+        slotId,
+        piwinRoot: root,
+        projectPath,
+      });
       console.log(`slotId: ${builtin.slotId}`);
       console.log(`title: ${builtin.titleEn} (${builtin.titleZh})`);
-      console.log('mode: read-only');
+      console.log(`includeBuiltin: ${resolved.stack.includeBuiltin ? 'yes' : 'no'}`);
+      if (resolved.stack.filePaths.length > 0) {
+        const read = await readSystemPromptFiles({
+          paths: resolved.stack.filePaths,
+          piwinRoot: root,
+          projectPath,
+        });
+        console.log('files:');
+        for (const file of read.files) {
+          const status = file.exists ? `${file.sizeBytes}B` : `MISSING (${file.error ?? 'not found'})`;
+          console.log(`  - @${file.fileName} (${file.resolvedPath}) [${status}]`);
+        }
+      }
       console.log('---');
-      console.log(value.effectiveContent);
+      console.log(
+        resolved.effectiveContent || '(empty — built-in removed and no files stacked)',
+      );
       return;
     }
     console.error(`Unknown system prompt id or slot: ${targetId}`);

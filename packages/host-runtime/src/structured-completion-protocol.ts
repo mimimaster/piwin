@@ -54,10 +54,15 @@ export function buildCompletionEndpoint(
 
 export function buildCompletionBody(request: StructuredCompletionRequest): Record<string, unknown> {
   const { provider, modelId, systemPrompt, userPrompt, maxOutputTokens, temperature } = request;
+  const trimmedSystem = systemPrompt.trim();
   const schemaHint = request.jsonSchema
-    ? `\n\nReturn JSON only that matches this schema:\n${JSON.stringify(request.jsonSchema)}`
+    ? `Return JSON only that matches this schema:\n${JSON.stringify(request.jsonSchema)}`
     : '';
-  const system = `${systemPrompt}${schemaHint}`;
+  const system =
+    trimmedSystem.length > 0 && schemaHint.length > 0
+      ? `${trimmedSystem}\n\n${schemaHint}`
+      : trimmedSystem || schemaHint;
+  const hasSystem = system.length > 0;
   if (provider.protocol === 'google-gemini') {
     const generationConfig: Record<string, unknown> = {
       maxOutputTokens,
@@ -67,7 +72,7 @@ export function buildCompletionBody(request: StructuredCompletionRequest): Recor
       generationConfig.responseMimeType = 'application/json';
     }
     return {
-      systemInstruction: { parts: [{ text: system }] },
+      ...(hasSystem ? { systemInstruction: { parts: [{ text: system }] } } : {}),
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
       generationConfig,
     };
@@ -82,7 +87,7 @@ export function buildCompletionBody(request: StructuredCompletionRequest): Recor
     return mergeModelRequestBody(
       {
         model: modelId,
-        system,
+        ...(hasSystem ? { system } : {}),
         messages: [{ role: 'user', content: userPrompt }],
         max_tokens: maxOutputTokens,
         temperature,
@@ -90,12 +95,14 @@ export function buildCompletionBody(request: StructuredCompletionRequest): Recor
       extraBody,
     ) as Record<string, unknown>;
   }
+  const messages: Array<{ role: string; content: string }> = [];
+  if (hasSystem) {
+    messages.push({ role: 'system', content: system });
+  }
+  messages.push({ role: 'user', content: userPrompt });
   const body: Record<string, unknown> = {
     model: modelId,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: userPrompt },
-    ],
+    messages,
     max_tokens: maxOutputTokens,
     temperature,
     stream: false,

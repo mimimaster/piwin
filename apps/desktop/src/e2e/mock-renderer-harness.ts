@@ -5,6 +5,7 @@ import { seedLongSessionHost } from './long-session-fixture.js';
 import { seedLiveChainHost } from './live-chain-fixture.js';
 import { seedTurnChangesHost } from './turn-changes-fixture.js';
 import { seedHugeTurnHost } from './huge-turn-fixture.js';
+import { seedOldSessionBlankHost } from './old-session-blank-fixture.js';
 import { seedSidebarTreeHost } from './sidebar-tree-fixture.js';
 
 export function installMockRendererHarness(host: MockHostBackend): void {
@@ -27,6 +28,9 @@ export function installMockRendererHarness(host: MockHostBackend): void {
   }
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eHugeTurn') === '1') {
     seedHugeTurnHost(host);
+  }
+  if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eOldSessionBlank') === '1') {
+    seedOldSessionBlankHost(host);
   }
   if (import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' && params.get('e2eLiveChain') === '1') {
     seedLiveChainHost(host, { runningTail: params.get('liveTail') === 'tools' });

@@ -395,8 +395,9 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
     expect(modal!.querySelector('[data-testid="sysprompt-preview-open-external"]')).not.toBeNull();
   });
 
-  it('renders read-only built-in cards and opens modal on click', async () => {
-    const host = await renderHarness();
+  it('renders master-detail built-in modules without walkthrough, supports file stacking, and allows removing/restoring built-in default', async () => {
+    const onConfigSaved = vi.fn();
+    const host = await renderHarness(baseConfig(), onConfigSaved);
 
     const builtinsTab = host.querySelector<HTMLElement>('[data-testid="system-prompts-tab-control"]');
     const radios = builtinsTab?.querySelectorAll<HTMLElement>('input[type="radio"], label');
@@ -409,14 +410,20 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
     });
     await flushAsync();
 
+    // Hides preset-only effective banner in built-ins tab and renders 7 modules (no walkthrough).
+    expect(host.querySelector('[data-testid="system-prompts-effective-banner"]')).toBeNull();
     expect(host.querySelectorAll('textarea')).toHaveLength(0);
-    const agentCard = host.querySelector<HTMLButtonElement>(
-      '[data-testid="sysprompt-builtin-card-agent.default"]',
-    );
-    expect(agentCard).not.toBeNull();
+    const railItems = host.querySelectorAll('[data-testid^="sysprompt-builtin-card-"]');
+    expect(railItems).toHaveLength(7);
+    expect(host.querySelector('[data-testid="sysprompt-builtin-card-walkthrough.system"]')).toBeNull();
 
+    // Clicking built-in base row opens read-only preview modal.
+    const basePreviewBtn = host.querySelector<HTMLButtonElement>(
+      '[data-testid="sysprompt-builtin-base-preview"]',
+    );
+    expect(basePreviewBtn).not.toBeNull();
     act(() => {
-      agentCard!.click();
+      basePreviewBtn!.click();
     });
     await flushAsync();
 
@@ -424,6 +431,77 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
     expect(previewBody).not.toBeNull();
     expect(previewBody!.textContent?.length).toBeGreaterThan(20);
     expect(document.body.querySelectorAll('textarea')).toHaveLength(0);
+
+    // Close preview modal.
+    const closeBtn = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="system-prompts-preview-modal"] button[aria-label]',
+    );
+    closeBtn?.click();
+    await flushAsync();
+
+    // Switch to goal module and stack persona.md via @ input.
+    const goalCard = host.querySelector<HTMLButtonElement>(
+      '[data-testid="sysprompt-builtin-card-agent.goal"]',
+    );
+    expect(goalCard).not.toBeNull();
+    await act(async () => {
+      goalCard!.click();
+    });
+    await flushAsync();
+    expect(host.querySelector('[data-testid="sysprompt-builtin-detail-agent.goal"]')).not.toBeNull();
+
+    const atInput = host.querySelector<HTMLInputElement>('[data-testid="system-prompts-at-input"]');
+    expect(atInput).not.toBeNull();
+    act(() => {
+      atInput!.focus();
+      setReactInputValue(atInput!, '@persona');
+    });
+    const optPersona = host.querySelector<HTMLButtonElement>('[data-testid="sysprompt-at-option-persona.md"]');
+    expect(optPersona).not.toBeNull();
+    await act(async () => {
+      optPersona!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(1);
+    const afterAddFile = onConfigSaved.mock.calls[0]?.[0] as PiwinConfig;
+    expect(afterAddFile.systemPrompts?.builtinStacks?.['agent.goal']).toEqual({
+      includeBuiltin: true,
+      filePaths: ['/Users/demo/.piwin/system-prompts/persona.md'],
+    });
+    expect(goalCard!.textContent).toContain('内置 +1');
+
+    // Remove the built-in default layer while keeping the stacked file.
+    const removeBaseBtn = host.querySelector<HTMLButtonElement>(
+      '[data-testid="sysprompt-builtin-remove-base"]',
+    );
+    expect(removeBaseBtn).not.toBeNull();
+    await act(async () => {
+      removeBaseBtn!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(2);
+    const afterRemoveBase = onConfigSaved.mock.calls[1]?.[0] as PiwinConfig;
+    expect(afterRemoveBase.systemPrompts?.builtinStacks?.['agent.goal']).toEqual({
+      includeBuiltin: false,
+      filePaths: ['/Users/demo/.piwin/system-prompts/persona.md'],
+    });
+    expect(goalCard!.textContent).toContain('替换 · 1');
+    expect(host.querySelector('[data-testid="sysprompt-builtin-removed-bar"]')).not.toBeNull();
+
+    // Reset back to built-in default clears the slot override.
+    const resetBtn = host.querySelector<HTMLButtonElement>('[data-testid="sysprompt-builtin-reset"]');
+    expect(resetBtn).not.toBeNull();
+    await act(async () => {
+      resetBtn!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(3);
+    const afterReset = onConfigSaved.mock.calls[2]?.[0] as PiwinConfig;
+    expect(afterReset.systemPrompts?.builtinStacks).toBeUndefined();
+    expect(goalCard!.textContent).toContain('内置');
   });
 
   it('activates presets via scope radio and project checklist, updating the status banner immediately', async () => {

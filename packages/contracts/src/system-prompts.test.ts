@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyBuiltinSystemPromptStack,
   BUILTIN_SYSTEM_PROMPTS,
+  compileBuiltinSystemPromptStackContent,
   CONVERSATION_CHAT_SYSTEM_PROMPT,
   createDefaultArtifactConfig,
   createDefaultWebConfig,
@@ -8,9 +10,12 @@ import {
   DEFAULT_REPLY_WRITER_SYSTEM_PROMPT,
   DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
   formatSystemPromptFileStack,
+  isBuiltinSystemPromptSlotId,
+  isBuiltinSystemPromptStackCustomized,
   isSupportedSystemPromptFilePath,
   MAX_SYSTEM_PROMPT_STACK_FILES,
   normalizeSystemPromptFileStack,
+  readBuiltinSystemPromptStack,
   readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
   slugifySystemPromptPresetId,
@@ -71,7 +76,7 @@ describe('system-prompts contracts', () => {
     expect(formatSystemPromptFileStack(['  ', ''])).toBe('');
   });
 
-  it('reads built-in slots safely in read-only mode', () => {
+  it('reads built-in slots safely without walkthrough legacy slot', () => {
     const config = makeConfig({
       replyWriter: { enabled: true, language: 'zh-CN', systemPrompt: 'Custom writer' },
       visionDelegation: { enabled: true, systemPrompt: 'Custom vision' },
@@ -80,7 +85,12 @@ describe('system-prompts contracts', () => {
         decisionPrompt: { mode: 'custom', customPrompt: 'Always Markdown' },
       },
     });
-    expect(BUILTIN_SYSTEM_PROMPTS.length).toBeGreaterThanOrEqual(8);
+    expect(BUILTIN_SYSTEM_PROMPTS).toHaveLength(7);
+    expect(BUILTIN_SYSTEM_PROMPTS.some((item) => (item.slotId as string) === 'walkthrough.system')).toBe(
+      false,
+    );
+    expect(isBuiltinSystemPromptSlotId('agent.default')).toBe(true);
+    expect(isBuiltinSystemPromptSlotId('walkthrough.system')).toBe(false);
     expect(readBuiltinSystemPromptValue(config, 'agent.default')).toMatchObject({
       isOverridden: false,
       effectiveContent: DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
@@ -106,6 +116,72 @@ describe('system-prompts contracts', () => {
     expect(readBuiltinSystemPromptValue(makeConfig(), 'delegate.vision').effectiveContent).toBe(
       DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
     );
+  });
+
+  it('stacks and toggles built-in defaults via builtinStacks helpers', () => {
+    const initial = makeConfig();
+    expect(readBuiltinSystemPromptStack(initial, 'agent.default')).toEqual({
+      includeBuiltin: true,
+      filePaths: [],
+    });
+    expect(
+      isBuiltinSystemPromptStackCustomized(readBuiltinSystemPromptStack(initial, 'agent.default')),
+    ).toBe(false);
+
+    // Add stacked file while keeping built-in default
+    const withFiles = applyBuiltinSystemPromptStack(initial, 'agent.default', {
+      includeBuiltin: true,
+      filePaths: [' /tmp/extra.md ', '/tmp/invalid.json', '/tmp/extra.md'],
+    });
+    expect(withFiles.systemPrompts?.builtinStacks?.['agent.default']).toEqual({
+      includeBuiltin: true,
+      filePaths: ['/tmp/extra.md'],
+    });
+    expect(
+      isBuiltinSystemPromptStackCustomized(
+        readBuiltinSystemPromptStack(withFiles, 'agent.default'),
+      ),
+    ).toBe(true);
+    expect(
+      compileBuiltinSystemPromptStackContent({
+        baseContent: 'BUILTIN',
+        stack: readBuiltinSystemPromptStack(withFiles, 'agent.default'),
+        fileContents: ['EXTRA'],
+      }),
+    ).toBe('BUILTIN\n\nEXTRA');
+
+    // Remove built-in default while keeping stacked file
+    const replaced = applyBuiltinSystemPromptStack(withFiles, 'agent.default', {
+      includeBuiltin: false,
+      filePaths: ['/tmp/extra.md'],
+    });
+    expect(
+      compileBuiltinSystemPromptStackContent({
+        baseContent: 'BUILTIN',
+        stack: readBuiltinSystemPromptStack(replaced, 'agent.default'),
+        fileContents: ['EXTRA'],
+      }),
+    ).toBe('EXTRA');
+
+    // Remove built-in default with no files -> empty string
+    const cleared = applyBuiltinSystemPromptStack(replaced, 'agent.default', {
+      includeBuiltin: false,
+      filePaths: [],
+    });
+    expect(
+      compileBuiltinSystemPromptStackContent({
+        baseContent: 'BUILTIN',
+        stack: readBuiltinSystemPromptStack(cleared, 'agent.default'),
+        fileContents: [],
+      }),
+    ).toBe('');
+
+    // Reset back to default cleans up builtinStacks completely
+    const reset = applyBuiltinSystemPromptStack(cleared, 'agent.default', {
+      includeBuiltin: true,
+      filePaths: [],
+    });
+    expect(reset.systemPrompts?.builtinStacks).toBeUndefined();
   });
 
   it('resolves session > project > global > builtin precedence with graceful fallback', () => {

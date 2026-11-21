@@ -3,6 +3,8 @@
  */
 import { createHash } from 'node:crypto';
 import type {
+  BuiltinSystemPromptSlotId,
+  BuiltinSystemPromptStackConfig,
   CreateSessionInput,
   PiwinConfig,
   ResolvedSessionLocation,
@@ -10,7 +12,10 @@ import type {
   SystemPromptMode,
 } from '@piwin/contracts';
 import {
+  compileBuiltinSystemPromptStackContent,
   formatSystemPromptFileStack,
+  isBuiltinSystemPromptStackCustomized,
+  readBuiltinSystemPromptStack,
   readBuiltinSystemPromptValue,
   resolveActiveSystemPromptSelection,
 } from '@piwin/contracts';
@@ -28,14 +33,67 @@ export type SystemPromptSurfaceSummary = {
   missingFilePaths?: string[];
 };
 
+export type ResolvedBuiltinSystemPrompt = {
+  slotId: BuiltinSystemPromptSlotId;
+  stack: BuiltinSystemPromptStackConfig;
+  isCustomized: boolean;
+  effectiveContent: string;
+  missingFilePaths: string[];
+};
+
 export type CompiledSystemPromptOverlay = {
   baseAgentPrompt: string | undefined;
   baseConversationPrompt: string | undefined;
+  artifactDecisionPrompt?: string;
   presetAppendPrompt?: string;
   systemPromptOverride?: string;
   summary: SystemPromptSurfaceSummary;
   revisionSeed: string;
 };
+
+export async function resolveBuiltinSystemPrompt(params: {
+  config: PiwinConfig | null | undefined;
+  slotId: BuiltinSystemPromptSlotId;
+  piwinRoot?: string | undefined;
+  projectPath?: string | undefined;
+}): Promise<ResolvedBuiltinSystemPrompt> {
+  const baseValue = readBuiltinSystemPromptValue(params.config, params.slotId);
+  const stack = readBuiltinSystemPromptStack(params.config, params.slotId);
+  const validContents: string[] = [];
+  const missingFilePaths: string[] = [];
+
+  if (stack.filePaths.length > 0) {
+    const readResult = await readSystemPromptFiles({
+      paths: stack.filePaths,
+      piwinRoot: params.piwinRoot,
+      projectPath: params.projectPath,
+    });
+    for (const item of readResult.files) {
+      if (!item.exists || item.error) {
+        missingFilePaths.push(item.path);
+        continue;
+      }
+      if (item.content.trim().length > 0) {
+        validContents.push(item.content);
+      }
+    }
+  }
+
+  const effectiveContent = compileBuiltinSystemPromptStackContent({
+    baseContent: baseValue.effectiveContent,
+    stack,
+    fileContents: validContents,
+  });
+  const isCustomized = baseValue.isOverridden || isBuiltinSystemPromptStackCustomized(stack);
+
+  return {
+    slotId: params.slotId,
+    stack,
+    isCustomized,
+    effectiveContent,
+    missingFilePaths,
+  };
+}
 
 export async function loadSessionSystemPromptPresetId(
   piwinRoot: string | undefined,
@@ -60,16 +118,38 @@ export async function resolveCompiledSystemPromptOverlay(params: {
   const { config, input, location, isConversation } = params;
   const isolated = Boolean(input.parentSessionId) || input.sessionKind === 'side-chat';
 
-  const agentDefault = readBuiltinSystemPromptValue(config, 'agent.default');
-  const agentGoal = readBuiltinSystemPromptValue(config, 'agent.goal');
-  const conversationChat = readBuiltinSystemPromptValue(config, 'conversation.chat');
-  const artifactDecision = readBuiltinSystemPromptValue(config, 'artifact.decision');
-  const builtinModified = isConversation
-    ? conversationChat.isOverridden || artifactDecision.isOverridden
-    : agentDefault.isOverridden || agentGoal.isOverridden || artifactDecision.isOverridden;
-
   const projectPath =
     location.scope.kind === 'project' ? location.scope.projectPath : undefined;
+
+  const [agentDefault, agentGoal, conversationChat, artifactDecision] = await Promise.all([
+    resolveBuiltinSystemPrompt({
+      config,
+      slotId: 'agent.default',
+      piwinRoot: params.piwinRoot,
+      projectPath,
+    }),
+    resolveBuiltinSystemPrompt({
+      config,
+      slotId: 'agent.goal',
+      piwinRoot: params.piwinRoot,
+      projectPath,
+    }),
+    resolveBuiltinSystemPrompt({
+      config,
+      slotId: 'conversation.chat',
+      piwinRoot: params.piwinRoot,
+      projectPath,
+    }),
+    resolveBuiltinSystemPrompt({
+      config,
+      slotId: 'artifact.decision',
+      piwinRoot: params.piwinRoot,
+      projectPath,
+    }),
+  ]);
+  const builtinModified = isConversation
+    ? conversationChat.isCustomized || artifactDecision.isCustomized
+    : agentDefault.isCustomized || agentGoal.isCustomized || artifactDecision.isCustomized;
 
   const selection = isolated
     ? { sourceKind: 'builtin' as const, effectiveSelectionId: '__builtin__' }
@@ -81,7 +161,7 @@ export async function resolveCompiledSystemPromptOverlay(params: {
 
   const activePreset = selection.preset;
   let compiledPresetContent = '';
-  const missingFilePaths: string[] = [];
+  const presetMissingPaths: string[] = [];
 
   if (activePreset && activePreset.filePaths.length > 0) {
     const readResult = await readSystemPromptFiles({
@@ -92,7 +172,7 @@ export async function resolveCompiledSystemPromptOverlay(params: {
     const validContents: string[] = [];
     for (const item of readResult.files) {
       if (!item.exists || item.error) {
-        missingFilePaths.push(item.path);
+        presetMissingPaths.push(item.path);
         continue;
       }
       if (item.content.trim().length > 0) {
@@ -108,15 +188,28 @@ export async function resolveCompiledSystemPromptOverlay(params: {
   const isReplace = activePreset?.mode === 'replace' && hasCompiledContent;
   const isAppend = activePreset?.mode === 'append' && hasCompiledContent;
 
+  const missingFilePaths = Array.from(
+    new Set([
+      ...(isConversation ? conversationChat.missingFilePaths : agentDefault.missingFilePaths),
+      ...(isConversation ? [] : agentGoal.missingFilePaths),
+      ...artifactDecision.missingFilePaths,
+      ...presetMissingPaths,
+    ]),
+  );
+
   const revisionSeed = createHash('sha256')
     .update(
       JSON.stringify({
         isConversation,
         isolated,
         agentDefault: agentDefault.effectiveContent,
+        agentDefaultStack: agentDefault.stack,
         agentGoal: agentGoal.effectiveContent,
+        agentGoalStack: agentGoal.stack,
         conversationChat: conversationChat.effectiveContent,
+        conversationChatStack: conversationChat.stack,
         artifactDecision: artifactDecision.effectiveContent,
+        artifactDecisionStack: artifactDecision.stack,
         preset: activePreset
           ? {
               id: activePreset.id,
@@ -146,8 +239,19 @@ export async function resolveCompiledSystemPromptOverlay(params: {
   };
 
   return {
-    baseAgentPrompt: isReplace ? undefined : agentDefault.effectiveContent,
-    baseConversationPrompt: isReplace ? undefined : conversationChat.effectiveContent,
+    baseAgentPrompt: isReplace
+      ? undefined
+      : agentDefault.effectiveContent.length > 0
+        ? agentDefault.effectiveContent
+        : undefined,
+    baseConversationPrompt: isReplace
+      ? undefined
+      : conversationChat.effectiveContent.length > 0
+        ? conversationChat.effectiveContent
+        : undefined,
+    ...(artifactDecision.isCustomized
+      ? { artifactDecisionPrompt: artifactDecision.effectiveContent }
+      : {}),
     ...(isAppend ? { presetAppendPrompt: compiledPresetContent } : {}),
     ...(isReplace ? { systemPromptOverride: compiledPresetContent } : {}),
     summary,
