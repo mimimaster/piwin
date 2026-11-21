@@ -426,8 +426,146 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
     expect(document.body.querySelectorAll('textarea')).toHaveLength(0);
   });
 
-  it('switches target project in the scope bar, persists projectPresetIds, and isolates effective preview from active session', async () => {
+  it('activates presets via scope radio and project checklist, updating the status banner immediately', async () => {
     const onConfigSaved = vi.fn();
+    const initialConfig: PiwinConfig = {
+      ...baseConfig(),
+      systemPrompts: {
+        presets: [
+          makePreset('reviewer', '审查员', ['/Users/demo/.piwin/system-prompts/persona.md']),
+        ],
+      },
+    };
+    const host = await renderHarness(initialConfig, onConfigSaved, {
+      projectPath: '/repo/demo',
+      recentProjects: [makeProject('/repo/demo'), makeProject('/repo/other')],
+    });
+
+    const banner = host.querySelector('[data-testid="system-prompts-effective-banner"]');
+    const effectiveName = host.querySelector('[data-testid="system-prompts-effective-name"]');
+    const pill = host.querySelector('[data-testid="sysprompt-preset-pill-reviewer"]');
+    expect(banner?.textContent).toContain('demo');
+    expect(effectiveName?.textContent).toBe('系统默认');
+    expect(pill?.textContent).toContain('未启用');
+
+    const projectsRadio = host.querySelector<HTMLInputElement>(
+      '[data-testid="system-prompts-scope-projects"] input[type="radio"]',
+    );
+    expect(projectsRadio).not.toBeNull();
+    act(() => {
+      projectsRadio!.click();
+    });
+    await flushAsync();
+
+    const demoCheckbox = host.querySelector<HTMLInputElement>(
+      '[data-testid="sysprompt-project-checkbox"][data-project-path="/repo/demo"]',
+    );
+    expect(demoCheckbox).not.toBeNull();
+    await act(async () => {
+      demoCheckbox!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(1);
+    expect((onConfigSaved.mock.calls[0]?.[0] as PiwinConfig).systemPrompts?.projectPresetIds).toEqual({
+      '/repo/demo': 'reviewer',
+    });
+    expect(effectiveName?.textContent).toBe('审查员');
+    expect(banner?.textContent).toContain('项目生效');
+    expect(pill?.textContent).toContain('1 个项目');
+
+    const globalRadio = host.querySelector<HTMLInputElement>(
+      '[data-testid="system-prompts-scope-global"] input[type="radio"]',
+    );
+    expect(globalRadio).not.toBeNull();
+    await act(async () => {
+      globalRadio!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(2);
+    const afterGlobal = onConfigSaved.mock.calls[1]?.[0] as PiwinConfig;
+    expect(afterGlobal.systemPrompts?.defaultPresetId).toBe('reviewer');
+    expect(afterGlobal.systemPrompts?.projectPresetIds).toBeUndefined();
+    expect(pill?.textContent).toContain('全局默认');
+    expect(banner?.textContent).toContain('全局默认');
+
+    const offRadio = host.querySelector<HTMLInputElement>(
+      '[data-testid="system-prompts-scope-off"] input[type="radio"]',
+    );
+    expect(offRadio).not.toBeNull();
+    await act(async () => {
+      offRadio!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(3);
+    const afterOff = onConfigSaved.mock.calls[2]?.[0] as PiwinConfig;
+    expect(afterOff.systemPrompts?.defaultPresetId).toBeUndefined();
+    expect(effectiveName?.textContent).toBe('系统默认');
+  });
+
+  it('creates and activates a preset for a specific project in a single Save', async () => {
+    const onConfigSaved = vi.fn();
+    const host = await renderHarness(baseConfig(), onConfigSaved, {
+      projectPath: '/repo/demo',
+      recentProjects: [makeProject('/repo/demo'), makeProject('/repo/other')],
+    });
+
+    const nameInput = host.querySelector<HTMLInputElement>('[data-testid="system-prompts-preset-name"]');
+    expect(nameInput).not.toBeNull();
+    act(() => {
+      setReactInputValue(nameInput!, '外审');
+    });
+
+    const atInput = host.querySelector<HTMLInputElement>('[data-testid="system-prompts-at-input"]');
+    expect(atInput).not.toBeNull();
+    act(() => {
+      atInput!.focus();
+      setReactInputValue(atInput!, '@persona');
+    });
+    const optPersona = host.querySelector<HTMLButtonElement>('[data-testid="sysprompt-at-option-persona.md"]');
+    expect(optPersona).not.toBeNull();
+    act(() => {
+      optPersona!.click();
+    });
+    await flushAsync();
+
+    const projectsRadio = host.querySelector<HTMLInputElement>(
+      '[data-testid="system-prompts-scope-projects"] input[type="radio"]',
+    );
+    expect(projectsRadio).not.toBeNull();
+    act(() => {
+      projectsRadio!.click();
+    });
+    await flushAsync();
+
+    const otherCheckbox = host.querySelector<HTMLInputElement>(
+      '[data-testid="sysprompt-project-checkbox"][data-project-path="/repo/other"]',
+    );
+    expect(otherCheckbox).not.toBeNull();
+    act(() => {
+      otherCheckbox!.click();
+    });
+
+    const saveBtn = host.querySelector<HTMLButtonElement>('[data-testid="system-prompts-preset-save"]');
+    expect(saveBtn?.disabled).toBe(false);
+    await act(async () => {
+      saveBtn!.click();
+    });
+    await flushAsync();
+
+    expect(onConfigSaved).toHaveBeenCalledTimes(1);
+    const saved = onConfigSaved.mock.calls[0]?.[0] as PiwinConfig;
+    expect(saved.systemPrompts?.presets).toHaveLength(1);
+    const createdId = saved.systemPrompts?.presets[0]?.id;
+    expect(createdId).toBeTruthy();
+    expect(saved.systemPrompts?.projectPresetIds).toEqual({
+      '/repo/other': createdId,
+    });
+  });
+
+  it('inspects multiple projects in the status banner without leaking active session override', async () => {
     const initialConfig: PiwinConfig = {
       ...baseConfig(),
       systemPrompts: {
@@ -435,9 +573,12 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
           makePreset('reviewer', '审查员', ['/Users/demo/.piwin/system-prompts/persona.md']),
           makePreset('concise', '精简模式', ['/repo/demo/rules.txt']),
         ],
+        projectPresetIds: {
+          '/repo/other': 'reviewer',
+        },
       },
     };
-    const host = await renderHarness(initialConfig, onConfigSaved, {
+    const host = await renderHarness(initialConfig, undefined, {
       projectPath: '/repo/demo',
       recentProjects: [makeProject('/repo/demo'), makeProject('/repo/other')],
       activeSessionId: 'sess-1',
@@ -448,37 +589,20 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
       '[data-testid="system-prompts-project-target-select"]',
     );
     expect(targetSelect).not.toBeNull();
-    const optionTexts = Array.from(targetSelect!.options).map((opt) => opt.textContent);
-    expect(optionTexts).toContain('demo（当前）');
-    expect(optionTexts).toContain('other');
-    expect(targetSelect!.value).toBe('/repo/demo');
-
     await act(async () => {
       setReactSelectValue(targetSelect!, '/repo/other');
     });
     await flushAsync();
 
-    const presetSelect = host.querySelector<HTMLSelectElement>(
-      '[data-testid="system-prompts-project-select"]',
-    );
-    expect(presetSelect).not.toBeNull();
-    await act(async () => {
-      setReactSelectValue(presetSelect!, 'reviewer');
-    });
-    await flushAsync();
+    const effectiveName = host.querySelector('[data-testid="system-prompts-effective-name"]');
+    expect(effectiveName?.textContent).toBe('审查员');
 
-    expect(onConfigSaved).toHaveBeenCalledTimes(1);
-    const savedConfig = onConfigSaved.mock.calls[0]?.[0] as PiwinConfig;
-    expect(savedConfig.systemPrompts?.projectPresetIds).toEqual({
-      '/repo/other': 'reviewer',
-    });
-
-    const effectiveBtn = host.querySelector<HTMLButtonElement>(
+    const inspectBtn = host.querySelector<HTMLButtonElement>(
       '[data-testid="system-prompts-effective-preview-btn"]',
     );
-    expect(effectiveBtn).not.toBeNull();
+    expect(inspectBtn).not.toBeNull();
     await act(async () => {
-      effectiveBtn!.click();
+      inspectBtn!.click();
     });
     await flushAsync();
 
@@ -489,75 +613,31 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
     expect(modal!.textContent).not.toContain('Always verify changed files with tests.');
   });
 
-  it('binds, focuses, and unbinds projects directly inside CustomPresetsPanel', async () => {
-    const onConfigSaved = vi.fn();
+  it('opens the directory picker from the project checklist and renders zero emoji', async () => {
     const initialConfig: PiwinConfig = {
       ...baseConfig(),
       systemPrompts: {
         presets: [
           makePreset('reviewer', '审查员', ['/Users/demo/.piwin/system-prompts/persona.md']),
         ],
-        projectPresetIds: {
-          '/repo/demo': 'reviewer',
-        },
       },
     };
-    const host = await renderHarness(initialConfig, onConfigSaved, {
-      projectPath: '/repo/demo',
-      recentProjects: [makeProject('/repo/demo'), makeProject('/repo/other')],
-    });
-
-    const bindingsStrip = host.querySelector('[data-testid="system-prompts-preset-projects"]');
-    expect(bindingsStrip).not.toBeNull();
-    expect(bindingsStrip!.querySelectorAll('[data-testid="sysprompt-bound-project-chip"]')).toHaveLength(1);
-
-    const addSelect = host.querySelector<HTMLSelectElement>(
-      '[data-testid="system-prompts-preset-add-project"]',
-    );
-    expect(addSelect).not.toBeNull();
-    await act(async () => {
-      setReactSelectValue(addSelect!, '/repo/other');
-    });
-    await flushAsync();
-
-    expect(onConfigSaved).toHaveBeenCalledTimes(1);
-    const afterBind = onConfigSaved.mock.calls[0]?.[0] as PiwinConfig;
-    expect(afterBind.systemPrompts?.projectPresetIds).toEqual({
-      '/repo/demo': 'reviewer',
-      '/repo/other': 'reviewer',
-    });
-
-    const chips = host.querySelectorAll('[data-testid="sysprompt-bound-project-chip"]');
-    expect(chips).toHaveLength(2);
-    const targetSelect = host.querySelector<HTMLSelectElement>(
-      '[data-testid="system-prompts-project-target-select"]',
-    );
-    expect(targetSelect?.value).toBe('/repo/other');
-
-    const unbindSecond = host.querySelector<HTMLButtonElement>(
-      '[data-testid="sysprompt-unbind-project-1"]',
-    );
-    expect(unbindSecond).not.toBeNull();
-    await act(async () => {
-      unbindSecond!.click();
-    });
-    await flushAsync();
-
-    expect(onConfigSaved).toHaveBeenCalledTimes(2);
-    const afterUnbind = onConfigSaved.mock.calls[1]?.[0] as PiwinConfig;
-    expect(afterUnbind.systemPrompts?.projectPresetIds).toEqual({
-      '/repo/demo': 'reviewer',
-    });
-  });
-
-  it('shows a project browse button when no workspace is open and opens the directory picker dialog', async () => {
-    const host = await renderHarness(undefined, undefined, {
+    const host = await renderHarness(initialConfig, undefined, {
       projectPath: null,
       recentProjects: [],
     });
 
+    const projectsRadio = host.querySelector<HTMLInputElement>(
+      '[data-testid="system-prompts-scope-projects"] input[type="radio"]',
+    );
+    expect(projectsRadio).not.toBeNull();
+    act(() => {
+      projectsRadio!.click();
+    });
+    await flushAsync();
+
     const browseBtn = host.querySelector<HTMLButtonElement>(
-      '[data-testid="system-prompts-project-browse-btn"]',
+      '[data-testid="system-prompts-browse-project-btn"]',
     );
     expect(browseBtn).not.toBeNull();
     await act(async () => {
@@ -569,5 +649,9 @@ describe('SystemPromptsPage (file-stacked + read-only modal)', () => {
       '[data-testid="system-prompts-project-picker-dialog"]',
     );
     expect(pickerDialog).not.toBeNull();
+
+    const pageText = host.textContent ?? '';
+    expect(/\p{Extended_Pictographic}/u.test(pageText)).toBe(false);
+    expect(/[★●○✓①②③]/.test(pageText)).toBe(false);
   });
 });

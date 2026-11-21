@@ -44,11 +44,10 @@ import { buildExtensionProviderSnapshot } from './extension-provider-snapshot.js
 import { refreshExtensionModelCatalog } from './extension-model-catalog-refresh.js';
 import { projectPublicModelProviders } from './extension-model-provider-projection.js';
 import {
-  catalogModelToConfigEntry,
+  buildDiscoverableSubscriptionModels,
   ensureSubscriptionProviders,
   upsertSubscriptionProvider,
 } from './seed-subscription-provider.js';
-import { resolveConfiguredDefaultModelRef } from './provider-helpers.js';
 import {
   readSubscriptionExtensionProviders,
   extensionDisplayName,
@@ -220,7 +219,7 @@ export class SubscriptionAuthService {
     return {
       providerId,
       protocol: refreshed?.protocol ?? provider.protocol,
-      models: this.chatCatalogFor(providerId).map(catalogModelToConfigEntry),
+      models: buildDiscoverableSubscriptionModels(providerId, this.chatCatalogFor(providerId)),
     };
   }
 
@@ -539,7 +538,6 @@ export class SubscriptionAuthService {
         const seeded = await this.ensureProviderForAccount(providerId);
         followUp = seeded.followUp;
         await this.evictSiblingClaudeAuth(providerId);
-        await this.maybeSeedDefault(providerId);
         this.startWatch();
       }
     } catch (error) {
@@ -874,26 +872,6 @@ export class SubscriptionAuthService {
       await this.saveConfig(next);
     }
     return followUp ? { followUp } : {};
-  }
-
-  private async maybeSeedDefault(providerId: string): Promise<void> {
-    const config = await this.loadConfig();
-    const accounts = await this.readAccounts();
-    const catalogModelIds = new Map<string, readonly string[]>([
-      [providerId, this.catalogModelIds(providerId)],
-    ]);
-    if (resolveConfiguredDefaultModelRef(config, { accounts, catalogModelIds })) {
-      return;
-    }
-    const modelId = this.catalogModelIds(providerId)[0];
-    if (!modelId) {
-      return;
-    }
-    await this.saveConfig({
-      ...config,
-      defaultProviderId: providerId,
-      defaultModelId: modelId,
-    });
   }
 
   private async ensurePort(): Promise<SubscriptionAuthPort> {

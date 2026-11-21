@@ -376,11 +376,19 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     ),
     [allTreeRows, sidebarMode, pinnedSectionExpanded, props.sessionSearch],
   );
-  /* Pinned stays in view above the scroller. `treeRows` is shelf-then-scroll
-     order, so keyboard ↑↓ and reveal walk the rows as they appear on screen;
-     only scroll rows feed the virtualizer, offset by the shelf length. */
-  const { shelfRows, scrollRows } = useMemo(() => splitPinnedShelfRows(paneRows), [paneRows]);
-  const treeRows = useMemo(() => [...shelfRows, ...scrollRows], [scrollRows, shelfRows]);
+  /* Pinned and the pane's leading section header stay in view above the scroller.
+     `treeRows` preserves display order so keyboard ↑↓ and reveal walk the rows
+     as they appear on screen; only scroll rows feed the virtualizer, offset by
+     the frozen row count. */
+  const { shelfRows, paneHeaderRow, scrollRows } = useMemo(
+    () => splitPinnedShelfRows(paneRows),
+    [paneRows],
+  );
+  const frozenRowCount = shelfRows.length + (paneHeaderRow ? 1 : 0);
+  const treeRows = useMemo(
+    () => [...shelfRows, ...(paneHeaderRow ? [paneHeaderRow] : []), ...scrollRows],
+    [paneHeaderRow, scrollRows, shelfRows],
+  );
 
   const searchHidesCurrent = sidebarSearchHidesReveal(
     treeRows,
@@ -436,7 +444,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         );
         button?.focus();
       };
-      const scrollIndex = rowIndex - shelfRows.length;
+      const scrollIndex = rowIndex - frozenRowCount;
       if (virtualizeTree && scrollIndex >= 0) {
         virtualizer.scrollToIndex(scrollIndex, { align: 'auto' });
         requestAnimationFrame(focusMounted);
@@ -444,7 +452,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       }
       focusMounted();
     },
-    [shelfRows.length, treeRows, virtualizeTree, virtualizer],
+    [frozenRowCount, treeRows, virtualizeTree, virtualizer],
   );
 
   useActiveProjectUnfold(treeInput, setCollapsedProjects);
@@ -825,6 +833,17 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               {renderSidebarTreeRow(row)}
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {paneHeaderRow ? (
+        <div className="sidebar-pane-header" data-testid="sidebar-pane-header">
+          <div
+            className="sidebar-tree-flow-item"
+            style={sidebarTreeDepthStyle(sidebarTreeRowDepth(paneHeaderRow))}
+          >
+            {renderSidebarTreeRow(paneHeaderRow)}
+          </div>
         </div>
       ) : null}
 

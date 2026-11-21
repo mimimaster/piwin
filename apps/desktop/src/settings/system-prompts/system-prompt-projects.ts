@@ -7,10 +7,13 @@ import {
   SYSTEM_PROMPT_INHERIT_ID,
   type PiwinConfig,
   type ProjectRecord,
+  type SystemPromptsConfig,
 } from '@piwin/contracts';
 import { projectLabel } from '../../sidebar/project-display-name';
 
 export const SYSTEM_PROMPT_BROWSE_PROJECT_VALUE = '__browse_project__';
+
+export type PresetActivationScope = 'off' | 'global' | 'projects';
 
 export type SystemPromptProjectOption = {
   path: string;
@@ -120,4 +123,92 @@ export function applyProjectPresetBinding(
         ? { ...rest, projectPresetIds: nextProjects }
         : rest,
   };
+}
+
+export function derivePresetActivationScope(
+  systemPrompts: SystemPromptsConfig,
+  presetId: string,
+): { scope: PresetActivationScope; boundPaths: string[] } {
+  const boundPaths: string[] = [];
+  for (const [projectPath, assignedId] of Object.entries(systemPrompts.projectPresetIds ?? {})) {
+    if (assignedId.trim() === presetId) {
+      boundPaths.push(projectPath);
+    }
+  }
+  if (systemPrompts.defaultPresetId === presetId) {
+    return { scope: 'global', boundPaths };
+  }
+  if (boundPaths.length > 0) {
+    return { scope: 'projects', boundPaths };
+  }
+  return { scope: 'off', boundPaths: [] };
+}
+
+export function applyPresetScopeConfig(
+  config: PiwinConfig,
+  presetId: string,
+  input: { scope: PresetActivationScope; projectPaths?: readonly string[] },
+): PiwinConfig {
+  const trimmedId = presetId.trim();
+  if (!trimmedId) {
+    return config;
+  }
+  const systemPrompts = config.systemPrompts ?? createDefaultSystemPromptsConfig();
+  const nextProjects = { ...(systemPrompts.projectPresetIds ?? {}) };
+  for (const [projectPath, assignedId] of Object.entries(nextProjects)) {
+    if (assignedId.trim() === trimmedId) {
+      delete nextProjects[projectPath];
+    }
+  }
+  if (input.scope === 'projects') {
+    for (const rawPath of input.projectPaths ?? []) {
+      const trimmedPath = rawPath.trim();
+      if (trimmedPath) {
+        nextProjects[trimmedPath] = trimmedId;
+      }
+    }
+  }
+
+  let nextDefaultPresetId: string | undefined;
+  if (input.scope === 'global') {
+    nextDefaultPresetId = trimmedId;
+  } else if (systemPrompts.defaultPresetId === trimmedId) {
+    nextDefaultPresetId = undefined;
+  } else {
+    nextDefaultPresetId = systemPrompts.defaultPresetId;
+  }
+
+  const {
+    defaultPresetId: _prevDefault,
+    projectPresetIds: _prevProjects,
+    ...rest
+  } = systemPrompts;
+
+  return {
+    ...config,
+    systemPrompts: {
+      ...rest,
+      ...(nextDefaultPresetId ? { defaultPresetId: nextDefaultPresetId } : {}),
+      ...(Object.keys(nextProjects).length > 0 ? { projectPresetIds: nextProjects } : {}),
+    },
+  };
+}
+
+export function formatPresetStatusBadge(
+  systemPrompts: SystemPromptsConfig,
+  presetId: string,
+  isZh: boolean,
+): { tone: 'global' | 'active' | 'inactive'; text: string } {
+  const { scope, boundPaths } = derivePresetActivationScope(systemPrompts, presetId);
+  if (scope === 'global') {
+    return { tone: 'global', text: isZh ? '全局默认' : 'Global' };
+  }
+  if (scope === 'projects') {
+    const count = boundPaths.length;
+    return {
+      tone: 'active',
+      text: isZh ? `${count} 个项目` : `${count} ${count === 1 ? 'project' : 'projects'}`,
+    };
+  }
+  return { tone: 'inactive', text: isZh ? '未启用' : 'Off' };
 }

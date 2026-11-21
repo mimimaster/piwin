@@ -20,7 +20,7 @@ describe('Inkstone sidebar pane switch', () => {
 });
 
 describe('Inkstone sidebar leading section', () => {
-  it('compacts the first tree row in both flow and virtual lists', () => {
+  it('compacts the first tree row in both flow and virtual lists and strips the top rule on the lifted pane header', () => {
     // >60 conversation rows wrap as .sidebar-tree-virtual-item. The old
     // .sidebar-tree-flow-item:first-child-only rule left the 12px+6px
     // conversations divider in place and looked like a revert.
@@ -28,7 +28,10 @@ describe('Inkstone sidebar leading section', () => {
       /:is\(\s*\.sidebar-tree-flow-item,\s*\.sidebar-tree-virtual-item\s*\):first-child/,
     );
     expect(sidebar).toMatch(
-      /:is\(\s*\.sidebar-tree-flow-item,\s*\.sidebar-tree-virtual-item\s*\):first-child\s+\.sidebar-section-label-row--conversations \{[\s\S]*?border-top:\s*0/,
+      /\.sidebar-pane-header:not\(\.sidebar-pinned-shelf \+ \.sidebar-pane-header\)[\s\S]*?\.sidebar-folder-tree:not\(\.sidebar-pinned-shelf \+ \.sidebar-folder-tree\)[\s\S]*?:is\(\s*\.sidebar-tree-flow-item,\s*\.sidebar-tree-virtual-item\s*\):first-child\s+\.sidebar-section-label-row--conversations \{[\s\S]*?border-top:\s*0/,
+    );
+    expect(sidebar).toMatch(
+      /\.sidebar-pane-header\s*\{[\s\S]*?padding:\s*0\s+8px\s+0\s+6px;/,
     );
   });
 });

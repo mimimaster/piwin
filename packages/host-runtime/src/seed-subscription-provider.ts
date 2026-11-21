@@ -1,9 +1,10 @@
 /**
  * Seed a Models-page Provider after subscription OAuth login.
- * The row is operable (enable/disable models, defaults, params) but is not a
- * BYOK channel — compile still uses `{ auth: { kind: 'oauth' } }`.
+ * Login creates an empty `models: []` subscription row and preserves user-added
+ * models without auto-seeding catalog models — compile still uses `{ auth: { kind: 'oauth' } }`.
  */
 import type {
+  DiscoveredModel,
   ModelCapability,
   ModelConfigEntry,
   ModelProviderConfig,
@@ -206,32 +207,20 @@ function mergeSubscriptionProvider(
   existing: ModelProviderConfig | undefined,
   displayName: string | undefined,
 ): ModelProviderConfig {
-  const previousById = new Map((existing?.models ?? []).map((model) => [model.id, model]));
-  const removed = new Set(existing?.removedModelIds ?? []);
-  const seedNewDisabled = shouldSeedNewCatalogModelsDisabled(existing);
+  const catalogById = new Map(catalog.map((model) => [model.id, model]));
   const models: ModelConfigEntry[] = [];
-  const searchSurface = subscriptionChatBaseUrl(providerId);
-  for (const catalogModel of catalog) {
-    if (removed.has(catalogModel.id)) {
-      previousById.delete(catalogModel.id);
-      continue;
-    }
-    const fresh = catalogModelToConfigEntry(catalogModel);
-    const previous = previousById.get(catalogModel.id);
-    if (previous) {
-      models.push(mergeSubscriptionCatalogModel(fresh, previous));
+  for (const previous of existing?.models ?? []) {
+    const catalogModel = catalogById.get(previous.id);
+    if (catalogModel) {
+      models.push(mergeSubscriptionCatalogModel(catalogModelToConfigEntry(catalogModel), previous));
     } else {
-      const discovered = withDiscoveredNativeSearch(fresh, searchSurface);
-      models.push(seedNewDisabled ? { ...discovered, enabled: false } : discovered);
+      models.push(previous);
     }
-    previousById.delete(catalogModel.id);
   }
-  for (const leftover of previousById.values()) {
-    if (removed.has(leftover.id)) {
-      continue;
-    }
-    models.push(leftover);
-  }
+  const modelIds = new Set(models.map((model) => model.id));
+  const removed = [...new Set(existing?.removedModelIds ?? [])]
+    .filter((id) => !modelIds.has(id))
+    .sort();
   const builtinName = isSubscriptionOauthProviderId(providerId)
     ? SUBSCRIPTION_OAUTH_PROVIDER_META[providerId].name
     : undefined;
@@ -249,10 +238,57 @@ function mergeSubscriptionProvider(
   if (existing?.enabled !== undefined) {
     provider.enabled = existing.enabled;
   }
-  if (removed.size > 0) {
-    provider.removedModelIds = [...removed].sort();
+  if (removed.length > 0) {
+    provider.removedModelIds = removed;
   }
   return provider;
+}
+
+/**
+ * Build the picker list for `models/discover` on a subscription provider without
+ * writing models into config automatically.
+ */
+export function buildDiscoverableSubscriptionModels(
+  providerId: string,
+  chatCatalog: readonly SubscriptionCatalogSeedModel[],
+): DiscoveredModel[] {
+  const catalog = mergeSubscriptionCatalog(
+    chatCatalog,
+    isV1SubscriptionProviderId(providerId) ? subscriptionSurfaceExtras(providerId) : [],
+  );
+  const searchSurface = subscriptionChatBaseUrl(providerId);
+  return catalog.map((model) => {
+    const entry = withDiscoveredNativeSearch(catalogModelToConfigEntry(model), searchSurface);
+    const discovered: DiscoveredModel = { id: entry.id };
+    if (entry.label !== undefined) {
+      discovered.label = entry.label;
+    }
+    if (entry.input !== undefined) {
+      discovered.input = entry.input;
+    }
+    if (entry.reasoning !== undefined) {
+      discovered.reasoning = entry.reasoning;
+    }
+    if (entry.thinkingLevels !== undefined) {
+      discovered.thinkingLevels = entry.thinkingLevels;
+    }
+    if (entry.contextWindow !== undefined) {
+      discovered.contextWindow = entry.contextWindow;
+    }
+    if (entry.maxOutputTokens !== undefined) {
+      discovered.maxOutputTokens = entry.maxOutputTokens;
+    }
+    if (entry.capabilities !== undefined) {
+      discovered.capabilities = [...entry.capabilities];
+    }
+    if (entry.nativeSearchAdapter !== undefined) {
+      discovered.nativeSearchAdapter = entry.nativeSearchAdapter;
+    }
+    if (entry.routes !== undefined) {
+      discovered.routes = entry.routes;
+    }
+    return discovered;
+  });
 }
 
 /**

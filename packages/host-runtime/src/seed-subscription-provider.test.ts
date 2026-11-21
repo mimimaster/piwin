@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { projectConfiguredChatModels } from '@piwin/contracts';
 import { createDefaultPiwinConfig } from './config-store.js';
 import {
-  catalogModelToConfigEntry,
+  buildDiscoverableSubscriptionModels,
   ensureSubscriptionProviders,
   upsertSubscriptionProvider,
 } from './seed-subscription-provider.js';
 
 describe('seed subscription provider', () => {
-  it('creates a Models-page provider from the OAuth catalog', () => {
+  it('creates an empty Models-page subscription provider without auto-seeding models', () => {
     const config = createDefaultPiwinConfig();
     const next = upsertSubscriptionProvider(config, 'openai-codex', [
       { id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex', reasoning: true },
@@ -19,27 +19,12 @@ describe('seed subscription provider', () => {
       protocol: 'openai-compatible',
       baseUrl: 'oauth://openai-codex',
       source: 'subscription',
+      models: [],
     });
-    expect(next.providers[0]?.models[0]).toEqual({
-      id: 'gpt-5.4-codex',
-      label: 'GPT-5.4 Codex',
-      category: 'package',
-      capabilities: ['chat'],
-      reasoning: true,
-    });
-    expect(next.providers[0]?.models.map((model) => model.id)).toEqual([
-      'gpt-5.4-codex',
-      'gpt-image-2',
-      'gpt-image-2.5-sunburst',
-      'gpt-image-2.5-flare',
-    ]);
-    expect(next.providers[0]?.models.find((model) => model.id === 'gpt-image-2')).toMatchObject({
-      capabilities: ['image-generation'],
-      routes: { 'image-generation': { path: '/codex/images/generations', apiStyle: 'openai' } },
-    });
+    expect(projectConfiguredChatModels(next).models).toEqual([]);
   });
 
-  it('keeps user enable/params and does not overwrite a BYOK channel', () => {
+  it('preserves user-added models without auto-adding catalog models, and does not overwrite a BYOK channel', () => {
     const config = createDefaultPiwinConfig();
     config.providers = [
       {
@@ -58,7 +43,7 @@ describe('seed subscription provider', () => {
       { id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex' },
       { id: 'gpt-5.4', name: 'GPT-5.4' },
     ]);
-    expect(merged.providers[0]?.models.slice(0, 2)).toEqual([
+    expect(merged.providers[0]?.models).toEqual([
       {
         id: 'gpt-5.4-codex',
         label: 'Codex',
@@ -67,9 +52,8 @@ describe('seed subscription provider', () => {
         enabled: false,
         contextWindow: 200_000,
       },
-      catalogModelToConfigEntry({ id: 'gpt-5.4', name: 'GPT-5.4' }),
+      { id: 'gpt-5.3-codex', label: '5.3 Codex' },
     ]);
-    expect(merged.providers[0]?.models.some((model) => model.id === 'gpt-image-2')).toBe(true);
 
     const channel = createDefaultPiwinConfig();
     channel.providers = [
@@ -86,7 +70,7 @@ describe('seed subscription provider', () => {
     );
   });
 
-  it('replaces the default 128K window with the subscription catalog window', () => {
+  it('replaces the default 128K window with the subscription catalog window for user-added models', () => {
     const config = createDefaultPiwinConfig();
     config.providers = [
       {
@@ -101,19 +85,19 @@ describe('seed subscription provider', () => {
     const merged = upsertSubscriptionProvider(config, 'xai', [
       { id: 'grok-4.6', name: 'Grok 4.6', contextWindow: 500_000, maxOutputTokens: 500_000 },
     ]);
-    expect(merged.providers[0]?.models[0]).toEqual({
-      id: 'grok-4.6',
-      label: 'Grok 4.6',
-      category: 'package',
-      capabilities: ['chat'],
-      contextWindow: 500_000,
-      maxOutputTokens: 500_000,
-    });
-    expect(merged.providers[0]?.models.map((model) => model.id)).toContain('grok-imagine-image-2.0');
-    expect(merged.providers[0]?.models.map((model) => model.id)).toContain('grok-imagine-video');
+    expect(merged.providers[0]?.models).toEqual([
+      {
+        id: 'grok-4.6',
+        label: 'Grok 4.6',
+        category: 'package',
+        capabilities: ['chat'],
+        contextWindow: 500_000,
+        maxOutputTokens: 500_000,
+      },
+    ]);
   });
 
-  it('seeds every logged-in v1 account', () => {
+  it('creates empty subscription rows for every logged-in v1 account', () => {
     const config = createDefaultPiwinConfig();
     const next = ensureSubscriptionProviders(
       config,
@@ -125,9 +109,10 @@ describe('seed subscription provider', () => {
     );
     expect(next.providers.map((provider) => provider.id)).toEqual(['xai']);
     expect(next.providers[0]?.source).toBe('subscription');
+    expect(next.providers[0]?.models).toEqual([]);
   });
 
-  it('tags newly seen Grok subscription chat models for native search, keeping saved choices', () => {
+  it('keeps saved native-search choices on existing models and builds discoverable lists with surface extras', () => {
     const config = createDefaultPiwinConfig();
     config.providers = [
       {
@@ -136,7 +121,6 @@ describe('seed subscription provider', () => {
         protocol: 'openai-compatible',
         baseUrl: 'oauth://xai',
         source: 'subscription',
-        // The user turned native search off on this one; a re-sync must not undo it.
         models: [{ id: 'grok-4.6', label: 'Grok 4.6', capabilities: ['chat'] }],
       },
     ];
@@ -151,21 +135,45 @@ describe('seed subscription provider', () => {
           ? [
               { id: 'grok-4.6', name: 'Grok 4.6' },
               { id: 'grok-4.7', name: 'Grok 4.7' },
-              { id: 'grok-imagine-image-2.0', name: 'Imagine', capabilities: ['image-generation'] },
             ]
           : [{ id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex' }],
     );
     const xai = next.providers.find((provider) => provider.id === 'xai');
-    const byId = new Map(xai?.models.map((model) => [model.id, model]));
-    expect(byId.get('grok-4.7')).toMatchObject({
+    expect(xai?.models.map((model) => model.id)).toEqual(['grok-4.6']);
+    expect(xai?.models[0]?.capabilities).toEqual(['chat']);
+
+    const codex = next.providers.find((provider) => provider.id === 'openai-codex');
+    expect(codex?.models).toEqual([]);
+
+    const xaiDiscoverable = buildDiscoverableSubscriptionModels('xai', [
+      { id: 'grok-4.6', name: 'Grok 4.6' },
+      { id: 'grok-4.7', name: 'Grok 4.7' },
+    ]);
+    const xaiById = new Map(xaiDiscoverable.map((model) => [model.id, model]));
+    expect(xaiById.get('grok-4.7')).toMatchObject({
       capabilities: ['chat', 'native-web-search'],
       nativeSearchAdapter: 'xai-web-search-tool',
     });
-    expect(byId.get('grok-4.6')?.capabilities).toEqual(['chat']);
-    expect(byId.get('grok-imagine-image-2.0')?.capabilities).toEqual(['image-generation']);
-    // Codex has no Host-reachable HTTPS surface: never auto-tagged.
-    const codex = next.providers.find((provider) => provider.id === 'openai-codex');
-    expect(codex?.models[0]?.capabilities).toEqual(['chat']);
+    expect(xaiById.get('grok-imagine-image')).toMatchObject({
+      capabilities: ['image-generation'],
+      routes: { 'image-generation': { path: '/images/generations', apiStyle: 'openai' } },
+    });
+    expect(xaiById.get('grok-imagine-video')).toMatchObject({
+      capabilities: ['video-generation'],
+      routes: { 'video-generation': { path: '/videos/generations', apiStyle: 'xgrok-videos' } },
+    });
+
+    const codexDiscoverable = buildDiscoverableSubscriptionModels('openai-codex', [
+      { id: 'gpt-5.4-codex', name: 'GPT-5.4 Codex', reasoning: true, thinkingLevels: ['low', 'high'] },
+    ]);
+    const codexById = new Map(codexDiscoverable.map((model) => [model.id, model]));
+    // Codex has no Host-reachable HTTPS surface: never auto-tagged for native search.
+    expect(codexById.get('gpt-5.4-codex')?.capabilities).toEqual(['chat']);
+    expect(codexById.get('gpt-5.4-codex')?.thinkingLevels).toEqual(['low', 'high']);
+    expect(codexById.get('gpt-image-2')).toMatchObject({
+      capabilities: ['image-generation'],
+      routes: { 'image-generation': { path: '/codex/images/generations', apiStyle: 'openai' } },
+    });
   });
 
   it('drops subscription rows after logout and keeps BYOK channels', () => {
@@ -250,8 +258,22 @@ describe('seed subscription provider', () => {
     );
   });
 
-  it('keeps image extras off the chat picker', () => {
-    const next = upsertSubscriptionProvider(createDefaultPiwinConfig(), 'openai-codex', [
+  it('keeps image extras off the chat picker even when user added them', () => {
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'openai-codex',
+        name: 'ChatGPT Codex',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://openai-codex',
+        source: 'subscription',
+        models: [
+          { id: 'gpt-5.4', label: 'GPT-5.4', reasoning: true },
+          { id: 'gpt-image-2', label: 'GPT Image 2', capabilities: ['image-generation'] },
+        ],
+      },
+    ];
+    const next = upsertSubscriptionProvider(config, 'openai-codex', [
       { id: 'gpt-5.4', name: 'GPT-5.4', reasoning: true },
     ]);
     expect(projectConfiguredChatModels(next).models.map((model) => model.modelId)).toEqual([
@@ -341,7 +363,7 @@ describe('seed subscription provider', () => {
     expect(model?.thinkingLevel).toBeUndefined();
   });
 
-  it('seeds newly discovered catalog models as disabled when all existing models are disabled', () => {
+  it('does not auto-add catalog models when existing models are disabled', () => {
     const config = createDefaultPiwinConfig();
     config.providers = [
       {
@@ -364,11 +386,10 @@ describe('seed subscription provider', () => {
     expect(merged.providers[0]?.models.map((entry) => ({ id: entry.id, enabled: entry.enabled }))).toEqual([
       { id: 'swe-1-7', enabled: false },
       { id: 'swe-1-6', enabled: false },
-      { id: 'nemotron-3-5-lightning-high', enabled: false },
     ]);
   });
 
-  it('seeds newly discovered catalog models as disabled when the subscription provider is disabled', () => {
+  it('does not auto-add catalog models when the subscription provider is disabled', () => {
     const config = createDefaultPiwinConfig();
     config.providers = [
       {
@@ -385,8 +406,8 @@ describe('seed subscription provider', () => {
       { id: 'swe-1-7', name: 'SWE-1.7' },
       { id: 'swe-2', name: 'SWE-2' },
     ]);
+    expect(merged.providers[0]?.models.map((entry) => entry.id)).toEqual(['swe-1-7']);
     expect(merged.providers[0]?.models.find((entry) => entry.id === 'swe-1-7')?.enabled).toBeUndefined();
-    expect(merged.providers[0]?.models.find((entry) => entry.id === 'swe-2')?.enabled).toBe(false);
   });
 
   it('preserves persisted subscription row during transient needs-reauth and logging-in states', () => {

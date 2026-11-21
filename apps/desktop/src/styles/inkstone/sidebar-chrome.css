@@ -148,7 +148,10 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
    as .sidebar-tree-virtual-item, so both wrappers have to match. Below the
    pinned shelf the header still follows pinned rows, so it keeps its rule. */
 html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink'])
-  .sidebar-folder-tree:not(.sidebar-pinned-shelf + .sidebar-folder-tree)
+  :is(
+    .sidebar-pane-header:not(.sidebar-pinned-shelf + .sidebar-pane-header),
+    .sidebar-folder-tree:not(.sidebar-pinned-shelf + .sidebar-folder-tree)
+  )
   :is(.sidebar-tree-flow-item, .sidebar-tree-virtual-item):first-child
   .sidebar-section-label-row--conversations {
   margin-top: 4px;

@@ -12,6 +12,7 @@ import {
   isChannelProvider,
   isModelEnabled,
   isProviderEnabled,
+  isSubscriptionProvider,
   modelSupportsCapability,
 } from '@piwin/contracts';
 import { SUBSCRIPTION_DEFAULT_FALLBACK_ORDER } from '@piwin/contracts';
@@ -100,11 +101,17 @@ export function resolveDefaultModelRef(
     if (!isSubscriptionAccountUsable(account)) {
       continue;
     }
-    const modelId = accounts.catalogModelIds?.get(providerId)?.[0];
-    if (!modelId) {
+    const provider = config.providers.find(
+      (entry) =>
+        entry.id === providerId && isSubscriptionProvider(entry) && isProviderEnabled(entry),
+    );
+    const model = provider?.models.find(
+      (entry) => isModelEnabled(entry) && modelSupportsCapability(entry, 'chat'),
+    );
+    if (!model) {
       continue;
     }
-    return { providerId, modelId, source: 'subscription' };
+    return { providerId, modelId: model.id, source: 'subscription' };
   }
   const enabled = getEnabledProviders(config).filter(isChannelProvider);
   if (enabled.length === 0) {

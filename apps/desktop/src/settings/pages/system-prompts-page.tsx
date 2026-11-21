@@ -4,11 +4,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Skeleton } from '@piwin/ui-kit';
 import {
+  SYSTEM_PROMPT_BUILTIN_ID,
   SYSTEM_PROMPT_INHERIT_ID,
   type BuiltinSystemPromptSlotId,
   type ProjectListData,
   type ProjectRecord,
-  type SystemPromptPreset,
 } from '@piwin/contracts';
 import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { projectLabel } from '../../sidebar/project-display-name';
@@ -22,8 +22,10 @@ import {
 } from '../system-prompts/PromptPreviewModal';
 import { SystemPromptsScopeCard } from '../system-prompts/SystemPromptsScopeCard';
 import {
+  applyPresetScopeConfig,
   applyProjectPresetBinding,
   buildSystemPromptProjectOptions,
+  type PresetActivationScope,
 } from '../system-prompts/system-prompt-projects';
 import {
   consumeSystemPromptFocus,
@@ -43,9 +45,9 @@ export function SystemPromptsPage(): ReactElement {
   const [recentProjects, setRecentProjects] = useState<ProjectRecord[]>([]);
   const [extraProjectPaths, setExtraProjectPaths] = useState<string[]>([]);
   const [selectedProjectPath, setSelectedProjectPath] = useState<string | null>(projectPath);
-  const [projectPickerTarget, setProjectPickerTarget] = useState<
-    null | { kind: 'scope' } | { kind: 'bind-preset'; preset: SystemPromptPreset }
-  >(null);
+  const [projectPickerCallback, setProjectPickerCallback] = useState<{
+    onPicked: (dirPath: string) => void;
+  } | null>(null);
   const prevWorkspacePathRef = useRef<string | null>(projectPath);
 
   useEffect(() => {
@@ -106,22 +108,63 @@ export function SystemPromptsPage(): ReactElement {
       ? selectedProjectPath
       : (projectOptions[0]?.path ?? null);
 
-  async function handleUpdateProjectPreset(
-    targetPath: string,
-    nextPresetId: string,
-    customSuccessMessage?: string,
+  async function handleApplyPresetScope(
+    presetId: string,
+    presetName: string,
+    input: { scope: PresetActivationScope; projectPaths?: readonly string[] },
   ): Promise<void> {
     if (!config) return;
-    const nextConfig = applyProjectPresetBinding(config, targetPath, nextPresetId);
+    const nextConfig = applyPresetScopeConfig(config, presetId, input);
     const ok = await saveConfig(nextConfig, { quiet: true });
-    if (ok) {
-      const label = projectLabel(targetPath, recentProjects);
+    if (!ok) return;
+
+    if (input.scope === 'global') {
       setInfo(
-        customSuccessMessage ??
-          (isZh ? `已更新项目「${label}」的提示词方案。` : `Updated prompt for "${label}".`),
+        isZh ? `已将「${presetName}」设为全局默认。` : `"${presetName}" is now global default.`,
         'success',
       );
+      return;
     }
+    if (input.scope === 'projects') {
+      const count = input.projectPaths?.length ?? 0;
+      setInfo(
+        count > 0
+          ? isZh
+            ? `已更新「${presetName}」的生效项目（${count} 个）。`
+            : `Updated target projects for "${presetName}" (${count}).`
+          : isZh
+            ? `已取消「${presetName}」的生效项目。`
+            : `Cleared target projects for "${presetName}".`,
+        'success',
+      );
+      return;
+    }
+    setInfo(
+      isZh ? `已停用「${presetName}」。` : `Deactivated "${presetName}".`,
+      'info',
+    );
+  }
+
+  async function handleToggleProjectBuiltin(
+    targetPath: string,
+    forceBuiltin: boolean,
+  ): Promise<void> {
+    if (!config) return;
+    const nextPresetId = forceBuiltin ? SYSTEM_PROMPT_BUILTIN_ID : SYSTEM_PROMPT_INHERIT_ID;
+    const nextConfig = applyProjectPresetBinding(config, targetPath, nextPresetId);
+    const ok = await saveConfig(nextConfig, { quiet: true });
+    if (!ok) return;
+    const label = projectLabel(targetPath, recentProjects);
+    setInfo(
+      forceBuiltin
+        ? isZh
+          ? `项目「${label}」已改为使用系统默认。`
+          : `"${label}" now uses the built-in default.`
+        : isZh
+          ? `项目「${label}」已恢复跟随全局默认。`
+          : `"${label}" now inherits the global default.`,
+      'success',
+    );
   }
 
   if (!config) {
@@ -139,13 +182,11 @@ export function SystemPromptsPage(): ReactElement {
         tab={tab}
         projectOptions={projectOptions}
         selectedProjectPath={effectiveSelectedProjectPath}
-        canBrowseProjectDir={canBrowseProjectDir}
         onTabChange={setTab}
         onOpenPreview={setPreviewPayload}
         onSelectProjectPath={setSelectedProjectPath}
-        onBrowseProjectDir={() => setProjectPickerTarget({ kind: 'scope' })}
-        onUpdateProjectPreset={(targetPath, nextPresetId) => {
-          void handleUpdateProjectPreset(targetPath, nextPresetId);
+        onToggleProjectBuiltin={(targetPath, forceBuiltin) => {
+          void handleToggleProjectBuiltin(targetPath, forceBuiltin);
         }}
       />
 
@@ -155,31 +196,8 @@ export function SystemPromptsPage(): ReactElement {
           selectedProjectPath={effectiveSelectedProjectPath}
           canBrowseProjectDir={canBrowseProjectDir}
           onOpenPreview={setPreviewPayload}
-          onFocusProject={setSelectedProjectPath}
-          onBindProjectToPreset={(targetPath, preset) => {
-            setSelectedProjectPath(targetPath);
-            const label = projectLabel(targetPath, recentProjects);
-            void handleUpdateProjectPreset(
-              targetPath,
-              preset.id,
-              isZh
-                ? `已将「${preset.name}」设为项目「${label}」的提示词方案。`
-                : `Bound "${preset.name}" to "${label}".`,
-            );
-          }}
-          onUnbindProject={(targetPath) => {
-            const label = projectLabel(targetPath, recentProjects);
-            void handleUpdateProjectPreset(
-              targetPath,
-              SYSTEM_PROMPT_INHERIT_ID,
-              isZh
-                ? `已恢复项目「${label}」跟随全局默认。`
-                : `Reset "${label}" to inherit global default.`,
-            );
-          }}
-          onBrowseProjectForPreset={(preset) =>
-            setProjectPickerTarget({ kind: 'bind-preset', preset })
-          }
+          onApplyPresetScope={handleApplyPresetScope}
+          onRequestBrowseProjectDir={(onPicked) => setProjectPickerCallback({ onPicked })}
         />
       ) : (
         <BuiltinPromptsPanel
@@ -190,26 +208,17 @@ export function SystemPromptsPage(): ReactElement {
       )}
 
       <ProjectDirectoryPickerDialog
-        open={projectPickerTarget !== null}
+        open={projectPickerCallback !== null}
         {...(effectiveSelectedProjectPath ? { initialPath: effectiveSelectedProjectPath } : {})}
         onOpenChange={(open) => {
-          if (!open) setProjectPickerTarget(null);
+          if (!open) setProjectPickerCallback(null);
         }}
         onSelectDirectory={(pickedPath) => {
-          const target = projectPickerTarget;
+          const callback = projectPickerCallback?.onPicked;
           setExtraProjectPaths((prev) => (prev.includes(pickedPath) ? prev : [...prev, pickedPath]));
           setSelectedProjectPath(pickedPath);
-          setProjectPickerTarget(null);
-          if (target?.kind === 'bind-preset') {
-            const label = projectLabel(pickedPath, recentProjects);
-            void handleUpdateProjectPreset(
-              pickedPath,
-              target.preset.id,
-              isZh
-                ? `已将「${target.preset.name}」设为项目「${label}」的提示词方案。`
-                : `Bound "${target.preset.name}" to "${label}".`,
-            );
-          }
+          setProjectPickerCallback(null);
+          callback?.(pickedPath);
         }}
       />
 

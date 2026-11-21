@@ -17,6 +17,12 @@ html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-i
   gap: 0;
 }
 
+html:is([data-theme-id='piwin-inkstone-paper'], [data-theme-id='piwin-inkstone-ink']) .sidebar-pane-header {
+  /* 8px right = 2px tree padding + 6px reserved scrollbar gutter. */
+  padding: 0 8px 0 6px;
+  margin-right: 0;
+}
+
 html[data-theme-id='piwin-inkstone-paper'] .sidebar-section-label,
 html[data-theme-id='piwin-inkstone-ink'] .sidebar-section-label {
   display: flex;

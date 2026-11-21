@@ -1,5 +1,5 @@
 import type { PiwinConfig, SubscriptionAccount } from '@piwin/contracts';
-import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
+import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
 import type { SubscriptionCatalogModel } from '@piwin/agent-host';
 import { narrowCatalogThinkingLevels, overlayCatalogLimits } from './seed-subscription-provider.js';
 
@@ -23,10 +23,14 @@ export function mergeSubscriptionCatalogModels(
     if (account.surface !== 'v1' || account.collidingChannelId) continue;
     if (account.state !== 'logged-in' && account.state !== 'sync-error') continue;
     const provider = providerById.get(account.providerId);
-    if (provider !== undefined && !isProviderEnabled(provider)) continue;
+    if (provider === undefined || !isProviderEnabled(provider)) continue;
     for (const model of chatCatalogFor(account.providerId)) {
-      const configuredModel = provider?.models.find((entry) => entry.id === model.id);
-      if (provider !== undefined && (configuredModel === undefined || !isModelEnabled(configuredModel))) {
+      const configuredModel = provider.models.find((entry) => entry.id === model.id);
+      if (
+        configuredModel === undefined ||
+        !isModelEnabled(configuredModel) ||
+        !modelSupportsCapability(configuredModel, 'chat')
+      ) {
         continue;
       }
       const key = `${account.providerId}::${model.id}`;

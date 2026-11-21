@@ -544,11 +544,23 @@ function mergeDiscoveredModelEntry(
   if (model.reasoning === undefined && discoveredModel.reasoning !== undefined) {
     model.reasoning = discoveredModel.reasoning;
   }
+  if (model.thinkingLevels === undefined && discoveredModel.thinkingLevels?.length) {
+    model.thinkingLevels = [...discoveredModel.thinkingLevels];
+  }
   if (model.contextWindow === undefined && discoveredModel.contextWindow !== undefined) {
     model.contextWindow = discoveredModel.contextWindow;
   }
   if (model.maxOutputTokens === undefined && discoveredModel.maxOutputTokens !== undefined) {
     model.maxOutputTokens = discoveredModel.maxOutputTokens;
+  }
+  if (discoveredModel.routes) {
+    const mergedRoutes: Partial<Record<ModelCapability, ModelRouteConfig>> = {
+      ...discoveredModel.routes,
+      ...(model.routes ?? {}),
+    };
+    if (Object.keys(mergedRoutes).length > 0) {
+      model.routes = mergedRoutes;
+    }
   }
   const suggestion = discoveredModel.videoGenerationSuggestion;
   if (model.routes?.['video-generation'] === undefined && suggestion) {

@@ -7,8 +7,11 @@ import {
   type ProjectRecord,
 } from '@piwin/contracts';
 import {
+  applyPresetScopeConfig,
   applyProjectPresetBinding,
   buildSystemPromptProjectOptions,
+  derivePresetActivationScope,
+  formatPresetStatusBadge,
   formatProjectOptionLabel,
   listBoundProjectsForPreset,
 } from './system-prompt-projects';
@@ -126,5 +129,66 @@ describe('system-prompt-projects helpers', () => {
 
     // Blank path is a no-op.
     expect(applyProjectPresetBinding(base, '   ', 'reviewer')).toBe(base);
+  });
+
+  it('derives, updates, and formats preset activation scopes while preserving unrelated bindings', () => {
+    const initial: PiwinConfig = {
+      ...makeConfig({
+        '/repos/other': 'concise',
+        '/repos/optout': SYSTEM_PROMPT_BUILTIN_ID,
+      }),
+    };
+
+    expect(derivePresetActivationScope(initial.systemPrompts!, 'reviewer')).toEqual({
+      scope: 'off',
+      boundPaths: [],
+    });
+    expect(formatPresetStatusBadge(initial.systemPrompts!, 'reviewer', true)).toEqual({
+      tone: 'inactive',
+      text: '未启用',
+    });
+
+    const withProjects = applyPresetScopeConfig(initial, 'reviewer', {
+      scope: 'projects',
+      projectPaths: ['/repos/demo', ' /repos/extra '],
+    });
+    expect(withProjects.systemPrompts?.defaultPresetId).toBeUndefined();
+    expect(withProjects.systemPrompts?.projectPresetIds).toEqual({
+      '/repos/other': 'concise',
+      '/repos/optout': SYSTEM_PROMPT_BUILTIN_ID,
+      '/repos/demo': 'reviewer',
+      '/repos/extra': 'reviewer',
+    });
+    expect(derivePresetActivationScope(withProjects.systemPrompts!, 'reviewer')).toEqual({
+      scope: 'projects',
+      boundPaths: ['/repos/demo', '/repos/extra'],
+    });
+    expect(formatPresetStatusBadge(withProjects.systemPrompts!, 'reviewer', true)).toEqual({
+      tone: 'active',
+      text: '2 个项目',
+    });
+    expect(formatPresetStatusBadge(withProjects.systemPrompts!, 'reviewer', false)).toEqual({
+      tone: 'active',
+      text: '2 projects',
+    });
+
+    const asGlobal = applyPresetScopeConfig(withProjects, 'reviewer', { scope: 'global' });
+    expect(asGlobal.systemPrompts?.defaultPresetId).toBe('reviewer');
+    expect(asGlobal.systemPrompts?.projectPresetIds).toEqual({
+      '/repos/other': 'concise',
+      '/repos/optout': SYSTEM_PROMPT_BUILTIN_ID,
+    });
+    expect(formatPresetStatusBadge(asGlobal.systemPrompts!, 'reviewer', true)).toEqual({
+      tone: 'global',
+      text: '全局默认',
+    });
+
+    const turnedOff = applyPresetScopeConfig(asGlobal, 'reviewer', { scope: 'off' });
+    expect(turnedOff.systemPrompts?.defaultPresetId).toBeUndefined();
+    expect('defaultPresetId' in (turnedOff.systemPrompts ?? {})).toBe(false);
+    expect(turnedOff.systemPrompts?.projectPresetIds).toEqual({
+      '/repos/other': 'concise',
+      '/repos/optout': SYSTEM_PROMPT_BUILTIN_ID,
+    });
   });
 });

@@ -95,4 +95,38 @@ describe('resolveChatModel', () => {
       ),
     ).toBeUndefined();
   });
+
+  it('rejects unconfigured or disabled seeded subscription providers', () => {
+    const emptySeeded: ModelProviderConfig = {
+      id: 'openai-codex',
+      name: 'ChatGPT Codex',
+      protocol: 'openai-compatible',
+      baseUrl: 'oauth://openai-codex',
+      source: 'subscription',
+      models: [],
+    };
+    const disabledSeeded: ModelProviderConfig = {
+      ...emptySeeded,
+      enabled: false,
+      models: [{ id: 'gpt-5.4-codex', enabled: true }],
+    };
+    const accounts = {
+      accounts: [{ providerId: 'openai-codex', surface: 'v1' as const, state: 'logged-in' as const }],
+      catalogModelIds: new Map([['openai-codex', ['gpt-5.4-codex']]]),
+    };
+    expect(
+      resolveChatModel(
+        { providers: [emptySeeded] },
+        { providerId: 'openai-codex', modelId: 'gpt-5.4-codex', source: 'subscription' },
+        accounts,
+      ),
+    ).toBeUndefined();
+    expect(
+      resolveChatModel(
+        { providers: [disabledSeeded] },
+        { providerId: 'openai-codex', modelId: 'gpt-5.4-codex', source: 'subscription' },
+        accounts,
+      ),
+    ).toBeUndefined();
+  });
 });

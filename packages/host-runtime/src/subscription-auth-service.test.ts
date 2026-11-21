@@ -344,7 +344,7 @@ describe('SubscriptionAuthService', () => {
     expect(merged.models.map((model) => model['modelId'])).toEqual(['grok-4.6']);
   });
 
-  it('discovers subscription models via a scoped live catalog pull', async () => {
+  it('discovers subscription models via a scoped live catalog pull without seeding config', async () => {
     const live: Array<{ providers?: readonly string[] }> = [];
     const port = loggedInXaiPort();
     port.refreshLiveCatalog = async (options) => {
@@ -353,7 +353,7 @@ describe('SubscriptionAuthService', () => {
     let saved: PiwinConfig | undefined;
     const initial: PiwinConfig = {
       ...createDefaultPiwinConfig(),
-      providers: [grokSubscriptionProvider()],
+      providers: [grokSubscriptionProvider({ models: [] })],
     };
     const service = new SubscriptionAuthService(
       { port },
@@ -367,7 +367,21 @@ describe('SubscriptionAuthService', () => {
     const result = await service.discoverSubscriptionModels('xai');
     expect(live[0]?.providers).toEqual(['xai']);
     expect(result.providerId).toBe('xai');
-    expect(result.models.some((model) => model.id === 'grok-4.6')).toBe(true);
+    expect(result.models.find((model) => model.id === 'grok-4.6')).toMatchObject({
+      capabilities: ['chat', 'native-web-search'],
+      nativeSearchAdapter: 'xai-web-search-tool',
+    });
+    expect(result.models.find((model) => model.id === 'grok-imagine-image')).toMatchObject({
+      capabilities: ['image-generation'],
+      routes: { 'image-generation': { path: '/images/generations', apiStyle: 'openai' } },
+    });
+    expect(result.models.find((model) => model.id === 'grok-imagine-video')).toMatchObject({
+      capabilities: ['video-generation'],
+      routes: { 'video-generation': { path: '/videos/generations', apiStyle: 'xgrok-videos' } },
+    });
+    expect((saved ?? initial).providers.find((provider) => provider.id === 'xai')?.models).toEqual(
+      [],
+    );
   });
 
   it('does not resurrect a disabled model from an enabled subscription provider', async () => {
@@ -562,7 +576,7 @@ describe('SubscriptionAuthService', () => {
     expect(config.defaultModelId).toBeUndefined();
   });
 
-  it('seeds Claude Code models when the isolated credential is api_key', async () => {
+  it('creates an empty Claude Code provider when the isolated credential is api_key and exposes user-added models', async () => {
     const agentDir = await mkdtemp(join(tmpdir(), 'piwin-claude-code-auth-'));
     await writeFile(
       join(agentDir, 'auth.json'),
@@ -597,9 +611,22 @@ describe('SubscriptionAuthService', () => {
       status.accounts.find((account) => account.providerId === CLAUDE_CODE_OAUTH_PROVIDER_ID)?.state,
     ).toBe('logged-in');
     await service.ensureLoggedInProviders();
-    expect(saved.providers.some((provider) => provider.id === CLAUDE_CODE_OAUTH_PROVIDER_ID)).toBe(
-      true,
-    );
+    expect(saved.providers.find((provider) => provider.id === CLAUDE_CODE_OAUTH_PROVIDER_ID)).toMatchObject({
+      id: CLAUDE_CODE_OAUTH_PROVIDER_ID,
+      source: 'subscription',
+      models: [],
+    });
+    expect((await service.mergeConfiguredModels({ models: [] })).models).toEqual([]);
+
+    // Once the user adds a model manually, mergeConfiguredModels overlays it.
+    saved = {
+      ...saved,
+      providers: saved.providers.map((provider) =>
+        provider.id === CLAUDE_CODE_OAUTH_PROVIDER_ID
+          ? { ...provider, models: [{ id: 'claude-sonnet-4', label: 'Claude Sonnet 4', capabilities: ['chat'] }] }
+          : provider,
+      ),
+    };
     const merged = await service.mergeConfiguredModels({ models: [] });
     expect(merged.models).toEqual([
       {
@@ -760,5 +787,60 @@ describe('SubscriptionAuthService', () => {
       errorSpy.mockRestore();
       warnSpy.mockRestore();
     }
+  });
+
+  it('creates an empty subscription provider row on login without seeding models or defaults', async () => {
+    const pushes: HostPush[] = [];
+    let config: PiwinConfig = createDefaultPiwinConfig();
+    const service = new SubscriptionAuthService(
+      { port: loggedInXaiPort() },
+      {
+        loadConfig: async () => config,
+        saveConfig: async (next) => {
+          config = next;
+        },
+      },
+    );
+    service.bindPush((message) => {
+      pushes.push(message);
+    });
+    await service.login({ providerId: 'xai', ownerDeviceId: 'desktop-1' });
+    await waitForPush(pushes, 'auth/login-finished');
+    expect(pushes.find((message) => message.type === 'auth/login-finished')).toMatchObject({
+      result: { providerId: 'xai', ok: true },
+    });
+    expect(config.providers).toEqual([
+      {
+        id: 'xai',
+        name: 'Grok',
+        protocol: 'openai-compatible',
+        baseUrl: 'oauth://xai',
+        source: 'subscription',
+        category: 'package',
+        models: [],
+      },
+    ]);
+    expect(config.defaultProviderId).toBeUndefined();
+    expect(config.defaultModelId).toBeUndefined();
+  });
+
+  it('returns no subscription models from mergeConfiguredModels when the provider is unconfigured or empty', async () => {
+    const serviceMissingRow = new SubscriptionAuthService(
+      { port: loggedInXaiPort() },
+      { loadConfig: async () => createDefaultPiwinConfig(), saveConfig: async () => undefined },
+    );
+    expect((await serviceMissingRow.mergeConfiguredModels({ models: [] })).models).toEqual([]);
+
+    const serviceEmptyRow = new SubscriptionAuthService(
+      { port: loggedInXaiPort() },
+      {
+        loadConfig: async () => ({
+          ...createDefaultPiwinConfig(),
+          providers: [grokSubscriptionProvider({ models: [] })],
+        }),
+        saveConfig: async () => undefined,
+      },
+    );
+    expect((await serviceEmptyRow.mergeConfiguredModels({ models: [] })).models).toEqual([]);
   });
 });

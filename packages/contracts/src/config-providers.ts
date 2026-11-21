@@ -496,6 +496,12 @@ export type DiscoveredModel = {
    */
   nativeSearchAdapter?: NativeSearchAdapterKind;
   /**
+   * Thinking effort levels supported by the model (e.g. from Pi subscription catalog).
+   */
+  thinkingLevels?: readonly ThinkingLevel[];
+  /** Per-capability route overrides (e.g. Codex image or Grok image/video routes). */
+  routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
+  /**
    * Video-generation suggestion from explicit provider metadata, the curated
    * registry, or a name heuristic. Registry and provider matches may also set
    * `capabilities` to include `video-generation`; heuristic-only matches never

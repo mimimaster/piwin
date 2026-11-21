@@ -86,7 +86,7 @@ function modelListCopy(isChinese: boolean) {
         hint: '开关和参数修改即时生效。',
         empty: '还没有模型。拉取接口上的模型，或手动添加一个。',
         emptyManual: '还没有模型。点「添加」输入模型 ID，会从该平台的模型目录联想。',
-        emptySubscription: '这个套餐暂时没有可用模型。点击「拉取模型」重试。',
+        emptySubscription: '还没有模型。点击「拉取模型」勾选导入，或点「添加」手动添加。',
         discover: '拉取模型',
         discovering: '拉取中…',
         add: '添加',
@@ -107,7 +107,7 @@ function modelListCopy(isChinese: boolean) {
         hint: 'Switches and parameter edits apply at once.',
         empty: 'No models yet. Fetch them from the endpoint, or add one by hand.',
         emptyManual: 'No models yet. Use Add and type a model ID; this platform\'s catalog suggests matches.',
-        emptySubscription: 'This plan has no models yet. Use Fetch models to retry.',
+        emptySubscription: 'No models yet. Click Fetch models to pick and import, or click Add to add one by hand.',
         discover: 'Fetch models',
         discovering: 'Fetching…',
         add: 'Add',
@@ -228,8 +228,8 @@ export function ProviderModelList({
         return;
       }
       // Extensions own their catalog and write it Host-side, so there is nothing
-      // to pick. A subscription pull still seeds the full catalog Host-side, but
-      // the picker lets the user re-add models they removed earlier — skip it
+      // to pick. A subscription pull does not auto-seed models Host-side, and
+      // opens the picker so the user chooses which models to import — skip it
       // when the pull returned nothing to choose from.
       if (isExtensionProvider(provider)) return;
       if (isSubscriptionProvider(provider) && result.models.length === 0) return;

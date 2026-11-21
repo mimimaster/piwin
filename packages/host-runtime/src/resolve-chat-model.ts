@@ -116,6 +116,9 @@ function resolveSubscription(
     (provider) => provider.id === ref.providerId && isSubscriptionProvider(provider),
   );
   if (seeded) {
+    if (!isProviderEnabled(seeded)) {
+      return undefined;
+    }
     const model = seeded.models.find(
       (entry) =>
         entry.id === ref.modelId &&

@@ -1821,4 +1821,33 @@ describe('ProjectSessionSidebar Inkstone layout and grouping', () => {
     expect(container.querySelector('[data-testid="pinned-section-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="sidebar-pinned-shelf"]')).toBeNull();
   });
+
+  it('freezes the active pane header above the scroller in both chat (virtualized) and code modes', () => {
+    const { container } = renderSidebar({
+      locale: 'zh-CN',
+      generalSessions: createMockSessions(80),
+      filteredSessions: createMockSessions(2),
+    });
+
+    // In default 'code' mode, Projects header sits in sidebar-pane-header, outside sessions-list.
+    const paneHeaderCode = container.querySelector('[data-testid="sidebar-pane-header"]');
+    expect(paneHeaderCode).not.toBeNull();
+    expect(paneHeaderCode?.querySelector('[data-testid="projects-section-toggle"]')).not.toBeNull();
+    expect(paneHeaderCode?.querySelector('[data-testid="display-options-btn"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="sessions-list"] [data-testid="projects-section-toggle"]'),
+    ).toBeNull();
+
+    // Switch to 'chat' mode with >60 virtualized rows: Conversations header + actions remain pinned above sessions-list.
+    switchPane(container, 'chat');
+    const paneHeaderChat = container.querySelector('[data-testid="sidebar-pane-header"]');
+    expect(paneHeaderChat).not.toBeNull();
+    expect(paneHeaderChat?.querySelector('[data-testid="conversations-section-toggle"]')).not.toBeNull();
+    expect(paneHeaderChat?.querySelector('[data-testid="display-options-btn"]')).not.toBeNull();
+    expect(paneHeaderChat?.querySelector('[data-testid="general-workspace-btn"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="sessions-list"] [data-testid="conversations-section-toggle"]'),
+    ).toBeNull();
+    expect(container.querySelector('.sidebar-folder-tree-virtual-window')).not.toBeNull();
+  });
 });

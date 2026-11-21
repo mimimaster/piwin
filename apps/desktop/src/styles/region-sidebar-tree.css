@@ -239,6 +239,18 @@
   scrollbar-color: transparent transparent;
 }
 
+/* Pane section header (Conversations / Projects), lifted above the scrolling
+   tree so it stays visible while the list scrolls (sidebar-pinned-shelf.ts). */
+.sidebar-pane-header {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  margin-right: calc(var(--s-3) * -1);
+  /* Match the 6px webkit scrollbar track beside .sidebar-folder-tree. */
+  padding: 0 6px var(--s-1) var(--s-1);
+}
+
 .sidebar-folder-tree-virtual-window {
   position: relative;
   width: 100%;

@@ -129,7 +129,7 @@ export function AuthSection({ client }: { client: HostClient | undefined }): Rea
           />
         );
       })}
-      <p className="quote-note">订阅凭据只保存在 Host。登录需要浏览器回调，请在桌面端完成；登录后手机立刻可用这些模型。</p>
+      <p className="quote-note">订阅凭据只保存在 Host。登录与添加套餐模型请在桌面端完成；添加后手机即可使用。</p>
     </>
   );
 }

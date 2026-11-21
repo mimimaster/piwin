@@ -453,6 +453,63 @@ describe('model configuration', () => {
     ]);
   });
 
+  it('preserves discovered thinkingLevels and subscription routes without overwriting user routes', () => {
+    const models = mergeDiscoveredModels(
+      [
+        {
+          id: 'grok-imagine-image',
+          routes: { 'image-generation': { path: '/custom/images', apiStyle: 'openai' } },
+        },
+      ],
+      [
+        {
+          id: 'gpt-5.4-codex',
+          thinkingLevels: ['low', 'medium', 'high'],
+          capabilities: ['chat'],
+        },
+        {
+          id: 'gpt-image-2',
+          capabilities: ['image-generation'],
+          routes: { 'image-generation': { path: '/codex/images/generations', apiStyle: 'openai' } },
+        },
+        {
+          id: 'grok-imagine-video',
+          capabilities: ['video-generation'],
+          routes: { 'video-generation': { path: '/videos/generations', apiStyle: 'xgrok-videos' } },
+        },
+        {
+          id: 'grok-imagine-image',
+          capabilities: ['image-generation'],
+          routes: { 'image-generation': { path: '/images/generations', apiStyle: 'openai' } },
+        },
+      ],
+      'openai-compatible',
+    );
+
+    expect(models).toEqual([
+      {
+        id: 'grok-imagine-image',
+        capabilities: ['image-generation'],
+        routes: { 'image-generation': { path: '/custom/images', apiStyle: 'openai' } },
+      },
+      {
+        id: 'gpt-5.4-codex',
+        thinkingLevels: ['low', 'medium', 'high'],
+        capabilities: ['chat'],
+      },
+      {
+        id: 'gpt-image-2',
+        capabilities: ['image-generation'],
+        routes: { 'image-generation': { path: '/codex/images/generations', apiStyle: 'openai' } },
+      },
+      {
+        id: 'grok-imagine-video',
+        capabilities: ['video-generation'],
+        routes: { 'video-generation': { path: '/videos/generations', apiStyle: 'xgrok-videos' } },
+      },
+    ]);
+  });
+
   it('modelSupportsImage treats omitted input as text-only', () => {
     expect(modelSupportsImage(undefined)).toBe(false);
     expect(modelSupportsImage({ input: ['text'] })).toBe(false);

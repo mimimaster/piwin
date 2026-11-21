@@ -1,6 +1,7 @@
 /**
- * Unified top bar for System Prompts: tab switcher on the left, compact scope
- * selectors (Global / Project / Session) + effective preview button on the right.
+ * Top bar for System Prompts: section tabs on top and a plain-language effective
+ * status banner below showing what is currently active and letting the user
+ * inspect the final compiled prompt.
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, IconEye, SegmentedControl } from '@piwin/ui-kit';
@@ -12,7 +13,6 @@ import {
   resolveActiveSystemPromptSelection,
   SYSTEM_PROMPT_BUILTIN_ID,
   SYSTEM_PROMPT_INHERIT_ID,
-  type PiwinConfig,
   type SessionSummary,
   type SystemPromptFileReadItem,
   type SystemPromptFilesReadData,
@@ -21,11 +21,7 @@ import { useDesktopLocale } from '../../i18n/desktop-locale-context';
 import { useSettings } from '../settings-context';
 import { promptFileDisplayName, promptFileExtensionLabel } from './prompt-file-actions';
 import type { PromptPreviewLayer, PromptPreviewPayload } from './PromptPreviewModal';
-import {
-  formatProjectOptionLabel,
-  SYSTEM_PROMPT_BROWSE_PROJECT_VALUE,
-  type SystemPromptProjectOption,
-} from './system-prompt-projects';
+import { formatProjectOptionLabel, type SystemPromptProjectOption } from './system-prompt-projects';
 import type { SystemPromptsTab } from './system-prompts-focus';
 
 function sourceLabel(
@@ -58,18 +54,34 @@ function sourceLabel(
   }
 }
 
+function scopeOriginBadge(
+  kind: ReturnType<typeof resolveActiveSystemPromptSelection>['sourceKind'],
+  isZh: boolean,
+): string {
+  switch (kind) {
+    case 'session-preset':
+    case 'session-builtin':
+      return isZh ? '会话覆盖' : 'Session override';
+    case 'project-preset':
+    case 'project-builtin':
+      return isZh ? '项目生效' : 'Project override';
+    case 'global-preset':
+      return isZh ? '全局默认' : 'Global default';
+    case 'builtin':
+      return isZh ? '内置默认' : 'Built-in';
+  }
+}
+
 export function SystemPromptsScopeCard(props: {
   tab: SystemPromptsTab;
   projectOptions: readonly SystemPromptProjectOption[];
   selectedProjectPath: string | null;
-  canBrowseProjectDir: boolean;
   onTabChange: (tab: SystemPromptsTab) => void;
   onOpenPreview: (payload: PromptPreviewPayload) => void;
   onSelectProjectPath: (projectPath: string) => void;
-  onBrowseProjectDir: () => void;
-  onUpdateProjectPreset: (projectPath: string, nextPresetId: string) => void;
+  onToggleProjectBuiltin: (projectPath: string, forceBuiltin: boolean) => void;
 }): ReactElement {
-  const { config, projectPath, activeSessionId, request, hostClient, saveConfig, setError, setInfo } =
+  const { config, projectPath, activeSessionId, request, hostClient, setError, setInfo } =
     useSettings();
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
@@ -101,17 +113,13 @@ export function SystemPromptsScopeCard(props: {
 
   const systemPrompts = config?.systemPrompts ?? createDefaultSystemPromptsConfig();
   const presets = systemPrompts.presets;
-  const globalSelection = systemPrompts.defaultPresetId ?? SYSTEM_PROMPT_BUILTIN_ID;
   const selectedProject = props.projectOptions.find(
     (item) => item.path === props.selectedProjectPath,
   );
   const targetProjectPath = selectedProject?.path ?? null;
-  const projectSelection = targetProjectPath
-    ? (systemPrompts.projectPresetIds?.[targetProjectPath] ?? SYSTEM_PROMPT_INHERIT_ID)
-    : SYSTEM_PROMPT_INHERIT_ID;
+  const isViewingCurrentProject = !targetProjectPath || targetProjectPath === projectPath;
 
   const effective = useMemo(() => {
-    const isViewingCurrentProject = !targetProjectPath || targetProjectPath === projectPath;
     const resolved = resolveActiveSystemPromptSelection({
       config,
       projectPath: targetProjectPath,
@@ -135,8 +143,8 @@ export function SystemPromptsScopeCard(props: {
   }, [
     activeSessionId,
     config,
+    isViewingCurrentProject,
     isZh,
-    projectPath,
     selectedProject?.displayLabel,
     sessionPresetId,
     targetProjectPath,
@@ -244,20 +252,6 @@ export function SystemPromptsScopeCard(props: {
     }
   }
 
-  async function updateGlobalDefault(nextId: string): Promise<void> {
-    if (!config) return;
-    const { defaultPresetId: _prev, ...rest } = systemPrompts;
-    const nextConfig: PiwinConfig = {
-      ...config,
-      systemPrompts:
-        nextId === SYSTEM_PROMPT_BUILTIN_ID ? rest : { ...rest, defaultPresetId: nextId },
-    };
-    const ok = await saveConfig(nextConfig, { quiet: true });
-    if (ok) {
-      setInfo(isZh ? '已更新全局默认方案。' : 'Global default updated.', 'success');
-    }
-  }
-
   async function updateSessionPreset(nextId: string): Promise<void> {
     if (!activeSessionId || !hostClient?.request) return;
     setSavingSession(true);
@@ -272,7 +266,7 @@ export function SystemPromptsScopeCard(props: {
         return;
       }
       setSessionPresetId(nextId);
-      setInfo(isZh ? '已切换会话方案。' : 'Session prompt updated.', 'success');
+      setInfo(isZh ? '已切换当前会话提示词方案。' : 'Session prompt updated.', 'success');
     } catch (error) {
       setError(formatError(error));
     } finally {
@@ -280,135 +274,144 @@ export function SystemPromptsScopeCard(props: {
     }
   }
 
+  const activePreset = effective.resolved.preset;
+  const originLabel = scopeOriginBadge(effective.resolved.sourceKind, isZh);
+
   return (
-    <div className="sysprompt-topbar" data-testid="system-prompts-scope-card">
-      <SegmentedControl
-        value={props.tab}
-        size="xs"
-        testId="system-prompts-tab-control"
-        onChange={(nextTab) => props.onTabChange(nextTab === 'builtins' ? 'builtins' : 'presets')}
-        data={[
-          { value: 'presets', label: isZh ? '预设方案' : 'Presets' },
-          { value: 'builtins', label: isZh ? '内置提示词' : 'Built-ins' },
-        ]}
-      />
+    <div className="sysprompt-scope-header" data-testid="system-prompts-scope-card">
+      <div className="sysprompt-topbar">
+        <SegmentedControl
+          value={props.tab}
+          size="xs"
+          testId="system-prompts-tab-control"
+          onChange={(nextTab) => props.onTabChange(nextTab === 'builtins' ? 'builtins' : 'presets')}
+          data={[
+            { value: 'presets', label: isZh ? '预设方案' : 'Presets' },
+            { value: 'builtins', label: isZh ? '内置提示词' : 'Built-ins' },
+          ]}
+        />
+      </div>
 
-      <div className="sysprompt-scope-bar">
-        <label
-          className="sysprompt-scope-pill"
-          title={isZh ? '全局默认系统提示词' : 'Global default prompt'}
-        >
-          <span className="sysprompt-scope-key">{isZh ? '全局' : 'Global'}</span>
-          <select
-            className="sysprompt-scope-select"
-            value={globalSelection}
-            data-testid="system-prompts-global-select"
-            aria-label={isZh ? '全局默认' : 'Global default'}
-            onChange={(event) => void updateGlobalDefault(event.currentTarget.value)}
-          >
-            <option value={SYSTEM_PROMPT_BUILTIN_ID}>
-              {isZh ? '系统默认' : 'Built-in'}
-            </option>
-            {presets.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="sysprompt-status-banner" data-testid="system-prompts-effective-banner">
+        <div className="sysprompt-status-main">
+          <div className="sysprompt-status-summary">
+            <span
+              className={`sysprompt-status-dot ${activePreset ? 'is-active' : 'is-inactive'}`}
+              aria-hidden="true"
+            />
+            {selectedProject ? (
+              <>
+                {props.projectOptions.length > 1 ? (
+                  <>
+                    <span className="sysprompt-status-subject">{isZh ? '项目' : 'Project'}</span>
+                    <select
+                      className="sysprompt-status-project-select"
+                      value={selectedProject.path}
+                      data-testid="system-prompts-project-target-select"
+                      aria-label={isZh ? '查看生效状态的项目' : 'Project to inspect'}
+                      title={selectedProject.path}
+                      onChange={(event) => props.onSelectProjectPath(event.currentTarget.value)}
+                    >
+                      {props.projectOptions.map((option) => (
+                        <option key={option.path} value={option.path}>
+                          {formatProjectOptionLabel(option, isZh)}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <span className="sysprompt-status-subject" title={selectedProject.path}>
+                    {isZh
+                      ? `当前项目 ${selectedProject.displayLabel}`
+                      : `Current project ${selectedProject.displayLabel}`}
+                  </span>
+                )}
+                <span className="sysprompt-status-verb">
+                  {isZh ? '正在使用：' : 'is using:'}
+                </span>
+              </>
+            ) : (
+              <span className="sysprompt-status-subject">
+                {isZh ? '全局默认正在使用：' : 'Global default is using:'}
+              </span>
+            )}
 
-        {selectedProject ? (
-          <div
-            className="sysprompt-scope-pill sysprompt-scope-pill-project"
-            title={selectedProject.path}
-            data-testid="system-prompts-project-scope"
-          >
-            <span className="sysprompt-scope-key">{isZh ? '项目' : 'Project'}</span>
-            <select
-              className="sysprompt-scope-select sysprompt-scope-project-target"
-              value={selectedProject.path}
-              data-testid="system-prompts-project-target-select"
-              aria-label={isZh ? '选择生效项目' : 'Target project'}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                if (value === SYSTEM_PROMPT_BROWSE_PROJECT_VALUE) {
-                  props.onBrowseProjectDir();
-                  return;
-                }
-                props.onSelectProjectPath(value);
-              }}
-            >
-              {props.projectOptions.map((option) => (
-                <option key={option.path} value={option.path}>
-                  {formatProjectOptionLabel(option, isZh)}
-                </option>
-              ))}
-              {props.canBrowseProjectDir ? (
-                <option value={SYSTEM_PROMPT_BROWSE_PROJECT_VALUE}>
-                  {isZh ? '选择其他项目目录…' : 'Choose another folder…'}
-                </option>
-              ) : null}
-            </select>
-            <span className="sysprompt-scope-divider" aria-hidden="true" />
-            <select
-              className="sysprompt-scope-select"
-              value={projectSelection}
-              data-testid="system-prompts-project-select"
-              aria-label={
-                isZh
-                  ? `项目「${selectedProject.displayLabel}」的系统提示词`
-                  : `System prompt for ${selectedProject.displayLabel}`
-              }
-              onChange={(event) =>
-                props.onUpdateProjectPreset(selectedProject.path, event.currentTarget.value)
-              }
-            >
-              <option value={SYSTEM_PROMPT_INHERIT_ID}>
-                {isZh ? '跟随全局' : 'Inherit'}
-              </option>
-              <option value={SYSTEM_PROMPT_BUILTIN_ID}>
-                {isZh ? '系统默认' : 'Built-in'}
-              </option>
-              {presets.map((preset) => (
-                <option key={preset.id} value={preset.id}>
-                  {preset.name}
-                </option>
-              ))}
-            </select>
+            <strong className="sysprompt-status-value" data-testid="system-prompts-effective-name">
+              {activePreset ? activePreset.name : isZh ? '系统默认' : 'Built-in default'}
+            </strong>
+
+            <span className="sysprompt-status-badge">{originLabel}</span>
+            {activePreset ? (
+              <span className="sysprompt-status-badge">
+                {activePreset.mode === 'replace'
+                  ? isZh
+                    ? '替换'
+                    : 'Replace'
+                  : isZh
+                    ? '追加'
+                    : 'Append'}
+              </span>
+            ) : null}
+
+            {selectedProject && effective.resolved.sourceKind === 'global-preset' ? (
+              <button
+                type="button"
+                className="sysprompt-status-link"
+                onClick={() => props.onToggleProjectBuiltin(selectedProject.path, true)}
+                data-testid="system-prompts-project-builtin-toggle"
+              >
+                {isZh ? '此项目改用系统默认' : 'Use built-in for this project'}
+              </button>
+            ) : null}
+
+            {selectedProject && effective.resolved.sourceKind === 'project-builtin' ? (
+              <button
+                type="button"
+                className="sysprompt-status-link"
+                onClick={() => props.onToggleProjectBuiltin(selectedProject.path, false)}
+                data-testid="system-prompts-project-builtin-toggle"
+              >
+                {isZh ? '恢复跟随全局' : 'Inherit global default'}
+              </button>
+            ) : null}
           </div>
-        ) : props.canBrowseProjectDir ? (
-          <div
-            className="sysprompt-scope-pill sysprompt-scope-pill-project"
-            data-testid="system-prompts-project-scope"
-          >
-            <span className="sysprompt-scope-key">{isZh ? '项目' : 'Project'}</span>
-            <button
-              type="button"
-              className="sysprompt-scope-action"
-              onClick={props.onBrowseProjectDir}
-              data-testid="system-prompts-project-browse-btn"
-            >
-              {isZh ? '选择项目…' : 'Choose project…'}
-            </button>
-          </div>
-        ) : null}
 
-        {activeSessionId && hostClient?.request ? (
-          <label
-            className="sysprompt-scope-pill"
-            title={isZh ? '仅对当前打开的会话生效' : 'Applies to active session only'}
+          <Button
+            size="compact"
+            variant="secondary"
+            disabled={loadingPreview}
+            onClick={() => void handleOpenEffectivePreview()}
+            title={effective.sourceText}
+            data-testid="system-prompts-effective-preview-btn"
           >
-            <span className="sysprompt-scope-key">{isZh ? '会话' : 'Session'}</span>
+            <IconEye size={13} />
+            <span>
+              {loadingPreview
+                ? isZh
+                  ? '读取中…'
+                  : 'Loading…'
+                : isZh
+                  ? '查看最终提示词'
+                  : 'Inspect effective'}
+            </span>
+          </Button>
+        </div>
+
+        {activeSessionId && hostClient?.request && isViewingCurrentProject ? (
+          <div className="sysprompt-status-session">
+            <span className="sysprompt-status-session-label">
+              {isZh ? '当前会话临时覆盖' : 'Active session override'}
+            </span>
             <select
-              className="sysprompt-scope-select"
+              className="sysprompt-status-session-select"
               disabled={savingSession}
               value={sessionPresetId}
               data-testid="system-prompts-session-select"
-              aria-label={isZh ? '当前会话' : 'Current session'}
+              aria-label={isZh ? '当前会话临时覆盖' : 'Active session override'}
               onChange={(event) => void updateSessionPreset(event.currentTarget.value)}
             >
               <option value={SYSTEM_PROMPT_INHERIT_ID}>
-                {isZh ? '跟随上级' : 'Inherit'}
+                {isZh ? '跟随项目 / 全局' : 'Follow project / global'}
               </option>
               <option value={SYSTEM_PROMPT_BUILTIN_ID}>
                 {isZh ? '系统默认' : 'Built-in'}
@@ -419,28 +422,11 @@ export function SystemPromptsScopeCard(props: {
                 </option>
               ))}
             </select>
-          </label>
+            <span className="sysprompt-status-session-hint">
+              {isZh ? '仅影响当前打开的会话' : 'Applies only to this open session'}
+            </span>
+          </div>
         ) : null}
-
-        <Button
-          size="compact"
-          variant="secondary"
-          disabled={loadingPreview}
-          onClick={() => void handleOpenEffectivePreview()}
-          title={effective.sourceText}
-          data-testid="system-prompts-effective-preview-btn"
-        >
-          <IconEye size={13} />
-          <span>
-            {loadingPreview
-              ? isZh
-                ? '读取中…'
-                : 'Loading…'
-              : isZh
-                ? '生效预览'
-                : 'Effective'}
-          </span>
-        </Button>
       </div>
     </div>
   );

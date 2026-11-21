@@ -494,8 +494,8 @@ export function SubscriptionAccountsPanel(): ReactElement {
       const count = Number.isFinite(modelCount) ? modelCount : 0;
       setInfo?.(
         isChinese
-          ? `已刷新套餐模型，共 ${count} 个。`
-          : `Subscription models refreshed (${count}).`,
+          ? `已刷新可拉取模型目录（共 ${count} 个），请在「模型」页自行添加。`
+          : `Refreshed available catalog (${count} models). Add models on the Models page.`,
       );
     } catch (error) {
       setError?.(error instanceof Error ? error.message : (isChinese ? '刷新模型列表失败' : 'Failed to refresh models'));
@@ -572,8 +572,8 @@ export function SubscriptionAccountsPanel(): ReactElement {
                   ? '正在刷新…'
                   : 'Refreshing…'
                 : isChinese
-                  ? '刷新模型'
-                  : 'Refresh models'}
+                  ? '刷新模型目录'
+                  : 'Refresh catalog'}
             </span>
           </Button>
           <span className="oauth-accounts-stat-badge">

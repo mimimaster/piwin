@@ -457,4 +457,17 @@ describe('ProviderModelList', () => {
     expect(onDiscoverModels).toHaveBeenCalledTimes(1);
   });
 
+  it('guides the user to fetch or manually add models when a subscription provider is empty', () => {
+    const emptySub: ModelProviderConfig = {
+      ...subscriptionProvider,
+      models: [],
+    };
+    const container = renderList(emptySub);
+    const emptyText = container.querySelector('.pmodel-empty')?.textContent;
+    expect(emptyText).toContain('拉取模型');
+    expect(emptyText).toContain('添加');
+    expect(container.querySelector(`[data-testid="provider-discover-models-${emptySub.id}"]`)).not.toBeNull();
+    expect(container.querySelector(`[data-testid="provider-add-model-${emptySub.id}"]`)).not.toBeNull();
+  });
+
 });

@@ -24,11 +24,12 @@ Users fill baseUrl/apiKey/models. Host maps into Pi providers.
   Anthropic-compatible, Gemini). OpenRouter is a key channel. Vendor
   subscription login is a separate Accounts surface for Pi `isSubscription`
   OAuth (`kimi-coding`, `openai-codex`, `anthropic`, `xai`, `github-copilot`).
-  After login, Host seeds a Models-page Provider with `source: 'subscription'`
-  so the user can fetch the live catalog, remove individual models (ids stay in
-  `removedModelIds` so a later refresh does not restore them), inspect params,
-  toggle models, and set defaults. Compile
-  still skips `registerProvider` and uses `{ auth: { kind: 'oauth' } }`.
+  After login, Host creates a Models-page Provider with `source: 'subscription'`
+  and an empty `models: []` list (neither login nor catalog refresh auto-populates
+  models); users explicitly add models via Fetch models (picker) or Add, and any
+  existing user-added models are preserved with catalog metadata overlays,
+  toggled, tuned, removed, or set as defaults. Compile still skips
+  `registerProvider` and uses `{ auth: { kind: 'oauth' } }`.
   A colliding BYOK channel (not the seeded row) relocates, e.g. `anthropic` →
   `anthropic-api`.
 - Gateway products (LiteLLM, local proxies) work via OpenAI-compatible

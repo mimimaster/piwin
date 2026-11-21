@@ -147,4 +147,38 @@ describe('provider-helpers', () => {
     expect(resolveConfiguredDefaultModelRef(config)).toBeUndefined();
     expect(resolveDefaultModelRef(config)?.modelId).toBe('chat-1');
   });
+
+  it('skips logged-in subscription providers without user-added models in resolveDefaultModelRef', () => {
+    const accounts = {
+      accounts: [{ providerId: 'xai', surface: 'v1' as const, state: 'logged-in' as const }],
+      catalogModelIds: new Map([['xai', ['grok-4.6']]]),
+    };
+    const emptySub = makeProvider({
+      id: 'xai',
+      source: 'subscription',
+      baseUrl: 'oauth://xai',
+      models: [],
+    });
+    expect(resolveDefaultModelRef({ providers: [emptySub] }, accounts)).toBeUndefined();
+
+    const channel = makeProvider({ id: 'custom-openai', models: [{ id: 'gpt-4o' }] });
+    expect(resolveDefaultModelRef({ providers: [emptySub, channel] }, accounts)).toEqual({
+      protocol: 'openai-compatible',
+      providerId: 'custom-openai',
+      modelId: 'gpt-4o',
+      source: 'channel',
+    });
+
+    const configuredSub = makeProvider({
+      id: 'xai',
+      source: 'subscription',
+      baseUrl: 'oauth://xai',
+      models: [{ id: 'grok-4.6' }],
+    });
+    expect(resolveDefaultModelRef({ providers: [configuredSub, channel] }, accounts)).toEqual({
+      providerId: 'xai',
+      modelId: 'grok-4.6',
+      source: 'subscription',
+    });
+  });
 });
