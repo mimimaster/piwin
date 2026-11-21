@@ -9,7 +9,6 @@ import {
   parseAssistantUsageMeasurement,
   parseContextBoundary,
   parseSessionContextSnapshot,
-  type AssistantUsageMeasurement,
   type ContextBoundary,
   type SessionContextSnapshot,
 } from '@piwin/contracts';

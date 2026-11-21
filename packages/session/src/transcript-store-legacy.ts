@@ -10,7 +10,6 @@ import type {
 } from '@piwin/contracts';
 import { LEGACY_IMPORT_GENERATION } from '@piwin/contracts';
 import type { TranscriptStoreCore, SessionTranscriptStore, TranscriptStoreMessageInput } from './transcript-store.js';
-import { rollback } from './sqlite-errors.js';
 import { isIndexedUserMessage } from './transcript-store-bounds.js';
 import { stableSerialize } from './stable-serialize.js';
 import { countRows, type MessageRow } from './transcript-store-rows.js';

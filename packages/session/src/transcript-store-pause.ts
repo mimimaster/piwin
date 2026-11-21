@@ -15,7 +15,7 @@ export function createTranscriptPauseOps(
   SessionTranscriptStore,
   'getPauseCheckpoint' | 'getActivePauseCheckpoint' | 'createPauseCheckpoint' | 'consumePauseCheckpoint' | 'clearPauseCheckpoint'
 > {
-  const { db, options, ensureOpen, bumpRevision } = core;
+  const { db, options, ensureOpen } = core;
 
     async function readActivePauseCheckpoint(): Promise<SessionPauseCheckpoint | undefined> {
       ensureOpen();

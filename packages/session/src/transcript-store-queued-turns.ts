@@ -5,8 +5,6 @@
 import {
   USER_AUTHORED_GENERATION,
   type MediaAttachmentRef,
-  type PromptInput,
-  QueuedTurnMode,
   QueuedTurnRecord,
   QueuedTurnStatus,
   QueuedTurnTerminalReason,
@@ -42,7 +40,6 @@ export function createTranscriptQueuedTurnsOps(
     db,
     options,
     ensureOpen,
-    bumpRevision,
     bumpQueueRevision,
     currentQueueRevision,
     insertMessageRow,

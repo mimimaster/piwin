@@ -7,7 +7,6 @@ import {
   type MediaAttachmentRef,
   type RunInterventionRecord,
   RunInterventionStatus,
-  RunInterventionTerminalReason,
   UserInstructionPayload,
 } from '@piwin/contracts';
 import type { TranscriptStoreCore, SessionTranscriptStore } from './transcript-store.js';

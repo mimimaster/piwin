@@ -8,13 +8,9 @@ import { createHash } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type {
   SessionTranscriptMessage,
-  SessionTranscriptPageData,
   SessionTranscriptPageQuery,
-  SessionTranscriptWindowData,
   SessionTranscriptWindowInfo,
   SessionTranscriptWindowQuery,
-  SessionUserMessageIndexData,
-  SessionUserMessageIndexQuery,
 } from '@piwin/contracts';
 import {
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
