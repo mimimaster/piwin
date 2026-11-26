@@ -58,9 +58,8 @@ export function getLiveStatusAnimationCount(
 
 /**
  * Current visual/motion degradation matrix matching `memory-degradation.css`.
- * Core status indicators stay full under `normal` and `moderate` pressure,
- * downgrade to single-layer low-memory motion (`LiteRing` / `BreathDot`) under
- * `critical` pressure while visible, and pause when occluded (`parked`).
+ * Core status indicators stay full at all pressure levels while visible, and
+ * pause only when occluded (`parked`).
  */
 export function describeVisualDegradationPolicy(
   data: Pick<MemoryDiagnosticsPanelData, 'level' | 'parked' | 'frontend'> | null,
@@ -73,9 +72,7 @@ export function describeVisualDegradationPolicy(
   const pressureDegraded = level !== 'normal' || parked;
   const coreMotionStatus = parked
     ? copy.motionPolicyItems.coreMotion.paused(liveCount)
-    : level === 'critical'
-      ? copy.motionPolicyItems.coreMotion.lite(liveCount)
-      : copy.motionPolicyItems.coreMotion.active(liveCount);
+    : copy.motionPolicyItems.coreMotion.active(liveCount);
 
   return [
     {

@@ -23,11 +23,13 @@
 //! governor still hears about global pressure.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use tauri::Manager;
 
+mod hang_diagnostics;
 mod monitor;
 mod sampling;
 mod types;
@@ -35,6 +37,7 @@ mod webview_tuning;
 
 pub use webview_tuning::configure_all_webviews_memory_policy;
 
+use hang_diagnostics::{capture_hang_evidence, HangDetector, HangReport, HangSignalInput};
 use monitor::{diagnostics_dir, write_mapping_file, MemoryObservabilityState};
 use sampling::{
     level_from_available_ratio, process_rusage, refresh_webview_pids, sample_available_ratio,
@@ -49,6 +52,9 @@ use types::{
 /// Sampling cadence. The governor only switches degradation tiers, so a
 /// multi-second granularity is sufficient and keeps the poll cost invisible.
 const POLL_INTERVAL_MS: u64 = 5_000;
+/// Periodic check (12 × 5s = 60s) to reap excess cached WebContent processes
+/// retained in macOS `WKProcessPool`'s WebProcessCache.
+const PROCESS_CACHE_SWEEP_EVERY_TICKS: u64 = 12;
 
 /// Purge completions outstanding after this window are reported as
 /// `timeout` so `desktop:memory-purge` consumers see every request resolve.
@@ -69,6 +75,8 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
         let state = app_handle.state::<MemoryObservabilityState>().inner().clone();
         let webview_pids: Arc<Mutex<HashMap<String, i32>>> =
             Arc::new(Mutex::new(HashMap::new()));
+        let main_thread_last_ack_ms: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
+        let mut hang_detector = HangDetector::default();
         let started = Instant::now();
         let mut sample_id: u64 = 0;
         let mut last_fallback_level = MemoryPressureLevel::Normal;
@@ -80,7 +88,7 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
             // tick reads pids captured by an earlier one — fine at this
             // cadence. Re-queried every tick because WebKit relaunches
             // WebContent (new pid) after a renderer termination.
-            refresh_webview_pids(&app_handle, &webview_pids);
+            refresh_webview_pids(&app_handle, &webview_pids, &main_thread_last_ack_ms, started);
 
             let app_version = app_handle.package_info().version.to_string();
             let timestamp_ms = std::time::SystemTime::now()
@@ -265,6 +273,16 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
             if has_new_or_restarted_webview {
                 webview_tuning::configure_all_webviews_memory_policy(&app_handle);
             }
+            if !payload.retired_processes.is_empty() {
+                // Reap cached/detached WebContent processes right after a window
+                // closes or restarts so WKProcessPool does not hoard them.
+                webview_tuning::clear_all_webviews_process_cache(&app_handle, false);
+            } else if sample_id % PROCESS_CACHE_SWEEP_EVERY_TICKS == 0 {
+                // Periodic zero-cost guard: only clears WebProcessCache when
+                // WKProcessPool holds more WebContent processes than live windows
+                // (e.g. after sandboxed artifact iframes unmount).
+                webview_tuning::clear_all_webviews_process_cache(&app_handle, true);
+            }
             previous_identities = current_identities;
 
             // Quality: full when every live window produced a footprint.
@@ -339,7 +357,8 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                 quality: payload.quality,
                 processes: payload.processes.clone(),
             };
-            write_mapping_file(&diagnostics_dir(&app_handle), &mapping);
+            let diag_dir = diagnostics_dir(&app_handle);
+            write_mapping_file(&diag_dir, &mapping);
 
             // Ack gate: emit only when no previous sample awaits its ack.
             // Skipped ticks are counted, never queued.
@@ -360,12 +379,48 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
                 if tauri::Emitter::emit(&app_handle, "desktop:memory-pressure", payload.clone())
                     .is_ok()
                 {
-                    state.record_sample(payload);
+                    state.record_sample(payload.clone());
                 } else {
                     // The event never reached a listener; nothing will ack
                     // this id, so it must not hold the gate.
                     state.clear_pending_sample();
                 }
+            }
+
+            // Detect sustained AppKit main-thread or renderer-ack stalls and
+            // capture background sample stacks before the user force-quits.
+            let (ever_acked_sample, consecutive_stalled_ticks) = state.ack_stall_state();
+            let last_main_ack = main_thread_last_ack_ms.load(Ordering::Relaxed);
+            if let Some(kind) = hang_detector.evaluate(&HangSignalInput {
+                monotonic_ms: payload.monotonic_ms,
+                main_thread_last_ack_ms: last_main_ack,
+                ever_acked_sample,
+                consecutive_stalled_ticks,
+            }) {
+                let main_webcontent_pid = payload
+                    .processes
+                    .iter()
+                    .find(|p| p.role == ProcessWindowRole::Main)
+                    .and_then(|p| p.pid);
+                capture_hang_evidence(
+                    diag_dir,
+                    HangReport {
+                        timestamp_ms: payload.timestamp_ms,
+                        monotonic_ms: payload.monotonic_ms,
+                        kind,
+                        desktop_pid: std::process::id(),
+                        main_webcontent_pid,
+                        main_footprint_bytes: payload.bytes,
+                        main_resident_bytes: payload.resident_bytes,
+                        consecutive_stalled_ticks,
+                        main_thread_silence_ms: if last_main_ack > 0 {
+                            payload.monotonic_ms.saturating_sub(last_main_ack)
+                        } else {
+                            0
+                        },
+                        window_count: labels.len(),
+                    },
+                );
             }
 
             std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
@@ -453,10 +508,10 @@ fn try_finish_purge(
 /// then `completed` once all deduplicated data stores finish (or `timeout`
 /// after 10s), `unavailable` off macOS. Fire-and-forget: returns `()`.
 #[tauri::command]
-pub fn purge_webview_memory(
+pub async fn purge_webview_memory(
     app_handle: tauri::AppHandle,
-    state: tauri::State<MemoryObservabilityState>,
-) {
+    state: tauri::State<'_, MemoryObservabilityState>,
+) -> Result<(), String> {
     let state = state.inner().clone();
     let request_id = state.allocate_purge_request();
 
@@ -535,7 +590,7 @@ pub fn purge_webview_memory(
 
         {
             let Ok(mut tracker) = tracker.lock() else {
-                return;
+                return Ok(());
             };
             tracker.sealed = true;
         }
@@ -588,6 +643,7 @@ pub fn purge_webview_memory(
             },
         );
     }
+    Ok(())
 }
 
 /// Recycle the calling window's OS WebContent process (macOS `_killWebContentProcess`

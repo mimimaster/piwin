@@ -77,6 +77,7 @@ export type WorkerPiSessionLike = {
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
+  dispose?: () => Promise<void>;
   compact?: (customInstructions?: string) => Promise<SessionCompactResult>;
   abortCompaction?: () => void;
   getAutoCompactionEnabled?: () => boolean;
@@ -601,16 +602,32 @@ export class WorkerSessionRuntime {
     const session = this.sessions.get(payload.sessionId);
     if (session) {
       this.assertSessionContext(session, context);
-      session.unsubscribe();
-      session.unsubscribeInterventions?.();
-      session.sampler.dispose();
-      this.deleteSessionAliases(session);
-    }
-    if (session) {
-      this.rejectPendingCallsForDroppedSession(session);
-      this.eventMapper.reset?.();
+      await this.disposeRuntimeSession(session);
     }
     this.sendResponse(id, true, {});
+  }
+
+  /**
+   * Dispose all remaining active sessions (e.g. when the worker is shutting
+   * down without an explicit `session/drop` frame).
+   */
+  async disposeAllSessions(): Promise<void> {
+    const unique = new Set(this.sessions.values());
+    await Promise.all(
+      [...unique].map((session) => this.disposeRuntimeSession(session)),
+    );
+  }
+
+  private async disposeRuntimeSession(session: RuntimeSession): Promise<void> {
+    session.unsubscribe();
+    session.unsubscribeInterventions?.();
+    session.sampler.dispose();
+    this.deleteSessionAliases(session);
+    this.rejectPendingCallsForDroppedSession(session);
+    this.eventMapper.reset?.();
+    await session.handle.dispose?.().catch(() => {
+      // Best-effort cleanup during drop/shutdown.
+    });
   }
 
   /**

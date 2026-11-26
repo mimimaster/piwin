@@ -12,8 +12,6 @@ import {
   shouldIgnoreTailRestick,
   shouldVirtualizeTranscript,
   TRANSCRIPT_LIVE_TAIL_PIN_COUNT,
-  TRANSCRIPT_TURN_CRITICAL_OVERSCAN,
-  TRANSCRIPT_TURN_MODERATE_OVERSCAN,
   TRANSCRIPT_TURN_OVERSCAN,
   TRANSCRIPT_VIRTUALIZATION_THRESHOLD,
   TRANSCRIPT_TURN_GAP_PX,
@@ -701,7 +699,7 @@ describe('transcript turn window', () => {
     expect(grew).toBe(grewAfterMount);
   });
 
-  it('shrinks mounted offscreen turns when memory pressure enters critical', async () => {
+  it('keeps mounted offscreen turns and pinned tail intact when memory pressure enters critical', async () => {
     const turns = createTurns(30);
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
     Object.defineProperties(container, {
@@ -737,14 +735,14 @@ describe('transcript turn window', () => {
       const criticalSlotNodes = Array.from(
         container.querySelectorAll<HTMLElement>('[data-testid="transcript-turn-window-item"]'),
       );
-      expect(criticalSlotNodes.length).toBeLessThan(normalSlots);
+      expect(criticalSlotNodes.length).toBe(normalSlots);
       const hasViewportTurn = criticalSlotNodes.some((slot) => {
         const start = Number.parseFloat(slot.style.top || '0');
         const end = start + Number.parseFloat(slot.style.height || '0');
         return end > container.scrollTop && start < container.scrollTop + container.clientHeight;
       });
       expect(hasViewportTurn).toBe(true);
-      expect(container.querySelector('#msg-user-29')).toBeNull();
+      expect(container.querySelector('#msg-user-29')).not.toBeNull();
 
       await act(async () => {
         root.render(
@@ -954,16 +952,15 @@ describe('transcript virtualization policy', () => {
     expect(shouldVirtualizeTranscript(21)).toBe(true);
     expect(shouldVirtualizeTranscript(200)).toBe(true);
     expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(0);
-    expect(TRANSCRIPT_TURN_CRITICAL_OVERSCAN).toBe(1);
     expect(resolveTranscriptTurnOverscan('normal')).toBe(TRANSCRIPT_TURN_OVERSCAN);
-    expect(resolveTranscriptTurnOverscan('moderate')).toBe(TRANSCRIPT_TURN_MODERATE_OVERSCAN);
-    expect(resolveTranscriptTurnOverscan('critical')).toBe(TRANSCRIPT_TURN_CRITICAL_OVERSCAN);
+    expect(resolveTranscriptTurnOverscan('moderate')).toBe(TRANSCRIPT_TURN_OVERSCAN);
+    expect(resolveTranscriptTurnOverscan('critical')).toBe(TRANSCRIPT_TURN_OVERSCAN);
     expect(resolveTranscriptLiveTailPinCount('normal', false)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
     expect(resolveTranscriptLiveTailPinCount('normal', true)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
-    expect(resolveTranscriptLiveTailPinCount('moderate', false)).toBe(1);
-    expect(resolveTranscriptLiveTailPinCount('moderate', true)).toBe(2);
-    expect(resolveTranscriptLiveTailPinCount('critical', false)).toBe(0);
-    expect(resolveTranscriptLiveTailPinCount('critical', true)).toBe(1);
+    expect(resolveTranscriptLiveTailPinCount('moderate', false)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
+    expect(resolveTranscriptLiveTailPinCount('moderate', true)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
+    expect(resolveTranscriptLiveTailPinCount('critical', false)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
+    expect(resolveTranscriptLiveTailPinCount('critical', true)).toBe(TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
   });
 
   it('range extractor still pins edit + live tail when virtualizer is re-enabled later', () => {

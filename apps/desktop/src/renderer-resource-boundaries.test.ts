@@ -245,25 +245,21 @@ describe('Desktop renderer resource boundaries', () => {
       );
     }
 
-    // Wait-state indicator styling: moderate pressure keeps core ui-anim-* alive
-    // while critical pressure and occlusion parking stop all CSS animations and
-    // transient will-change promotions globally.
+    // Wait-state indicator styling: moderate and critical pressure keep core ui-anim-*
+    // alive while critical still strips glass blur and transient will-change promotions;
+    // occlusion parking stops all CSS animations and will-change promotions globally.
     expect(degradation).not.toContain("html[data-memory-pressure='moderate'] [class*='ui-anim-']");
     expect(degradation).not.toContain(
       "html[data-memory-pressure='moderate'] .ui-anim-radial-bellow__vane",
     );
-    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *")).toContain(
-      'animation: none !important',
+    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *")).not.toContain(
+      'animation: none',
     );
     expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *")).toContain(
       'will-change: auto !important',
     );
-    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *::before")).toContain(
-      'animation: none !important',
-    );
-    expect(ruleDeclarations(degradation, "html[data-memory-pressure='critical'] *::after")).toContain(
-      'animation: none !important',
-    );
+    expect(degradation).not.toContain("html[data-memory-pressure='critical'] *::before");
+    expect(degradation).not.toContain("html[data-memory-pressure='critical'] *::after");
     for (const heavyPrimitive of [
       '.ui-anim-radial-bellow',
       '.ui-anim-breath-matrix',
@@ -273,9 +269,7 @@ describe('Desktop renderer resource boundaries', () => {
       '.ui-anim-organic-blob',
       '.ui-anim-cascade-ripple',
     ]) {
-      expect(
-        ruleDeclarations(degradation, `html[data-memory-pressure='critical'] ${heavyPrimitive}`),
-      ).toContain('animation: none !important');
+      expect(degradation).not.toContain(`html[data-memory-pressure='critical'] ${heavyPrimitive}`);
     }
     expect(ruleDeclarations(degradation, 'html[data-memory-parked] *')).toContain(
       'animation: none !important',

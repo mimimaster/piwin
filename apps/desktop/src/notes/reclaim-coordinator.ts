@@ -61,6 +61,8 @@ export { SLICE_BUDGET_MS } from './reclaim-policy.js';
 export const SAMPLER_TIMEOUT_MS = 60_000;
 /** Minimum gap before a new episode may start after a terminal outcome. */
 export const EPISODE_COOLDOWN_MS = 60_000;
+/** Upper bound for exponential backoff across consecutive non-recovering episodes. */
+export const MAX_EPISODE_COOLDOWN_MS = 8 * 60_000;
 
 export type ReclaimEpisode = {
   episodeId: number;
@@ -119,7 +121,16 @@ export function createReclaimCoordinator(deps: ReclaimCoordinatorDeps): ReclaimC
   let state: EpisodeState | undefined;
   let disposed = false;
   let lastTerminalAtMs = Number.NEGATIVE_INFINITY;
+  let consecutiveNonRecovered = 0;
   let nextEpisodeId = 1;
+
+  const currentCooldownMs = (): number => {
+    if (consecutiveNonRecovered <= 1) {
+      return EPISODE_COOLDOWN_MS;
+    }
+    const factor = 2 ** Math.min(consecutiveNonRecovered - 1, 4);
+    return Math.min(EPISODE_COOLDOWN_MS * factor, MAX_EPISODE_COOLDOWN_MS);
+  };
 
   const ctx: RunnerContext = {
     deps,
@@ -182,6 +193,7 @@ export function createReclaimCoordinator(deps: ReclaimCoordinatorDeps): ReclaimC
     pushRound(s, 'episode-terminal', `${outcome}: ${reason}`);
     deps.record({ ...s.episode, rounds: s.episode.rounds.slice() });
     lastTerminalAtMs = nowMs;
+    consecutiveNonRecovered = outcome === 'recovered' ? 0 : consecutiveNonRecovered + 1;
     state = undefined;
   };
   ctx.endEpisode = terminalEpisode;
@@ -198,6 +210,9 @@ export function createReclaimCoordinator(deps: ReclaimCoordinatorDeps): ReclaimC
 
   const tick = (nowMs: number): void => {
     if (disposed) return;
+    if (deps.getLevel() === 'normal') {
+      consecutiveNonRecovered = 0;
+    }
     const s = state;
     if (s === undefined) return;
 
@@ -272,7 +287,7 @@ export function createReclaimCoordinator(deps: ReclaimCoordinatorDeps): ReclaimC
     if (disposed) return;
     const nowMs = deps.now();
     if (state === undefined) {
-      if (nowMs - lastTerminalAtMs < EPISODE_COOLDOWN_MS) {
+      if (nowMs - lastTerminalAtMs < currentCooldownMs()) {
         return;
       }
       const episode: ReclaimEpisode = {

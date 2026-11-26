@@ -166,6 +166,30 @@ export function ArtifactSandboxFrame(props: {
   });
   const publication = usePublishedArtifactDocument(document, lease.hostIframe && lease.initGranted);
   const documentReady = publication.status === 'ready';
+  const iframeMountKey =
+    props.presentation === 'canvas' ? document.documentId : 'artifact-iframe';
+  const iframeMounted = lease.hostIframe && lease.initGranted && documentReady;
+  useLayoutEffect(() => {
+    if (!iframeMounted) {
+      return;
+    }
+    const iframe = iframeRef.current;
+    if (iframe === null) {
+      return;
+    }
+    // Navigating a sandboxed iframe to about:blank right before React detaches
+    // it prompts WebKit to tear down its opaque-origin subframe document rather
+    // than retaining an idle WebContent process in the process cache.
+    return () => {
+      if (iframe.src && iframe.src !== 'about:blank') {
+        try {
+          iframe.src = 'about:blank';
+        } catch {
+          // Best-effort teardown; ignore detached/cross-realm errors.
+        }
+      }
+    };
+  }, [iframeMounted, iframeMountKey]);
   const scrollPort = useTranscriptScrollPort();
   const measureHeight = props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
   // A final inline document starts at the height it had last time it mounted.

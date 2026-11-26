@@ -1,9 +1,11 @@
 import type {
   HostClientCapabilities,
+  PairingLinkV3,
   RemoteHostStatusData,
   TrustedDeviceCredential,
 } from '@piwin/contracts';
 import {
+  classifyChannelFailure,
   HostClient,
   type HostClientCursor,
   type HostClientCursorStore,
@@ -16,14 +18,17 @@ import { mobileLocalStorage } from './mobile-local-storage.js';
 import { createTauriHostWebSocket } from './tauri-host-websocket.js';
 
 const CLIENT_ID_KEY = 'piwin.mobile.client-id';
-const LAST_SEQ_KEY = 'piwin.mobile.last-seq';
-const CURSOR_KEY = 'piwin.mobile.cursor';
+export const MOBILE_LAST_SEQ_KEY = 'piwin.mobile.last-seq';
+export const MOBILE_CURSOR_KEY = 'piwin.mobile.cursor';
+export const MOBILE_CLIENT_VERSION = '0.0.0';
 
 export type MobileHostConnectionInput = {
   endpoint: string;
   authToken: string;
   pairingToken: string;
   expectedHostInstanceId?: string;
+  /** ADR 0101 v3 link from a scanned/pasted `piwin://pair?v=3&…` QR. */
+  channelLink?: PairingLinkV3;
 };
 
 export type MobileHostAdmission = {
@@ -53,7 +58,7 @@ export function createMobileHostClient(
     transport,
     clientId: getOrCreateClientId(),
     clientType: 'mobile',
-    clientVersion: '0.0.0',
+    clientVersion: MOBILE_CLIENT_VERSION,
     ...(authToken === undefined || authToken.length === 0 ? {} : { authToken }),
     ...(pairingToken === undefined || pairingToken.length === 0 ? {} : { pairingToken }),
     ...(admission.deviceCredential === undefined
@@ -65,8 +70,8 @@ export function createMobileHostClient(
     ...(admission.onIssuedDeviceCredential === undefined
       ? {}
       : { onIssuedDeviceCredential: admission.onIssuedDeviceCredential }),
-    lastSeqStore: createLocalStorageLastSeqStore(`${LAST_SEQ_KEY}.${storageSuffix}`),
-    cursorStore: createLocalStorageCursorStore(`${CURSOR_KEY}.${storageSuffix}`),
+    lastSeqStore: createLocalStorageLastSeqStore(`${MOBILE_LAST_SEQ_KEY}.${storageSuffix}`),
+    cursorStore: createLocalStorageCursorStore(`${MOBILE_CURSOR_KEY}.${storageSuffix}`),
     ...(capabilities === undefined ? {} : { capabilities }),
   });
 }
@@ -102,6 +107,18 @@ export function normalizeMobileHostEndpoint(rawEndpoint: string): string {
 
 export function formatMobileHostConnectionError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  switch (classifyChannelFailure(error)) {
+    case 'host-unavailable':
+      return 'Host 当前离线或未连入中继服务器，请确认电脑端 Piwin 正在运行。';
+    case 'host-key-mismatch':
+      return 'Host 密钥校验不匹配，请断开后重新扫码配对。';
+    case 'relay-limited':
+      return '中继服务器连接受限或请求过于频繁，请稍后重试。';
+    case 'relay-forbidden':
+      return '中继服务器拒绝了此次连接，请检查中继配置。';
+    case undefined:
+      break;
+  }
   if (message.includes('This runtime does not provide a WebSocket implementation')) {
     return '当前环境未启用原生 WebSocket 通道，请升级至最新客户端。';
   }
@@ -149,7 +166,7 @@ export function isRemoteHostStatusData(value: unknown): value is RemoteHostStatu
   );
 }
 
-function getOrCreateClientId(): string {
+export function getOrCreateClientId(): string {
   const storage = mobileLocalStorage();
   const stored = storage?.getItem(CLIENT_ID_KEY);
   if (stored !== null && stored !== undefined && stored.length > 0) {
@@ -167,7 +184,7 @@ function getOrCreateClientId(): string {
   return clientId;
 }
 
-function createLocalStorageLastSeqStore(storageKey: string): HostClientLastSeqStore {
+export function createLocalStorageLastSeqStore(storageKey: string): HostClientLastSeqStore {
   return {
     read: () => {
       const raw = mobileLocalStorage()?.getItem(storageKey);
@@ -180,7 +197,7 @@ function createLocalStorageLastSeqStore(storageKey: string): HostClientLastSeqSt
   };
 }
 
-function createLocalStorageCursorStore(storageKey: string): HostClientCursorStore {
+export function createLocalStorageCursorStore(storageKey: string): HostClientCursorStore {
   return {
     read: () => {
       const raw = mobileLocalStorage()?.getItem(storageKey);

@@ -36,6 +36,74 @@ pub(crate) unsafe fn tune_wkwebview_memory_preferences(webview: &objc2::runtime:
 }
 
 #[cfg(target_os = "macos")]
+pub(crate) unsafe fn clear_wkwebview_process_cache(webview: &objc2::runtime::AnyObject) -> bool {
+    use objc2::runtime::AnyObject;
+    use objc2::{msg_send, sel};
+
+    let has_config: bool = msg_send![webview, respondsToSelector: sel!(configuration)];
+    if !has_config {
+        return false;
+    }
+    let config: *mut AnyObject = msg_send![webview, configuration];
+    let Some(config) = config.as_ref() else {
+        return false;
+    };
+    let has_pool: bool = msg_send![config, respondsToSelector: sel!(processPool)];
+    if !has_pool {
+        return false;
+    }
+    let pool: *mut AnyObject = msg_send![config, processPool];
+    let Some(pool) = pool.as_ref() else {
+        return false;
+    };
+    let supports_clear: bool = msg_send![pool, respondsToSelector: sel!(_clearWebProcessCache)];
+    if !supports_clear {
+        return false;
+    }
+    let _: () = msg_send![pool, _clearWebProcessCache];
+    true
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) unsafe fn clear_wkwebview_process_cache_if_excess(
+    webview: &objc2::runtime::AnyObject,
+    live_window_count: usize,
+) -> bool {
+    use objc2::runtime::AnyObject;
+    use objc2::{msg_send, sel};
+
+    let has_config: bool = msg_send![webview, respondsToSelector: sel!(configuration)];
+    if !has_config {
+        return false;
+    }
+    let config: *mut AnyObject = msg_send![webview, configuration];
+    let Some(config) = config.as_ref() else {
+        return false;
+    };
+    let has_pool: bool = msg_send![config, respondsToSelector: sel!(processPool)];
+    if !has_pool {
+        return false;
+    }
+    let pool: *mut AnyObject = msg_send![config, processPool];
+    let Some(pool) = pool.as_ref() else {
+        return false;
+    };
+    let supports_count: bool = msg_send![pool, respondsToSelector: sel!(_webProcessCount)];
+    if supports_count {
+        let count: usize = msg_send![pool, _webProcessCount];
+        if count <= live_window_count {
+            return false;
+        }
+    }
+    let supports_clear: bool = msg_send![pool, respondsToSelector: sel!(_clearWebProcessCache)];
+    if !supports_clear {
+        return false;
+    }
+    let _: () = msg_send![pool, _clearWebProcessCache];
+    true
+}
+
+#[cfg(target_os = "macos")]
 pub(crate) unsafe fn purge_wkwebview_transient_state(webview: &objc2::runtime::AnyObject) {
     use objc2::{msg_send, sel};
 
@@ -45,11 +113,27 @@ pub(crate) unsafe fn purge_wkwebview_transient_state(webview: &objc2::runtime::A
     if supports_bf_clear {
         let _: () = msg_send![webview, _clearBackForwardCache];
     }
+    let _ = clear_wkwebview_process_cache(webview);
 }
 
 #[cfg(not(target_os = "macos"))]
 #[allow(dead_code)]
 pub(crate) unsafe fn tune_wkwebview_memory_preferences(_webview: &std::ffi::c_void) {}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(dead_code)]
+pub(crate) unsafe fn clear_wkwebview_process_cache(_webview: &std::ffi::c_void) -> bool {
+    false
+}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(dead_code)]
+pub(crate) unsafe fn clear_wkwebview_process_cache_if_excess(
+    _webview: &std::ffi::c_void,
+    _live_window_count: usize,
+) -> bool {
+    false
+}
 
 #[cfg(not(target_os = "macos"))]
 #[allow(dead_code)]
@@ -175,5 +259,51 @@ pub fn configure_all_webviews_memory_policy(app_handle: &tauri::AppHandle) {
     #[cfg(not(target_os = "macos"))]
     {
         let _ = app_handle;
+    }
+}
+
+/// Evict idle/cached `WebKit.WebContent` processes from `WKProcessPool`'s
+/// process cache without disturbing any live window or mounted iframe.
+/// When `only_if_excess` is true, skips the clear unless `_webProcessCount`
+/// exceeds the current live Tauri window count.
+pub(crate) fn clear_all_webviews_process_cache(
+    app_handle: &tauri::AppHandle,
+    only_if_excess: bool,
+) {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        let windows: Vec<tauri::WebviewWindow> =
+            app_handle.webview_windows().into_values().collect();
+        let live_window_count = windows.len();
+        // Prefer the main window (all windows usually share the default pool).
+        let target = windows
+            .iter()
+            .find(|w| w.label() == "main")
+            .or_else(|| windows.first())
+            .cloned();
+        let Some(window) = target else {
+            return;
+        };
+        let _ = window.with_webview(move |platform_webview| {
+            // SAFETY: `platform_webview.inner()` is the live `WKWebView*` on
+            // the macOS main thread; all SPI selectors are respondsToSelector-guarded.
+            unsafe {
+                use objc2::runtime::AnyObject;
+                let pointer = platform_webview.inner().cast::<AnyObject>();
+                if let Some(webview) = pointer.as_ref() {
+                    if only_if_excess {
+                        let _ =
+                            clear_wkwebview_process_cache_if_excess(webview, live_window_count);
+                    } else {
+                        let _ = clear_wkwebview_process_cache(webview);
+                    }
+                }
+            }
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app_handle, only_if_excess);
     }
 }

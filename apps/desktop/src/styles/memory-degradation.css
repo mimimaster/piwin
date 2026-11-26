@@ -14,7 +14,7 @@
 
    Tier map:
    - moderate (≥768 MiB) and critical (≥1536 MiB): every glass blur off;
-     translucent fills remain. */
+     translucent fills remain; core status animations stay running while visible. */
 
 /* data-memory-parked (memory-parking.ts) is occlusion-only: engaged after
    the window has been hidden long enough and removed on the same turn that
@@ -24,10 +24,15 @@ html[data-memory-pressure='moderate'] * {
   backdrop-filter: none !important;
 }
 
-/* Under critical pressure or occlusion parking, strip glass blur AND stop ALL
-   animations and will-change layer promotions across the entire document so
-   scrolling turns/chrome stop allocating IOSurface compositor layers. */
-html[data-memory-pressure='critical'] *,
+/* Under critical pressure, strip glass blur and will-change layer promotions
+   without freezing CSS animations. Under occlusion parking, also stop all
+   animations while the window is hidden. */
+html[data-memory-pressure='critical'] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  will-change: auto !important;
+}
+
 html[data-memory-parked] * {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
@@ -281,10 +286,9 @@ html[data-memory-parked] .behavior-generic-active {
 }
 
 /* Stop infinite status & entrance animations under pressure or parking.
-   Under critical pressure while visible, heavy multi-layer/SVG ui-anim-*
-   primitives stop while core status indicators downgrade to single-layer
-   low-memory dynamic motion (LiteRing / BreathDot). Occlusion parking
-   (data-memory-parked) stops every ui-anim-* animation. */
+   Core ui-anim-* status indicators stay running under both moderate and
+   critical pressure while visible. Occlusion parking (data-memory-parked)
+   stops every ui-anim-* animation. */
 html[data-memory-pressure='moderate'] .behavior-thinking-active,
 html[data-memory-pressure='critical'] .behavior-thinking-active,
 html[data-memory-parked] .behavior-thinking-active,
@@ -318,20 +322,6 @@ html[data-memory-parked] .bubble.is-new,
 html[data-memory-pressure='moderate'] .action-marquee-item,
 html[data-memory-pressure='critical'] .action-marquee-item,
 html[data-memory-parked] .action-marquee-item,
-html[data-memory-pressure='critical'] .ui-anim-radial-bellow,
-html[data-memory-pressure='critical'] .ui-anim-radial-bellow *,
-html[data-memory-pressure='critical'] .ui-anim-breath-matrix,
-html[data-memory-pressure='critical'] .ui-anim-breath-matrix *,
-html[data-memory-pressure='critical'] .ui-anim-asterisk,
-html[data-memory-pressure='critical'] .ui-anim-asterisk *,
-html[data-memory-pressure='critical'] .ui-anim-pulse-block,
-html[data-memory-pressure='critical'] .ui-anim-pulse-block *,
-html[data-memory-pressure='critical'] .ui-anim-solid-bars,
-html[data-memory-pressure='critical'] .ui-anim-solid-bars *,
-html[data-memory-pressure='critical'] .ui-anim-organic-blob,
-html[data-memory-pressure='critical'] .ui-anim-organic-blob *,
-html[data-memory-pressure='critical'] .ui-anim-cascade-ripple,
-html[data-memory-pressure='critical'] .ui-anim-cascade-ripple *,
 html[data-memory-parked] [class*='ui-anim-'],
 html[data-memory-parked] [class*='ui-anim-'] * {
   animation: none !important;
@@ -360,19 +350,12 @@ html[data-memory-pressure='moderate'] .turn-work-details-summary .turn-summary-a
   animation: none !important;
 }
 
-/* Under critical pressure or occlusion parking, also stop pseudo-element
-   animations (status ripples, pulse halos, shimmer overlays) and layer promotions. */
-html[data-memory-pressure='critical'] *::before,
-html[data-memory-pressure='critical'] *::after,
+/* Under occlusion parking, also stop pseudo-element animations (status
+   ripples, pulse halos, shimmer overlays) and layer promotions. */
 html[data-memory-parked] *::before,
 html[data-memory-parked] *::after {
   animation: none !important;
   will-change: auto !important;
-}
-
-html[data-memory-pressure='critical'] .ui-anim-radial-bellow__vane {
-  opacity: 0.72 !important;
-  transform: scale(0.55, 0.45) !important;
 }
 
 html[data-memory-parked] .ui-anim-radial-bellow__vane {

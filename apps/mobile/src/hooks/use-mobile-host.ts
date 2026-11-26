@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   ActivitySummaryItem,
   ConfiguredChatModel,
@@ -54,6 +54,16 @@ import {
   type MobileHostConnectionInput,
 } from '../mobile-host-connection.js';
 import {
+  clearMobileChannelHost,
+  createMobileChannelHostClient,
+  displayEndpointForHostEntry,
+  mobileChannelVault,
+  mobileHostBook,
+  readLastMobileChannelHostId,
+  resolveMobileChannelTarget,
+} from '../mobile-channel-host.js';
+import { selectMobileSession } from './mobile-session-select.js';
+import {
   readMobileDeviceCredential,
   isNativeTauriRuntime,
   type MobileDeviceCredentialVault,
@@ -63,10 +73,7 @@ import {
   disposeClient,
   toError,
 } from '../mobile-host-helpers.js';
-import {
-  readPauseCheckpointId,
-  readRunId,
-} from '../mobile-host-readers.js';
+import { readRunId } from '../mobile-host-readers.js';
 import {
   createMobileIdempotencyKey,
   executeMobileMutation,
@@ -80,7 +87,7 @@ import {
 } from '../mobile-activity-summary.js';
 import { createMobileRemoteReadModelRefresher } from './mobile-host-read-model.js';
 import { useMobileProjectList } from './mobile-project-list.js';
-import { uploadMobileImage } from './mobile-media-upload.js';
+import { useMobileAttachments } from './use-mobile-attachments.js';
 import { abortMobileRun, useMobilePermission } from './mobile-run-controls.js';
 import {
   createMobileSession,
@@ -123,7 +130,6 @@ export function useMobileHost() {
   const [pausedCheckpointId, setPausedCheckpointId] = useState<string | undefined>();
   const [attachments, setAttachments] = useState<MobileMediaAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [pendingReplaceRunId, setPendingReplaceRunId] = useState<string | undefined>();
   const [credentialPersistError, setCredentialPersistError] = useState(false);
@@ -135,6 +141,12 @@ export function useMobileHost() {
 
   const clientRef = useRef<HostClient | undefined>(undefined);
   const activeSessionRef = useRef<string | undefined>(undefined);
+  const attachmentsRuntime = useMobileAttachments({
+    clientRef,
+    activeSessionRef,
+    setAttachments,
+    setErrorMessage,
+  });
   const selectionGenerationRef = useRef(0);
   const initialConnectInFlightRef = useRef(false);
   const connectAttemptRef = useRef(0);
@@ -149,6 +161,9 @@ export function useMobileHost() {
   const healthConsentResolverRef = useRef<
     ((decision: MobileClientToolConsentDecision) => void) | undefined
   >(undefined);
+  const channelBookRef = useRef(mobileHostBook());
+  const channelVaultRef = useRef(mobileChannelVault());
+  const activeChannelHostIdRef = useRef<string | undefined>(undefined);
 
   const {
     healthNativeAvailable,
@@ -204,7 +219,10 @@ export function useMobileHost() {
     let active = true;
     void (async (): Promise<void> => {
       const savedEndpoint = getDefaultHostEndpoint();
-      const savedCredential = await readMobileDeviceCredential(vaultRef.current, savedEndpoint);
+      const savedCredential =
+        readLastMobileChannelHostId() === undefined
+          ? await readMobileDeviceCredential(vaultRef.current, savedEndpoint)
+          : undefined;
       if (!active) return;
       if (savedCredential !== undefined) {
         deviceCredentialRef.current = savedCredential;
@@ -299,14 +317,6 @@ export function useMobileHost() {
     const attemptId = connectAttemptRef.current + 1;
     connectAttemptRef.current = attemptId;
 
-    let normalizedEndpoint: string;
-    try {
-      normalizedEndpoint = normalizeMobileHostEndpoint(connectionInput.endpoint);
-    } catch (error) {
-      setErrorMessage(formatMobileHostConnectionError(error));
-      return false;
-    }
-
     const pairing = connectionInput.pairingToken.trim();
     const door = connectionInput.authToken.trim();
     if (pairing.length > 0 && door.length > 0) {
@@ -314,10 +324,48 @@ export function useMobileHost() {
       return false;
     }
 
-    if (input !== undefined) {
+    // ADR 0101: a v3 link pairs, a bare connect redials the saved channel
+    // Host; anything else is a legacy/manual dial.
+    let channelTarget: Awaited<ReturnType<typeof resolveMobileChannelTarget>>;
+    try {
+      channelTarget = await resolveMobileChannelTarget({
+        channelLink: connectionInput.channelLink,
+        explicitConnect:
+          input !== undefined || pairing.length > 0 || door.length > 0,
+        allowSavedHost: input === undefined && pairing.length === 0 && door.length === 0,
+        book: channelBookRef.current,
+        vault: channelVaultRef.current,
+      });
+    } catch (error) {
+      setErrorMessage(formatMobileHostConnectionError(error));
+      return false;
+    }
+    if (attemptId !== connectAttemptRef.current) {
+      return false;
+    }
+    activeChannelHostIdRef.current = channelTarget?.entry.hostId;
+
+    let normalizedEndpoint: string;
+    try {
+      normalizedEndpoint = normalizeMobileHostEndpoint(
+        channelTarget === undefined
+          ? connectionInput.endpoint
+          : displayEndpointForHostEntry(channelTarget.entry),
+      );
+    } catch (error) {
+      setErrorMessage(formatMobileHostConnectionError(error));
+      return false;
+    }
+    if (input !== undefined || channelTarget !== undefined) {
       setEndpoint(normalizedEndpoint);
+    }
+    if (input !== undefined) {
       setAuthToken(connectionInput.authToken);
-      setPairingToken(connectionInput.pairingToken);
+      setPairingToken(
+        connectionInput.channelLink !== undefined && channelTarget !== undefined
+          ? ''
+          : connectionInput.pairingToken,
+      );
       setExpectedHostInstanceId(connectionInput.expectedHostInstanceId);
     }
 
@@ -372,32 +420,46 @@ export function useMobileHost() {
       allowFake: allowFakeHealth,
     });
 
-    const client = createMobileHostClient(
-      normalizedEndpoint,
-      {
-        ...(pairing.length > 0
-          ? { pairingToken: pairing, deviceName: MOBILE_DEVICE_NAME }
-          : door.length > 0
-            ? { authToken: door }
-            : deviceCredentialRef.current !== undefined
-              ? { deviceCredential: deviceCredentialRef.current }
-              : {}),
-        onIssuedDeviceCredential: async (issued) => {
-          if (attemptId !== connectAttemptRef.current) {
-            return;
-          }
-          deviceCredentialRef.current = issued;
-          deviceCredentialEndpointRef.current = normalizedEndpoint;
-          try {
-            await vaultRef.current.write(normalizedEndpoint, issued);
-            setCredentialPersistError(false);
-          } catch {
-            setCredentialPersistError(true);
-          }
-        },
-      },
-      buildMobileHelloCapabilities({ advertiseHealth }),
-    );
+    const capabilities = buildMobileHelloCapabilities({ advertiseHealth });
+    const client =
+      channelTarget !== undefined
+        ? createMobileChannelHostClient({
+            entry: channelTarget.entry,
+            secrets: channelTarget.secrets,
+            capabilities,
+            book: channelBookRef.current,
+            onEndpoints: (updated) => {
+              if (updated !== undefined) {
+                setEndpoint(displayEndpointForHostEntry(updated));
+              }
+            },
+          })
+        : createMobileHostClient(
+            normalizedEndpoint,
+            {
+              ...(pairing.length > 0
+                ? { pairingToken: pairing, deviceName: MOBILE_DEVICE_NAME }
+                : door.length > 0
+                  ? { authToken: door }
+                  : deviceCredentialRef.current !== undefined
+                    ? { deviceCredential: deviceCredentialRef.current }
+                    : {}),
+              onIssuedDeviceCredential: async (issued) => {
+                if (attemptId !== connectAttemptRef.current) {
+                  return;
+                }
+                deviceCredentialRef.current = issued;
+                deviceCredentialEndpointRef.current = normalizedEndpoint;
+                try {
+                  await vaultRef.current.write(normalizedEndpoint, issued);
+                  setCredentialPersistError(false);
+                } catch {
+                  setCredentialPersistError(true);
+                }
+              },
+            },
+            capabilities,
+          );
     clientRef.current = client;
     initialConnectInFlightRef.current = true;
     unsubscribeRef.current.push(
@@ -441,7 +503,9 @@ export function useMobileHost() {
       if (attemptId !== connectAttemptRef.current || clientRef.current !== client) {
         return false;
       }
-      writeLastMobileHostEndpoint(normalizedEndpoint);
+      if (channelTarget === undefined) {
+        writeLastMobileHostEndpoint(normalizedEndpoint);
+      }
       if (pairing.length > 0) {
         setPairingToken('');
       }
@@ -456,7 +520,10 @@ export function useMobileHost() {
       await refreshRemoteReadModel(client);
       await refreshKnowledge(client);
       const hello = client.getHostHello();
-      const pairedDeviceId = deviceCredentialRef.current?.deviceId ?? hello?.deviceId;
+      const pairedDeviceId =
+        channelTarget?.secrets.credential.deviceId ??
+        deviceCredentialRef.current?.deviceId ??
+        hello?.deviceId;
       const resolvedDeviceId = resolveMobileHealthDeviceId({
         ...(pairedDeviceId === undefined ? {} : { deviceId: pairedDeviceId }),
         clientId: client.getClientId(),
@@ -512,6 +579,13 @@ export function useMobileHost() {
       // Clearing the local vault must not block disconnect.
     }
     clearLastMobileHostEndpoint();
+    const channelHostId = activeChannelHostIdRef.current ?? readLastMobileChannelHostId();
+    activeChannelHostIdRef.current = undefined;
+    await clearMobileChannelHost({
+      hostId: channelHostId,
+      book: channelBookRef.current,
+      vault: channelVaultRef.current,
+    });
     deviceCredentialRef.current = undefined;
     deviceCredentialEndpointRef.current = undefined;
     connectAttemptRef.current += 1;
@@ -554,58 +628,21 @@ export function useMobileHost() {
     }
   };
 
-  const handleSelectSession = async (sessionId: string): Promise<void> => {
-    const client = clientRef.current;
-    if (client === undefined) {
-      return;
-    }
-    const generation = selectionGenerationRef.current + 1;
-    selectionGenerationRef.current = generation;
-    activeSessionRef.current = sessionId;
-    setActiveSessionId(sessionId);
-    setPausedCheckpointId(undefined);
-    setPermissionRequest(undefined);
-    setAttachments([]);
-    setErrorMessage(undefined);
-    setPendingReplaceRunId(undefined);
-    // A selection change invalidates the previous foreground run immediately;
-    // the new Host snapshot will install its own run after hydration.
-    setForeground(initialForegroundRunState());
-    try {
-      const resumeResponse = await client.request({ type: 'session/resume', sessionId });
-      if (
-        clientRef.current !== client ||
-        activeSessionRef.current !== sessionId ||
-        selectionGenerationRef.current !== generation
-      ) {
-        return;
-      }
-      if (resumeResponse.success) {
-        setMessages(readSessionMessages(resumeResponse));
-        setPausedCheckpointId(readPauseCheckpointId(resumeResponse.data));
-        await beginSessionForeground(client, sessionId, generation);
-        return;
-      }
-      const messagesResponse = await client.request({ type: 'session/messages', sessionId });
-      if (
-        clientRef.current !== client ||
-        activeSessionRef.current !== sessionId ||
-        selectionGenerationRef.current !== generation
-      ) {
-        return;
-      }
-      setMessages(readSessionMessages(messagesResponse));
-      await beginSessionForeground(client, sessionId, generation);
-    } catch (error) {
-      if (
-        clientRef.current === client &&
-        activeSessionRef.current === sessionId &&
-        selectionGenerationRef.current === generation
-      ) {
-        setErrorMessage(toError(error, '读取会话消息失败。').message);
-      }
-    }
-  };
+  const handleSelectSession = async (sessionId: string): Promise<void> =>
+    selectMobileSession({
+      clientRef,
+      activeSessionRef,
+      selectionGenerationRef,
+      setActiveSessionId,
+      setPausedCheckpointId,
+      setPermissionRequest,
+      setAttachments,
+      setErrorMessage,
+      setPendingReplaceRunId,
+      setMessages,
+      setForeground,
+      beginSessionForeground,
+    }, sessionId);
 
   const handleCreateSession = async (projectId?: string): Promise<string | undefined> => {
     const client = clientRef.current;
@@ -853,33 +890,10 @@ export function useMobileHost() {
     void refreshActivitySummary(client);
   };
 
-  const handleFileSelected = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
-    const client = clientRef.current;
-    const sessionId = activeSessionRef.current;
-    if (file === undefined || client === undefined || sessionId === undefined) {
-      return;
-    }
-    setIsUploadingMedia(true);
-    setErrorMessage(undefined);
-    try {
-      const result = await uploadMobileImage(client, sessionId, file);
-      if (result.ok) {
-        setAttachments((current) => [...current, result.attachment]);
-      } else {
-        setErrorMessage(result.message);
-      }
-    } finally {
-      setIsUploadingMedia(false);
-    }
+  const handleFileSelected = attachmentsRuntime.handleFileSelected;
+  const removeAttachment = (id: string): void => {
+    attachmentsRuntime.removeAttachment(id);
   };
-
-  const removeAttachment = (id: string) => {
-    setAttachments((current) => current.filter((item) => item.id !== id));
-  };
-
-
 
   return {
     /** The connected HostClient is the shared authority for chat and Live. */
@@ -913,7 +927,7 @@ export function useMobileHost() {
     attachments,
     removeAttachment,
     isSending,
-    isUploadingMedia,
+    isUploadingMedia: attachmentsRuntime.isUploadingMedia,
     isResolvingPermission,
     errorMessage,
     setErrorMessage,

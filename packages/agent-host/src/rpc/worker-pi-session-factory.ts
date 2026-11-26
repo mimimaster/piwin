@@ -43,6 +43,7 @@ import {
 
 import { resolveRegistrationStreamSimple } from '../attach-provider-stream-simple.js';
 import { wrapModelRuntimeReasoningLoopGuard } from '../reasoning-loop-guard.js';
+import { disposePiSession, type PiSessionShutdownRunnerLike } from '../dispose-pi-session.js';
 import { wrapModelRuntimeStreamTiming } from '../stream-request-timing.js';
 import type { NativeSearchStreamSimple } from '../native-web-search.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
@@ -656,6 +657,7 @@ function createWorkerRequestId(): string {
 
 /** Pi session shape we need from `createAgentSession` inside the worker. */
 type WorkerPiSessionHandle = PiExtensionCommandSession & {
+  extensionRunner?: PiExtensionCommandSession['extensionRunner'] & PiSessionShutdownRunnerLike;
   agent?: PiRunInterventionSession['agent'];
   readonly isStreaming?: boolean;
   sessionId?: string;
@@ -671,6 +673,7 @@ type WorkerPiSessionHandle = PiExtensionCommandSession & {
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
+  dispose?: () => void | Promise<void>;
   compact?: (customInstructions?: string) => Promise<PiCompactionResult>;
   abortCompaction?: () => void;
   readonly autoCompactionEnabled?: boolean;
@@ -708,6 +711,7 @@ function adaptPiSessionForWorker(
         getActiveRunId: () => activeRunId,
       })
     : undefined;
+  let disposedPromise: Promise<void> | undefined;
   return {
     id: piSession.sessionId ?? productSessionId,
     setActiveRunId(runId) {
@@ -768,6 +772,10 @@ function adaptPiSessionForWorker(
         }
       : {}),
     ...(piSession.abort ? { abort: () => piSession.abort!() } : {}),
+    dispose: () => {
+      disposedPromise ??= disposePiSession(piSession);
+      return disposedPromise;
+    },
     ...(piSession.compact
       ? {
           compact: (customInstructions?: string) =>

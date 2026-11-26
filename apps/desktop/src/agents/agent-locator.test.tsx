@@ -109,18 +109,18 @@ describe('AgentLocator', () => {
     expect(container.querySelector('[data-testid="skill-activity-matrix"]')).not.toBeNull();
   });
 
-  it('downgrades multi-layer and SVG indicators to LiteRing under critical pressure while preserving BreathDot and recovery', () => {
+  it('keeps user-selected and Skill indicators active without downgrading to LiteRing under critical pressure', () => {
     act(() => {
       globalMemoryGovernor.setLevel('critical');
     });
 
     render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="radial-bellow" />);
-    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="agent-locator-radial-bellow"]')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-radial-bellow"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).toBeNull();
 
     render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="asterisk-breath" />);
-    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="agent-locator-asterisk"]')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-asterisk"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).toBeNull();
 
     render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="breath-dot" />);
     expect(container.querySelector('[data-testid="agent-locator-dot"]')).not.toBeNull();
@@ -136,11 +136,12 @@ describe('AgentLocator', () => {
         locale="zh-CN"
       />,
     );
-    expect(container.querySelector('[data-testid="skill-activity-lite-ring"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="skill-activity-matrix"]')).toBeNull();
+    expect(container.querySelector('[data-testid="skill-activity-matrix"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="skill-activity-lite-ring"]')).toBeNull();
 
     render(<AgentLocator input={{ kind: 'connecting-model', locale: 'en' }} animation="radial-bellow" />);
-    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-radial-bellow"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator-lite-ring"]')).toBeNull();
 
     act(() => {
       globalMemoryGovernor.setLevel('normal');

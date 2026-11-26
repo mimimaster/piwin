@@ -102,7 +102,7 @@ describe('live-motion-metrics', () => {
     expect(getLiveMotionStats().total).toBe(0);
   });
 
-  it('tracks lite-ring downgrade under critical pressure and restores primitives on normal', () => {
+  it('keeps tracking configured primitives without lite-ring downgrade under critical pressure', () => {
     act(() => {
       globalMemoryGovernor.setLevel('critical');
       root.render(
@@ -116,11 +116,11 @@ describe('live-motion-metrics', () => {
     expect(getLiveMotionStats()).toEqual({
       total: 2,
       byKind: {
-        'radial-bellow': 0,
+        'radial-bellow': 1,
         'asterisk-breath': 0,
         'breath-dot': 0,
-        'breath-matrix': 0,
-        'lite-ring': 2,
+        'breath-matrix': 1,
+        'lite-ring': 0,
       },
     });
 

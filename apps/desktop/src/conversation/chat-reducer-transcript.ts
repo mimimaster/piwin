@@ -209,17 +209,11 @@ export function collectLiveTranscriptMessageIds(
 export const TRANSCRIPT_PROTECTED_TAIL_MESSAGES = 16;
 
 export function resolveTranscriptWindowLimits(level: MemoryPressureLevel): TranscriptWindowLimits {
-  switch (level) {
-    case 'critical':
-      return { maxMessages: 24, maxBytes: 256 * 1024 };
-    case 'moderate':
-      return { maxMessages: 48, maxBytes: 512 * 1024 };
-    default:
-      return {
-        maxMessages: MAX_TRANSCRIPT_CACHE_MESSAGES,
-        maxBytes: MAX_TRANSCRIPT_CACHE_BYTES,
-      };
-  }
+  void level;
+  return {
+    maxMessages: MAX_TRANSCRIPT_CACHE_MESSAGES,
+    maxBytes: MAX_TRANSCRIPT_CACHE_BYTES,
+  };
 }
 
 export function collectRetainedTranscriptMessageIds(

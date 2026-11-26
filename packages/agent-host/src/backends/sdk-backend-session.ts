@@ -68,6 +68,7 @@ import { registerClaudeCodeOauthProvider } from '../anthropic-oauth/register-cla
 import { registerDevinOauthProvider } from '../devin/register-devin-provider.js';
 import { wrapModelRuntimeReasoningLoopGuard } from '../reasoning-loop-guard.js';
 import { wrapModelRuntimeStreamTiming } from '../stream-request-timing.js';
+import { disposePiSession, type PiSessionShutdownRunnerLike } from '../dispose-pi-session.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -336,6 +337,7 @@ function wrapBackendPiSession(
         getActiveRunId,
       })
     : undefined;
+  let disposedPromise: Promise<void> | undefined;
   return {
     id: input.blueprint.sessionId,
     async prompt(preparedPrompt: BackendPreparedPrompt) {
@@ -427,6 +429,18 @@ function wrapBackendPiSession(
         eventMapper.reset?.();
       }
     },
+    dispose() {
+      disposedPromise ??= (async () => {
+        occupancyListeners.clear();
+        sampler.dispose();
+        try {
+          await disposePiSession(piSession);
+        } finally {
+          eventMapper.reset?.();
+        }
+      })();
+      return disposedPromise;
+    },
     ...(piSession.compact
       ? {
           compact(customInstructions?: string) {
@@ -484,6 +498,7 @@ function wrapBackendPiSession(
 }
 
 type PiLikeSession = PiExtensionCommandSession & {
+  extensionRunner?: PiExtensionCommandSession['extensionRunner'] & PiSessionShutdownRunnerLike;
   agent?: PiRunInterventionSession['agent'];
   readonly isStreaming?: boolean;
   prompt: (
@@ -496,6 +511,7 @@ type PiLikeSession = PiExtensionCommandSession & {
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
+  dispose?: () => void | Promise<void>;
   compact?: (customInstructions?: string) => Promise<PiCompactionResult>;
   abortCompaction?: () => void;
   readonly autoCompactionEnabled?: boolean;

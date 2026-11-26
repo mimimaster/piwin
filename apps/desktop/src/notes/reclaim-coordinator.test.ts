@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   EPISODE_COOLDOWN_MS,
+  MAX_EPISODE_COOLDOWN_MS,
   OBSERVATION_POINTS_MS,
   PURGE_TIMEOUT_MS,
   RECOVERY_DELTA_BYTES,
@@ -472,5 +473,46 @@ describe('createReclaimCoordinator', () => {
     // Post-dispose samples are ignored.
     h.coordinator.onPressureSample({ bytes: 2_000 * MIB, level: 'critical' });
     expect(h.coordinator.getCurrentEpisode()).toBeUndefined();
+  });
+
+  it('backs off cooldown exponentially across consecutive non-recovering episodes and resets on normal', () => {
+    const h = makeHarness();
+    h.setLevel('critical');
+
+    const finishNonRecoveredEpisode = (): void => {
+      h.coordinator.onPressureSample({ bytes: 2_000 * MIB, level: 'critical' });
+      expect(h.coordinator.getCurrentEpisode()).toBeDefined();
+      h.setSampleAge(undefined);
+      h.advance(SAMPLER_TIMEOUT_MS);
+      expect(h.coordinator.getCurrentEpisode()).toBeUndefined();
+    };
+
+    // Episode 1 ends non-recovered → cooldown = 1 × EPISODE_COOLDOWN_MS (60s).
+    finishNonRecoveredEpisode();
+    h.advance(EPISODE_COOLDOWN_MS);
+    // Episode 2 ends non-recovered → cooldown = 2 × EPISODE_COOLDOWN_MS (120s).
+    finishNonRecoveredEpisode();
+    h.advance(EPISODE_COOLDOWN_MS);
+    h.coordinator.onPressureSample({ bytes: 2_000 * MIB, level: 'critical' });
+    expect(h.coordinator.getCurrentEpisode()).toBeUndefined();
+    h.advance(EPISODE_COOLDOWN_MS);
+    // Episode 3 ends non-recovered → cooldown = 4 × EPISODE_COOLDOWN_MS (240s).
+    finishNonRecoveredEpisode();
+    h.advance(EPISODE_COOLDOWN_MS * 3);
+    h.coordinator.onPressureSample({ bytes: 2_000 * MIB, level: 'critical' });
+    expect(h.coordinator.getCurrentEpisode()).toBeUndefined();
+    h.advance(EPISODE_COOLDOWN_MS);
+    // Episode 4 ends non-recovered → capped at MAX_EPISODE_COOLDOWN_MS (480s).
+    finishNonRecoveredEpisode();
+    h.advance(MAX_EPISODE_COOLDOWN_MS - 1);
+    h.coordinator.onPressureSample({ bytes: 2_000 * MIB, level: 'critical' });
+    expect(h.coordinator.getCurrentEpisode()).toBeUndefined();
+
+    // Returning to normal clears the backoff back to EPISODE_COOLDOWN_MS.
+    h.setLevel('normal');
+    h.coordinator.tick(h.nowMs);
+    h.setLevel('critical');
+    h.coordinator.onPressureSample({ bytes: 2_000 * MIB, level: 'critical' });
+    expect(h.coordinator.getCurrentEpisode()?.episodeId).toBe(5);
   });
 });

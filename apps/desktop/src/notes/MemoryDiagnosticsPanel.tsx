@@ -37,7 +37,7 @@ export function MemoryDiagnosticsPanel(props: MemoryDiagnosticsPanelProps): Reac
   );
   const liveMotionCount = getLiveStatusAnimationCount(data);
   const parked = data?.parked === true;
-  const motionMode = parked ? 'parked' : data?.level === 'critical' ? 'lite' : null;
+  const motionMode = parked ? 'parked' : null;
 
   return (
     <div className="memory-diagnostics" data-testid="memory-diagnostics-panel" data-condition={report.condition}>

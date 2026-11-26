@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import type { PairingLinkV3 } from '@piwin/contracts';
 import type { HostClientState } from '@piwin/host-client';
 import {
-  parsePairingString,
+  classifyPairingInput,
   scanPairingQrCode,
+  type PairingInput,
   type ParsedPairingData,
 } from '../../services/barcode-pairing.js';
 import type { MobileHostConnectionInput } from '../../mobile-host-connection.js';
@@ -53,6 +55,7 @@ export function ConnectionSurface({
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | undefined>();
   const [pasteFeedback, setPasteFeedback] = useState<string | undefined>();
+  const [pendingChannelLink, setPendingChannelLink] = useState<PairingLinkV3 | undefined>();
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -62,10 +65,17 @@ export function ConnectionSurface({
     }
   }, []);
 
+  useEffect(() => {
+    if (pairingToken.trim().length === 0) {
+      setPendingChannelLink(undefined);
+    }
+  }, [pairingToken]);
+
   const isConnected = connectionState.kind === 'ready';
   const isConnecting = connectionState.kind === 'connecting';
 
   const applyPairingData = (parsed: ParsedPairingData): MobileHostConnectionInput => {
+    setPendingChannelLink(undefined);
     const input: MobileHostConnectionInput = {
       endpoint: parsed.endpoint,
       authToken: parsed.authToken ?? '',
@@ -81,13 +91,33 @@ export function ConnectionSurface({
     return input;
   };
 
+  /** ADR 0101 v3 links dial the encrypted channel; anything else stays on the legacy path. */
+  const applyPairingInput = (input: PairingInput): MobileHostConnectionInput => {
+    if (input.kind === 'channel') {
+      const { link } = input;
+      const shownEndpoint = link.relayUrl ?? link.directUrl ?? '';
+      setEndpoint(shownEndpoint);
+      setAuthToken('');
+      setPairingToken(link.pairingToken);
+      setExpectedHostInstanceId(undefined);
+      setPendingChannelLink(link);
+      return {
+        endpoint: shownEndpoint,
+        authToken: '',
+        pairingToken: link.pairingToken,
+        channelLink: link,
+      };
+    }
+    return applyPairingData(input.data);
+  };
+
   const handleScanQr = async () => {
     setIsScanning(true);
     setScanError(undefined);
     setPasteFeedback(undefined);
     try {
       const parsed = await scanPairingQrCode();
-      onConnect(applyPairingData(parsed));
+      onConnect(applyPairingInput(parsed));
     } catch (err) {
       setScanError(err instanceof Error ? err.message : '相机扫码失败。');
     } finally {
@@ -108,8 +138,8 @@ export function ConnectionSurface({
         return;
       }
       try {
-        const parsed = parsePairingString(text);
-        onConnect(applyPairingData(parsed));
+        const parsed = classifyPairingInput(text);
+        onConnect(applyPairingInput(parsed));
       } catch {
         if (text.length > 8 && !text.includes(' ') && !text.includes('\n')) {
           setPairingToken(text);
@@ -133,15 +163,17 @@ export function ConnectionSurface({
       trimmed.startsWith('http://') ||
       trimmed.startsWith('https://') ||
       trimmed.startsWith('ws://') ||
-      trimmed.startsWith('wss://');
+      trimmed.startsWith('wss://') ||
+      trimmed.includes('#pair=');
     if (looksLikePairingPayload) {
       try {
-        applyPairingData(parsePairingString(value));
+        applyPairingInput(classifyPairingInput(value));
         return;
       } catch {
         // Keep the pasted value visible so the user can correct it or retry.
       }
     }
+    setPendingChannelLink(undefined);
     setPairingToken(value);
     if (trimmed.length > 0) {
       setAuthToken('');
@@ -206,16 +238,36 @@ export function ConnectionSurface({
               ) : (
                 <ManualConfigPane
                   endpoint={endpoint}
-                  setEndpoint={setEndpoint}
+                  setEndpoint={(value) => {
+                    setPendingChannelLink(undefined);
+                    setEndpoint(value);
+                  }}
                   pairingToken={pairingToken}
                   onPairingTokenChange={handlePairingTokenChange}
                   authToken={authToken}
-                  setAuthToken={setAuthToken}
-                  setPairingToken={setPairingToken}
+                  setAuthToken={(value) => {
+                    setPendingChannelLink(undefined);
+                    setAuthToken(value);
+                  }}
+                  setPairingToken={(value) => {
+                    setPendingChannelLink(undefined);
+                    setPairingToken(value);
+                  }}
                   isConnected={isConnected}
                   isConnecting={isConnecting}
                   isScanning={isScanning}
-                  onConnect={() => onConnect()}
+                  onConnect={() =>
+                    onConnect(
+                      pendingChannelLink === undefined
+                        ? undefined
+                        : {
+                            endpoint,
+                            authToken: '',
+                            pairingToken: pendingChannelLink.pairingToken,
+                            channelLink: pendingChannelLink,
+                          },
+                    )
+                  }
                 />
               )}
             </div>

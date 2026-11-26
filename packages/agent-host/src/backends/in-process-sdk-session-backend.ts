@@ -43,7 +43,7 @@ export class InProcessSdkSessionBackend implements PiSessionBackend {
     );
     for (const [key, entry] of matching) {
       this.sessions.delete(key);
-      await entry.handle.abort().catch(() => {
+      await (entry.handle.dispose ? entry.handle.dispose() : entry.handle.abort()).catch(() => {
         // The Pi session may already have terminated; dropping remains best effort.
       });
     }
@@ -56,7 +56,7 @@ export class InProcessSdkSessionBackend implements PiSessionBackend {
       return;
     }
     this.sessions.delete(key);
-    await entry.handle.abort().catch(() => {
+    await (entry.handle.dispose ? entry.handle.dispose() : entry.handle.abort()).catch(() => {
       // The Pi session may already have terminated; dropping remains best effort.
     });
   }
@@ -66,7 +66,7 @@ export class InProcessSdkSessionBackend implements PiSessionBackend {
     this.sessions.clear();
     await Promise.all(
       sessions.map(async (handle) => {
-        await handle.abort().catch(() => {
+        await (handle.dispose ? handle.dispose() : handle.abort()).catch(() => {
           // The Pi session may already have terminated during shutdown.
         });
       }),

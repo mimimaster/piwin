@@ -392,7 +392,7 @@ describe('chatUiReducer transcript window', () => {
     expect(state.workingSessionIds).toEqual({});
   });
 
-  it('applies critical governor limits during session/load-messages', async () => {
+  it('keeps normal transcript window limits under critical governor level during session/load-messages', async () => {
     const { globalMemoryGovernor } = await import('../notes/memory-governor.js');
     globalMemoryGovernor.setLevel('critical');
     try {
@@ -409,8 +409,8 @@ describe('chatUiReducer transcript window', () => {
           status: 'done' as const,
         })),
       });
-      expect(state.messages).toHaveLength(24);
-      expect(state.messages[0]?.id).toBe('c-16');
+      expect(state.messages).toHaveLength(40);
+      expect(state.messages[0]?.id).toBe('c-0');
       expect(state.messages.at(-1)?.id).toBe('c-39');
     } finally {
       globalMemoryGovernor.reset();

@@ -374,8 +374,8 @@ export class WorkerSessionBackend implements PiSessionBackend {
 
   async dispose(): Promise<void> {
     this.disposing = true;
-    for (const sessionId of [...this.sessions.keys()]) {
-      await this.dropSession(sessionId);
+    for (const [key, session] of [...this.sessions.entries()]) {
+      await this.dropManagedSession(key, session);
     }
     if (this.options.disposeSupervisor) {
       await this.options.supervisor.dispose();

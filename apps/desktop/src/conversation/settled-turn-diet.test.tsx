@@ -6,6 +6,7 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../theme/appearance-tokens.js';
 import type { ComposerDockProps } from '../composer/composer-dock.js';
 import { globalMemoryGovernor } from '../notes/memory-governor.js';
+import { ArtifactFenceController } from '../artifact/artifact-fence-controller.js';
 import { SourceCodeBlock } from '../markdown/markdown-code-block.js';
 import type { ChatMessageUi } from './chat-reducer.js';
 import { ChatThread } from './chat-thread.js';
@@ -107,10 +108,10 @@ describe('settled-turn diet & bounded static tail', () => {
     globalMemoryGovernor.reset();
   });
 
-  it('caps live static turns at 8 (normal) -> 5 (moderate) -> 3 (critical) and avoids virtual window', () => {
+  it('caps live static turns at 8 across normal, moderate, and critical pressure and avoids virtual window', () => {
     expect(resolveLiveStaticTurnTailCap('normal')).toBe(8);
-    expect(resolveLiveStaticTurnTailCap('moderate')).toBe(5);
-    expect(resolveLiveStaticTurnTailCap('critical')).toBe(3);
+    expect(resolveLiveStaticTurnTailCap('moderate')).toBe(8);
+    expect(resolveLiveStaticTurnTailCap('critical')).toBe(8);
 
     function Harness({ messages }: { messages: ChatMessageUi[] }): ReactElement {
       const scrollRef = useRef<HTMLDivElement | null>(container);
@@ -157,11 +158,11 @@ describe('settled-turn diet & bounded static tail', () => {
     expect(container.querySelector('#msg-user-0')).not.toBeNull();
     expect(container.querySelector('[data-testid="transcript-bounded-tail-bar"]')).toBeNull();
 
-    // Critical pressure narrows base cap to 3 while preserving the +5 manual offset -> 8 turns.
+    // Critical pressure keeps the static tail cap at 8 while preserving expanded turns.
     act(() => {
       globalMemoryGovernor.setLevel('critical');
     });
-    expect(container.querySelectorAll('.chat-turn-group')).toHaveLength(8);
+    expect(container.querySelectorAll('.chat-turn-group')).toHaveLength(12);
 
     const nextMessages = [...messages, ...makeTurnMessages(1).map((m, idx) => ({
       ...m,
@@ -188,7 +189,7 @@ describe('settled-turn diet & bounded static tail', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container.querySelectorAll('.chat-turn-group')).toHaveLength(3);
+    expect(container.querySelectorAll('.chat-turn-group')).toHaveLength(8);
   });
 
   it('triggers Host onLoadOlder when all resident turns are visible', () => {
@@ -268,6 +269,30 @@ describe('settled-turn diet & bounded static tail', () => {
     expect(
       container.querySelector('.md-code-content')?.getAttribute('data-syntax-highlight'),
     ).toBe('deferred');
+
+    // Artifact previews inside compactSettled turns stay open rather than collapsing to source.
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettledTurnDietProvider compactSettled={true}>
+            <ArtifactFenceController
+              language="html"
+              fenceInfo="artifact-html"
+              source="<div><h1>Hi</h1></div>"
+              htmlUiModeEnabled
+              fenceIndex={0}
+              fenceOpen={false}
+              renderingPhase="completed"
+              initPriority={0}
+              artifactInlineEnabled
+              locale="zh-CN"
+            />
+          </SettledTurnDietProvider>
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('.artifact-with-source--preview')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
   });
 
   it('reveals folded resident turns via scroll port before calling Host and supports wheel paging', () => {

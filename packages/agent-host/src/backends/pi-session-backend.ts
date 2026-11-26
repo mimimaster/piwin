@@ -45,6 +45,7 @@ export type BackendSessionHandle = {
     ) => Promise<BackendRunInterventionEventResult>,
   ): () => void;
   abort(): Promise<void>;
+  dispose?(): Promise<void>;
   compact?(customInstructions?: string): Promise<SessionCompactResult>;
   abortCompaction?(): void;
   getAutoCompactionEnabled?(): boolean | Promise<boolean>;

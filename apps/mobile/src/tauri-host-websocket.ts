@@ -15,7 +15,10 @@ export function createTauriHostWebSocket(
   return createNativeHostWebSocket(endpoint, connect);
 }
 
-async function connectTauriPluginWebSocket(endpoint: string): Promise<NativeHostWebSocketSocket> {
+/** Dials the Tauri WebSocket plugin; injectable so tests never touch the plugin. */
+export async function connectTauriPluginWebSocket(
+  endpoint: string,
+): Promise<NativeHostWebSocketSocket> {
   const { default: PluginWebSocket } = await import('@tauri-apps/plugin-websocket');
   return PluginWebSocket.connect(endpoint);
 }

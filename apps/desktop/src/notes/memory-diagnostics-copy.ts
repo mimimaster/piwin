@@ -102,22 +102,15 @@ const ENGLISH = {
   },
   motionSection: 'Motion & degradation policy',
   motionLiveLabel: 'Live status animations',
-  motionLiveSummary: (count: number, mode: 'parked' | 'lite' | null) =>
-    `${count} active · ${
-      mode === 'parked'
-        ? 'paused (window hidden)'
-        : mode === 'lite'
-          ? 'low-memory mode (single-layer)'
-          : 'active (normal/moderate)'
-    }`,
+  motionLiveSummary: (count: number, mode: 'parked' | null) =>
+    `${count} active · ${mode === 'parked' ? 'paused (window hidden)' : 'active'}`,
   motionPolicyNote:
-    'Core status animations stay full at normal/moderate pressure, switch to single-layer low-memory motion (LiteRing / BreathDot) under critical pressure (1536 MiB), and pause when the window is hidden alongside opaque solid surfaces. WebKit does not report per-element IOSurface bytes.',
+    'Core status animations stay full at any pressure and pause only when the window is hidden alongside opaque solid surfaces. WebKit does not report per-element IOSurface bytes.',
   motionPolicyItems: {
     coreMotion: {
       label: 'Core status icon (ui-anim-*)',
       active: (count: number) => `Active (${count} mounted)`,
       paused: (count: number) => `Paused · window hidden (${count} mounted)`,
-      lite: (count: number) => `Low-memory motion (${count} mounted)`,
     },
     shimmer: {
       label: 'Status text shimmer (wb-shimmer)',
@@ -234,22 +227,15 @@ const CHINESE: typeof ENGLISH = {
   },
   motionSection: '动效与降级策略 Motion policy',
   motionLiveLabel: '动态状态图标 Live motion',
-  motionLiveSummary: (count: number, mode: 'parked' | 'lite' | null) =>
-    `${count} 项 · ${
-      mode === 'parked'
-        ? '窗口隐藏已暂停'
-        : mode === 'lite'
-          ? '轻量动态模式（高占用降级）'
-          : '运行中'
-    }`,
+  motionLiveSummary: (count: number, mode: 'parked' | null) =>
+    `${count} 项 · ${mode === 'parked' ? '窗口隐藏已暂停' : '运行中'}`,
   motionPolicyNote:
-    '核心状态图标在正常与偏高（768 MiB）下保持完整动效，达到占用过高（1536 MiB）时自动降级为单层轻量动态环（LiteRing / BreathDot）保持运行，仅窗口隐藏时暂停；WebKit 不提供按单个 CSS 组件拆分的 IOSurface 字节数。',
+    '核心状态动效在任何压力下都保持完整，仅在窗口隐藏时暂停；WebKit 不提供按单个 CSS 组件拆分的 IOSurface 字节数。',
   motionPolicyItems: {
     coreMotion: {
       label: '核心状态图标 (ui-anim-*)',
       active: (count: number) => `运行中（${count} 个）`,
       paused: (count: number) => `已暂停 · 窗口隐藏（${count} 个）`,
-      lite: (count: number) => `轻量动态 · 高占用降级（${count} 个）`,
     },
     shimmer: {
       label: '文字流光 (wb-shimmer)',

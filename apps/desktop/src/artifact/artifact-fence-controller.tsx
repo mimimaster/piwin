@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   analyzeArtifactFence,
   createArtifactFenceRecord,
@@ -8,7 +8,6 @@ import {
   type ArtifactRenderPlan,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
-import { useSettledTurnDiet } from '../conversation/settled-turn-diet.js';
 import { ArtifactCanvasLauncher } from './artifact-canvas-launcher.js';
 import { ArtifactInlinePreview } from './artifact-inline-preview.js';
 import { artifactIncompleteCopy } from './artifact-incomplete-copy.js';
@@ -61,22 +60,9 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     stickyFenceIdRef.current = `${origin}-artifact-${boundFenceIndex}`;
   }
   const stickyFenceId = stickyFenceIdRef.current;
-  const { compactSettled } = useSettledTurnDiet();
-  const userExplicitlyOpenedRef = useRef(false);
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
-    props.renderingPhase === 'explicit-artifact-review' ||
-      (!artifactCodeFirst && !compactSettled),
+    props.renderingPhase === 'explicit-artifact-review' || !artifactCodeFirst,
   );
-  useEffect(() => {
-    if (
-      compactSettled &&
-      !liveFence &&
-      !userExplicitlyOpenedRef.current &&
-      props.renderingPhase !== 'explicit-artifact-review'
-    ) {
-      setArtifactPreviewOpen(false);
-    }
-  }, [compactSettled, liveFence, props.renderingPhase]);
   const [artifactSourceExpanded, setArtifactSourceExpanded] = useState(false);
   const showArtifactSource = (): void => {
     setArtifactSourceExpanded(true);
@@ -238,7 +224,6 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
       data-testid="artifact-preview-toggle"
       aria-expanded={false}
       onClick={() => {
-        userExplicitlyOpenedRef.current = true;
         setArtifactPreviewOpen(true);
       }}
     >

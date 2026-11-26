@@ -135,10 +135,28 @@ async function main(): Promise<void> {
     }
   });
 
+  let shutdownPromise: Promise<void> | undefined;
+  const disposeOnce = (): Promise<void> => {
+    shutdownPromise ??= runtime.disposeAllSessions().catch(() => {
+      // Best-effort cleanup during worker exit.
+    });
+    return shutdownPromise;
+  };
+
+  process.once('SIGTERM', () => {
+    void disposeOnce().finally(() => {
+      // Re-raise SIGTERM after removing our once-handler so the parent still
+      // observes a standard signal termination (exitCode === null).
+      process.kill(process.pid, 'SIGTERM');
+    });
+  });
+
   rl.on('close', () => {
     // Graceful shutdown signal (Phase 7 plan §4.1).
-    writeLine({ type: 'shutdown', reason: 'parent-dispose' });
-    process.exit(0);
+    void disposeOnce().finally(() => {
+      writeLine({ type: 'shutdown', reason: 'parent-dispose' });
+      process.exit(0);
+    });
   });
 
   process.stdin.resume();

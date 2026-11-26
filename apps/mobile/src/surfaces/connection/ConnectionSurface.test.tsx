@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
+import { act, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import type { PairingLinkV3 } from '@piwin/contracts';
+import { encodeBase64Url, encodePairingLinkV3 } from '@piwin/host-transport';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { ConnectionSurface } from './ConnectionSurface.js';
 import { MOBILE_THEME } from '../../mobile-theme.js';
@@ -71,9 +73,12 @@ describe('ConnectionSurface', () => {
     const setExpectedHostInstanceId = vi.fn();
 
     vi.spyOn(barcodePairing, 'scanPairingQrCode').mockResolvedValue({
-      endpoint: 'ws://192.168.1.88:8787',
-      pairingToken: 'pair-token-xyz',
-      hostInstanceId: 'inst-1',
+      kind: 'legacy',
+      data: {
+        endpoint: 'ws://192.168.1.88:8787',
+        pairingToken: 'pair-token-xyz',
+        hostInstanceId: 'inst-1',
+      },
     });
 
     act(() => {
@@ -309,6 +314,133 @@ describe('ConnectionSurface', () => {
       retryBtn.click();
     });
     expect(onConnect).toHaveBeenCalled();
+  });
+
+  it('scans a v3 channel link QR and connects over the channel', async () => {
+    const onConnect = vi.fn();
+    const setEndpoint = vi.fn();
+    const setPairingToken = vi.fn();
+    const setExpectedHostInstanceId = vi.fn();
+    const link: PairingLinkV3 = {
+      v: 3,
+      userId: 'AbCdEfGhIjKlMnOpQrSt_-',
+      userName: 'Yorick',
+      hostId: 'ZyXwVuTsRqPoNmLkJiHg-_',
+      hostName: "Yorick's MacBook",
+      hostKey: encodeBase64Url(new Uint8Array(32).fill(7)),
+      relayUrl: 'wss://relay.example.com',
+      directUrl: 'ws://192.168.1.20:8790',
+      pairingToken: 'scan-me',
+      role: 'member',
+      expiresAt: 1_900_000_000_000,
+    };
+    vi.spyOn(barcodePairing, 'scanPairingQrCode').mockResolvedValue({ kind: 'channel', link });
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <ConnectionSurface
+            endpoint="ws://127.0.0.1:8787"
+            setEndpoint={setEndpoint}
+            authToken=""
+            setAuthToken={vi.fn()}
+            pairingToken=""
+            setPairingToken={setPairingToken}
+            setExpectedHostInstanceId={setExpectedHostInstanceId}
+            connectionState={{ kind: 'idle' }}
+            credentialPersistError={false}
+            isNativeVault={true}
+            onRetryCredentialPersist={vi.fn()}
+            onConnect={onConnect}
+            onDisconnect={vi.fn()}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const scanBtn = container.querySelector('[data-testid="mobile-scan-qr-btn"]') as HTMLButtonElement;
+    await act(async () => {
+      scanBtn.click();
+    });
+
+    expect(setEndpoint).toHaveBeenCalledWith('wss://relay.example.com');
+    expect(setPairingToken).toHaveBeenCalledWith('scan-me');
+    expect(setExpectedHostInstanceId).toHaveBeenCalledWith(undefined);
+    expect(onConnect).toHaveBeenCalledWith({
+      endpoint: 'wss://relay.example.com',
+      authToken: '',
+      pairingToken: 'scan-me',
+      channelLink: link,
+    });
+  });
+
+  it('keeps a pasted v3 link pending and passes channelLink on manual connect', async () => {
+    const onConnect = vi.fn();
+    const link: PairingLinkV3 = {
+      v: 3,
+      userId: 'AbCdEfGhIjKlMnOpQrSt_-',
+      userName: 'Yorick',
+      hostId: 'ZyXwVuTsRqPoNmLkJiHg-_',
+      hostName: "Yorick's MacBook",
+      hostKey: encodeBase64Url(new Uint8Array(32).fill(7)),
+      relayUrl: 'wss://relay.example.com',
+      pairingToken: 'scan-me',
+      role: 'member',
+      expiresAt: 1_900_000_000_000,
+    };
+    const linkText = encodePairingLinkV3(link);
+
+    function Harness(): ReactElement {
+      const [endpoint, setEndpoint] = useState('ws://127.0.0.1:8787');
+      const [pairingToken, setPairingToken] = useState('');
+      return (
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <ConnectionSurface
+            endpoint={endpoint}
+            setEndpoint={setEndpoint}
+            authToken=""
+            setAuthToken={vi.fn()}
+            pairingToken={pairingToken}
+            setPairingToken={setPairingToken}
+            setExpectedHostInstanceId={vi.fn()}
+            connectionState={{ kind: 'idle' }}
+            credentialPersistError={false}
+            isNativeVault={true}
+            onRetryCredentialPersist={vi.fn()}
+            onConnect={onConnect}
+            onDisconnect={vi.fn()}
+          />
+        </PiwinUiProvider>
+      );
+    }
+
+    await act(async () => {
+      root.render(<Harness />);
+    });
+
+    const tabs = container.querySelectorAll('.connection-segmented-nav button');
+    act(() => {
+      (tabs[1] as HTMLButtonElement).click();
+    });
+
+    const tokenInput = container.querySelector('[data-testid="mobile-host-pairing-token"]') as HTMLInputElement;
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(tokenInput, linkText);
+      tokenInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const submitBtn = container.querySelector('[data-testid="mobile-connect-submit-btn"]') as HTMLButtonElement;
+    await act(async () => {
+      submitBtn.click();
+    });
+
+    expect(onConnect).toHaveBeenCalledWith({
+      endpoint: 'wss://relay.example.com',
+      authToken: '',
+      pairingToken: 'scan-me',
+      channelLink: link,
+    });
   });
 
   it('renders keychain warning when credential persist error is true', () => {

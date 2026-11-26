@@ -53,14 +53,14 @@ describe('readable memory report', () => {
     expect(report.explanation).not.toContain('已没有');
   });
 
-  it('downgrades core status animations to low-memory motion under critical pressure and pauses only when parked', () => {
+  it('keeps core status animations active under critical pressure and pauses only when parked', () => {
     const base = data();
     base.frontend.resourceCounts = { liveStatusAnimations: 1 };
 
     const criticalPolicy = describeVisualDegradationPolicy({ ...base, level: 'critical', parked: false }, 'en');
     expect(criticalPolicy.find((row) => row.id === 'core-motion')).toMatchObject({
       active: true,
-      status: 'Low-memory motion (1 mounted)',
+      status: 'Active (1 mounted)',
     });
     expect(criticalPolicy.find((row) => row.id === 'text-shimmer')?.active).toBe(false);
     expect(criticalPolicy.find((row) => row.id === 'glass-and-masks')?.active).toBe(false);

@@ -27,6 +27,12 @@ struct Inner {
     pending_sample_id: Option<u64>,
     /// Ticks skipped while a pending ack was outstanding.
     stalled_ticks: u32,
+    /// True once the frontend has acknowledged at least one sample since boot
+    /// (distinguishes cold-start listener registration from a post-boot hang).
+    ever_acked: bool,
+    /// Consecutive monitor ticks skipped without a frontend ack; reset on ack
+    /// or explicit pending-sample reset (e.g. recycle).
+    consecutive_stalled_ticks: u32,
     /// Monotonic purge request id allocator (ring contents are evicted, so
     /// the id cannot be derived from `purge_results`).
     next_purge_request_id: u64,
@@ -65,6 +71,8 @@ impl MemoryObservabilityState {
         };
         if inner.pending_sample_id == Some(sample_id) {
             inner.pending_sample_id = None;
+            inner.ever_acked = true;
+            inner.consecutive_stalled_ticks = 0;
             true
         } else {
             false
@@ -85,6 +93,7 @@ impl MemoryObservabilityState {
     pub(crate) fn clear_pending_sample(&self) {
         if let Ok(mut inner) = self.inner.lock() {
             inner.pending_sample_id = None;
+            inner.consecutive_stalled_ticks = 0;
         }
     }
 
@@ -94,7 +103,16 @@ impl MemoryObservabilityState {
     pub(crate) fn record_stalled_tick(&self) {
         if let Ok(mut inner) = self.inner.lock() {
             inner.stalled_ticks = inner.stalled_ticks.saturating_add(1);
+            inner.consecutive_stalled_ticks = inner.consecutive_stalled_ticks.saturating_add(1);
         }
+    }
+
+    /// Return `(ever_acked, consecutive_stalled_ticks)` for hang detection.
+    pub(crate) fn ack_stall_state(&self) -> (bool, u32) {
+        self.inner
+            .lock()
+            .map(|inner| (inner.ever_acked, inner.consecutive_stalled_ticks))
+            .unwrap_or((false, 0))
     }
 
     /// True while an emitted sample awaits its ack.

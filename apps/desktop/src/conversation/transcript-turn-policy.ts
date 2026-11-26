@@ -10,36 +10,25 @@ export const TRANSCRIPT_TURN_GAP_PX = 20;
  * happens above the fold. Overscan 2 let rows appear, remasure, then jump.
  */
 export const TRANSCRIPT_TURN_OVERSCAN = 8;
-export const TRANSCRIPT_TURN_MODERATE_OVERSCAN = 4;
-export const TRANSCRIPT_TURN_CRITICAL_OVERSCAN = 1;
 /** Always keep the newest N items/turns mounted so the live call chain never unmounts. */
 export const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
 
 export function resolveTranscriptTurnOverscan(
   pressureLevel: MemoryPressureLevel = 'normal',
 ): number {
-  switch (pressureLevel) {
-    case 'critical':
-      return TRANSCRIPT_TURN_CRITICAL_OVERSCAN;
-    case 'moderate':
-      return TRANSCRIPT_TURN_MODERATE_OVERSCAN;
-    default:
-      return TRANSCRIPT_TURN_OVERSCAN;
-  }
+  // Pressure no longer shrinks overscan or unpins the tail so session opening
+  // cannot starve the virtualized viewport under high memory usage.
+  void pressureLevel;
+  return TRANSCRIPT_TURN_OVERSCAN;
 }
 
 export function resolveTranscriptLiveTailPinCount(
   pressureLevel: MemoryPressureLevel = 'normal',
   streaming = false,
 ): number {
-  switch (pressureLevel) {
-    case 'critical':
-      return streaming ? 1 : 0;
-    case 'moderate':
-      return streaming ? 2 : 1;
-    default:
-      return TRANSCRIPT_LIVE_TAIL_PIN_COUNT;
-  }
+  void pressureLevel;
+  void streaming;
+  return TRANSCRIPT_LIVE_TAIL_PIN_COUNT;
 }
 
 /**

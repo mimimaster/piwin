@@ -12,19 +12,14 @@ const SettledTurnDietContext = createContext<SettledTurnDietValue>(DEFAULT_VALUE
 
 /** Max turns kept in the static live-tail flow before folding older turns behind the top pager. */
 export function resolveLiveStaticTurnTailCap(level: MemoryPressureLevel): number {
-  switch (level) {
-    case 'critical':
-      return 3;
-    case 'moderate':
-      return 5;
-    default:
-      return 8;
-  }
+  void level;
+  return 8;
 }
 
 /** Max recent turns kept with full rich interactive chrome before settled-turn auto-compaction. */
 export function resolveFullFidelityTailCount(level: MemoryPressureLevel): number {
-  return level === 'critical' ? 1 : 3;
+  void level;
+  return 3;
 }
 
 export function SettledTurnDietProvider(props: {

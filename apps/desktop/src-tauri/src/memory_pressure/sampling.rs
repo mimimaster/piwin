@@ -5,7 +5,9 @@
 //! sampling, total-physical-memory lookup, and the legacy system
 //! reclaimable-ratio fallback used when byte sampling is unavailable.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use super::types::{MemoryPressureLevel, NativeOsPressureLevel};
 #[cfg(test)]
@@ -36,12 +38,18 @@ pub(crate) fn level_from_available_ratio(ratio: f64) -> MemoryPressureLevel {
 pub(crate) fn refresh_webview_pids(
     app_handle: &tauri::AppHandle,
     map: &Arc<Mutex<std::collections::HashMap<String, i32>>>,
+    main_thread_last_ack_ms: &Arc<AtomicU64>,
+    started: Instant,
 ) {
     use tauri::Manager;
     for window in app_handle.webview_windows().into_values() {
         let label = window.label().to_string();
         let map = Arc::clone(map);
+        let heartbeat = Arc::clone(main_thread_last_ack_ms);
         let _ = window.with_webview(move |platform_webview| {
+            // Record that the AppKit main thread actually executed this closure.
+            let elapsed_ms = (started.elapsed().as_millis() as u64).max(1);
+            heartbeat.store(elapsed_ms, Ordering::Relaxed);
             // SAFETY: pointer is the live WKWebView owned by this window; the
             // selector is guarded before the typed send.
             unsafe {
@@ -71,6 +79,8 @@ pub(crate) fn refresh_webview_pids(
 pub(crate) fn refresh_webview_pids(
     _app_handle: &tauri::AppHandle,
     _map: &Arc<Mutex<std::collections::HashMap<String, i32>>>,
+    _main_thread_last_ack_ms: &Arc<AtomicU64>,
+    _started: Instant,
 ) {
 }
 
